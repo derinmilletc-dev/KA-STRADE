@@ -17,6 +17,19 @@ type Props = {symbol: string; focus?: string; side?: 'LONG' | 'SHORT' | null; en
 const isTf = (value: string | undefined): value is typeof TF_ORDER[number] => !!value && (TF_ORDER as readonly string[]).includes(value)
 const toneOf = (value: string): 'up' | 'down' | 'warn' | 'flat' => value === 'up' || value === 'good' ? 'up' : value === 'down' || value === 'danger' ? 'down' : value === 'warn' ? 'warn' : 'flat'
 
+// Aynı uyarı birkaç zaman diliminde tekrar ediyorsa tek satırda toplar: "5 dk · 1 saat · 1 gün grafikte aşağı kırılım tuzağı: ..."
+function groupEvents(events: {tone: string; text: string}[]): {key: string; tone: string; frames: string; text: string}[] {
+  const groups = new Map<string, {key: string; tone: string; frames: string[]; text: string}>()
+  for (const event of events) {
+    const match = /^(.+?) grafikte (.+)$/.exec(event.text)
+    const key = match ? `${event.tone}|${match[2]}` : `raw|${event.text}`
+    const hit = groups.get(key)
+    if (hit && match) hit.frames.push(match[1])
+    else if (!hit) groups.set(key, {key, tone: event.tone, frames: match ? [match[1]] : [], text: match ? match[2] : event.text})
+  }
+  return [...groups.values()].map(group => ({key: group.key, tone: group.tone, frames: group.frames.length ? `${group.frames.join(' · ')} grafikte ` : '', text: group.text}))
+}
+
 function Skeleton() {
   return <div className="srx" data-state="loading" role="status" aria-label="Akıllı yorum hazırlanıyor"><i className="srxSk" style={{width: '38%'}}/><i className="srxSk" style={{height: 54}}/><i className="srxSk" style={{height: 38}}/></div>
 }
@@ -164,7 +177,7 @@ export default function SmartRead({symbol, focus, side = null, entry = null, onA
         {position.guard && <span><small>{position.guard.label}</small><b>{priceText(position.guard.price)}</b><em>{signedPct(position.guard.dist_pct)}</em></span>}
         {position.target && <span><small>{position.target.label}</small><b>{priceText(position.target.price)}</b><em>{signedPct(position.target.dist_pct)}</em></span>}
       </div>}
-      {Object.entries(position.events).map(([key, event]) => <p className="srxEvt" key={key} data-tone={toneOf(event.tone)}>{event.text}</p>)}
+      {groupEvents(Object.values(position.events)).map(group => <p className="srxEvt" key={group.key} data-tone={toneOf(group.tone)}>{group.frames && <b>{group.frames}</b>}{group.text}</p>)}
     </div>}
 
     <div className="srxTf" role="tablist" aria-label="Zaman dilimi">

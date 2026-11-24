@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react'
 import {Bell, BellRing} from 'lucide-react'
 import './smart-read.css'
+import './position-read-clean.css'
 import SmartRead from './SmartRead'
 import {PushLine} from './CoinbaseAlerts'
 import type {AlarmInput} from './coin-read-api'
@@ -41,13 +42,15 @@ export default function PositionRead({productId, symbol, side, entry, stop = nul
           onClick={() => void (alarm ? run(() => onRemove(productId)) : save('against', '15m'))}><i/></button>
       </div>
       {alarm && <>
+        <span className="prxLbl">Neyi bildirsin?</span>
         <div className="prxGroup" role="group" aria-label="Neyi bildirsin">
           {ALARM_MODES.map(item => <button type="button" key={item.id} aria-pressed={mode === item.id} disabled={busy} onClick={() => void save(item.id, minTf)}><b>{item.label}</b><small>{item.hint}</small></button>)}
         </div>
+        <span className="prxLbl">Hassasiyet</span>
         <div className="prxGroup" role="group" aria-label="Hassasiyet" data-cols="3">
           {ALARM_TFS.map(item => <button type="button" key={item.id} aria-pressed={minTf === item.id} disabled={busy} onClick={() => void save(mode, item.id)}><b>{item.label}</b><small>{item.hint}</small></button>)}
         </div>
-        <p className="prxHow">Sunucu her dakika yorumu yeniden hesaplar. Yeni bir gelişme çıkınca ya da fiyat stopuna yaklaşınca tek bildirim gelir; aynı gelişme sürerse tekrar etmez. Pozisyon kapanınca alarm kendiliğinden kalkar.</p>
+        <details className="prxHowFold"><summary>Nasıl çalışır?</summary><p className="prxHow">Sunucu her dakika yorumu yeniden hesaplar. Yeni bir gelişme çıkınca ya da fiyat stopuna yaklaşınca tek bildirim gelir; aynı gelişme sürerse tekrar etmez. Pozisyon kapanınca alarm kendiliğinden kalkar.</p></details>
         <PushLine/>
       </>}
       {problem && <p className="prxErr" role="alert">{problem}</p>}
