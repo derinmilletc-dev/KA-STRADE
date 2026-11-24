@@ -184,6 +184,42 @@ class PreflightTests(unittest.TestCase):
         garip = {"balance": {**acct["balance"], "intraday_window": {"margin_level": "MARGIN_LEVEL_TYPE_FOO", "futures_buying_power": "300"}}}
         self.assertFalse(go(account=garip, positions=other)["ok"])
 
+    def test_level_unreported_in_both_windows_uses_liquidation_buffer(self):
+        unspec = {"margin_level": "MARGIN_LEVEL_TYPE_UNSPECIFIED", "futures_buying_power": "400"}
+        base = {**ACCOUNT["balance"], "worst_margin_level": "MARGIN_LEVEL_TYPE_UNSPECIFIED", "worst_margin_window": "intraday",
+                "intraday_window": unspec, "overnight_window": unspec}
+        other = [{"product_id": "OTHER"}]
+
+        def run(buffer, **over):
+            balance = {**base, **over}
+            if buffer is not None:
+                balance["liquidation_buffer_percentage"] = buffer
+            return go(account={"balance": balance}, positions=other)
+
+        self.assertTrue(run("250.5")["ok"], run("250.5")["reasons"])
+        self.assertTrue(run("100")["ok"])
+        self.assertFalse(run("99.9")["ok"])          # tampon yetersiz
+        self.assertFalse(run(None)["ok"])             # tampon bilgisi yok: tahmin yürütülmez
+        self.assertFalse(run("abc")["ok"])
+        self.assertIn("likidasyon tamponu", " ".join(run("40")["reasons"]))
+        # alım gücü yine denetlenir
+        low = run("250", intraday_window={**unspec, "futures_buying_power": "20"})
+        self.assertIn("Alım gücü yetersiz", " ".join(low["reasons"]))
+        # pencereler boş olsa da üst düzey alım gücü ve tampon yeterliyse geçer
+        empty = run("250", intraday_window={"margin_level": "MARGIN_LEVEL_TYPE_UNSPECIFIED"}, overnight_window={"margin_level": "MARGIN_LEVEL_TYPE_UNSPECIFIED"})
+        self.assertTrue(empty["ok"], empty["reasons"])
+        # üst düzey alım gücü eksikse yine reddedilir
+        no_top = run("250", futures_buying_power=None)
+        self.assertFalse(no_top["ok"])
+        # bir pencere gerçek seviye bildiriyorsa bu yol devreye girmez: sağlıksızsa reddedilir
+        warn = run("250", overnight_window={**unspec, "margin_level": "MARGIN_LEVEL_TYPE_WARNING"})
+        self.assertFalse(warn["ok"])
+        # tanınmayan seviye adı (UNSPECIFIED değil) reddedilir
+        foo = run("250", overnight_window={**unspec, "margin_level": "MARGIN_LEVEL_TYPE_FOO"})
+        self.assertFalse(foo["ok"])
+        # pozisyon yoksa eski davranış: tampon istenmez
+        self.assertTrue(go(account={"balance": base}, positions=[])["ok"])
+
     def test_unknown_margin_level_is_unhealthy(self):
         acct = {"balance": {**ACCOUNT["balance"], "worst_margin_level": "SOMETHING_NEW"}}
         self.assertFalse(go(account=acct)["ok"])
