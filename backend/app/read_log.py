@@ -47,7 +47,7 @@ async def ensure_schema(pool: Any) -> None:
         )
         """)
     # Kalibrasyon alanları (eski satırlarda boş kalır): yorum anındaki rejim/oynaklık ve 4 saatlik sonuç.
-    for column in ("regime TEXT", "vol_state TEXT", "later_price_4h DOUBLE PRECISION", "result_4h TEXT"):
+    for column in ("regime TEXT", "vol_state TEXT", "later_price_4h DOUBLE PRECISION", "result_4h TEXT", "tags TEXT"):
         await pool.execute(f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS {column}")
     await pool.execute(f"CREATE INDEX IF NOT EXISTS {TABLE}_open4_idx ON {TABLE} (logged_at) WHERE result_4h IS NULL")
     await pool.execute(f"CREATE INDEX IF NOT EXISTS {TABLE}_open_idx ON {TABLE} (logged_at) WHERE result IS NULL")
@@ -104,9 +104,9 @@ async def maybe_log(app: Any, symbol: str, summary: dict[str, Any], price: float
     _last_logged[symbol] = now
     try:
         await ensure_schema(pool)
-        await pool.execute(f"INSERT INTO {TABLE} (symbol, logged_at, lean, confidence, bias, price, regime, vol_state) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        await pool.execute(f"INSERT INTO {TABLE} (symbol, logged_at, lean, confidence, bias, price, regime, vol_state, tags) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
                            symbol, datetime.now(timezone.utc), summary["lean"], summary["confidence"], float(summary["bias"]), float(price),
-                           summary.get("regime"), summary.get("volatility"))
+                           summary.get("regime"), summary.get("volatility"), ",".join(summary.get("tags") or []))
     except Exception as exc:  # noqa: BLE001 - kayıt düşerse yorum etkilenmez
         logger.info("Yorum kaydı yazılamadı (%s)", type(exc).__name__)
 
@@ -188,15 +188,19 @@ def calibration(rows: list[dict[str, Any]]) -> dict[str, Any]:
     conf = {c: tally([r for r in rows if r.get("confidence") == c]) for c in ("Yüksek", "Orta", "Düşük")}
     conf_rates = [conf[c]["rate"] for c in ("Düşük", "Orta", "Yüksek") if conf[c]["rate"] is not None]
     conf_ordered = None if len(conf_rates) < 2 else all(a <= b for a, b in zip(conf_rates, conf_rates[1:]))
-    return {"by_bias": by_bias, "by_regime": by_regime, "by_volatility": by_vol, "horizon_4h": tally(long_rows),
+    def has(row: dict[str, Any], tag: str) -> bool:
+        return tag in str(row.get("tags") or "").split(",")
+    seen = sorted({t for r in rows for t in str(r.get("tags") or "").split(",") if t})
+    by_tag = {tag: {"with": tally([r for r in rows if has(r, tag)]), "without": tally([r for r in rows if not has(r, tag)])} for tag in seen}
+    return {"by_tag": by_tag, "by_bias": by_bias, "by_regime": by_regime, "by_volatility": by_vol, "horizon_4h": tally(long_rows),
             "bias_ordered": ordered, "confidence_ordered": conf_ordered}
 
 
 async def stats(pool: Any, symbol: str | None) -> dict[str, Any]:
     await ensure_schema(pool)
     since = datetime.now(timezone.utc) - timedelta(days=STATS_DAYS)
-    fetched = await pool.fetch(f"SELECT result, confidence, bias, regime, vol_state, result_4h FROM {TABLE} WHERE logged_at >= $1 AND result IN ('hit','miss','flat')", since)
-    all_rows = [{key: r[key] for key in ("result", "confidence", "bias", "regime", "vol_state", "result_4h")} for r in fetched]
+    fetched = await pool.fetch(f"SELECT result, confidence, bias, regime, vol_state, result_4h, tags FROM {TABLE} WHERE logged_at >= $1 AND result IN ('hit','miss','flat')", since)
+    all_rows = [{key: r[key] for key in ("result", "confidence", "bias", "regime", "vol_state", "result_4h", "tags")} for r in fetched]
     out: dict[str, Any] = {"days": STATS_DAYS, "overall": tally(all_rows), "by_confidence": {c: tally([r for r in all_rows if r["confidence"] == c]) for c in ("Yüksek", "Orta", "Düşük")},
                            "calibration": calibration(all_rows), "symbol": None}
     if symbol:

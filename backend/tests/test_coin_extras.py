@@ -251,6 +251,14 @@ class CalibrationTests(unittest.TestCase):
         flipped = rl.calibration(self.rows(0.6, 10, 2) + self.rows(1.4, 6, 6) + self.rows(0.9, 8, 4))
         self.assertFalse(flipped["bias_ordered"])
 
+    def test_by_tag_compares_with_and_without(self):
+        rows = self.rows(0.9, 4, 8, tags="vwap_against,crowd_long") + self.rows(0.9, 9, 3, tags="") + self.rows(0.9, 8, 4)
+        out = rl.calibration(rows)["by_tag"]
+        self.assertEqual(sorted(out), ["crowd_long", "vwap_against"])
+        self.assertEqual(out["vwap_against"]["with"]["rate"], 33)
+        self.assertEqual(out["vwap_against"]["without"]["rate"], 71)
+        self.assertEqual(rl.calibration(self.rows(0.9, 6, 6))["by_tag"], {})   # etiketsiz eski satırlar sorun çıkarmaz
+
     def test_not_enough_data_is_honest(self):
         out = rl.calibration(self.rows(0.6, 3, 2))
         self.assertIsNone(out["bias_ordered"])
