@@ -163,6 +163,20 @@ def divergence(closes: list[float], rsis: list[float | None]) -> str | None:
     return None
 
 
+def volatility(rows: list[dict[str, float]]) -> tuple[int | None, str | None]:
+    """Son 14 mumun ortalama gerçek aralığı (% olarak) geçmiş 100 pencereye göre kaçıncı yüzdelikte? 80+ genişliyor, 20- sakin.
+    Puanı DEĞİŞTİRMEZ; yalnız bilgi ve kayıt içindir (kalibrasyon bu alanla yapılır)."""
+    if len(rows) < 40:
+        return None, None
+    ranges = [max(r["high"] - r["low"], abs(r["high"] - p["close"]), abs(r["low"] - p["close"])) / r["close"] * 100
+              for p, r in zip(rows, rows[1:]) if r["close"] > 0]
+    windows = [fmean(ranges[i - 13:i + 1]) for i in range(13, len(ranges))][-100:]
+    if len(windows) < 20:
+        return None, None
+    rank = round(sum(1 for w in windows if w <= windows[-1]) / len(windows) * 100)
+    return rank, "expanding" if rank >= 80 else "quiet" if rank <= 20 else "normal"
+
+
 def read_timeframe(raw: Any, tf: str) -> dict[str, Any] | None:
     rows = clean(raw)
     if len(rows) < MIN_CANDLES:
@@ -203,6 +217,7 @@ def read_timeframe(raw: Any, tf: str) -> dict[str, Any] | None:
         recent_w = widths[-100:]
         squeeze = len(recent_w) >= 40 and recent_w[-1] <= sorted(recent_w)[max(0, int(len(recent_w) * 0.2) - 1)]
     patterns = candle_patterns(rows)
+    vol_pct, vol_state = volatility(rows)
 
     score = 0.0
     score += {"up": 1.0, "down": -1.0, "flat": 0.0}[trend]
@@ -220,6 +235,7 @@ def read_timeframe(raw: Any, tf: str) -> dict[str, Any] | None:
         "noise_pct": round(noise, 3), "event": event["kind"] if event else None, "volume_spike": bool(event and event["spike"]),
         "pullback": pullback, "rsi": round(rsi_now, 1), "rsi_state": "overbought" if rsi_now >= 70 else "oversold" if rsi_now <= 30 else "normal",
         "divergence": div, "ema": ema_state, "squeeze": squeeze, "patterns": patterns, "place": round(place, 3),
+        "regime": "trend" if trending else "range", "vol_pct": vol_pct, "vol_state": vol_state,
         "score": round(score, 2), "tone": tone, "head": head, "text": text,
         "price": last["close"], "ref_high": event["ref_high"] if event else None, "ref_low": event["ref_low"] if event else None,
     }
@@ -392,6 +408,23 @@ def summarize(reads: dict[str, dict[str, Any]], levels: dict[str, list[dict[str,
             flags.append({"tone": "flat", "text": f"{r['label']} grafikte fiyat sıkışmış: sert bir hareket yakın olabilir, yönü belli değil."})
     if futures:
         flags += [n for n in futures["notes"] if n["tone"] == "warn"]
+    # Rejim ve volatilite: puana girmez, yalnız bağlam (yanlış alarmı azaltmak için not düşer).
+    regime_tfs = [tf for tf in ("15m", "1h", "4h", "1d") if tf in reads]
+    trend_w = sum(TF_WEIGHT[tf] for tf in regime_tfs if reads[tf].get("regime") == "trend")
+    range_w = sum(TF_WEIGHT[tf] for tf in regime_tfs if reads[tf].get("regime") == "range")
+    regime = None if not regime_tfs else "trend" if trend_w > range_w else "range"
+    expanding = [tf for tf in ("15m", "1h", "4h") if tf in reads and reads[tf].get("vol_state") == "expanding"]
+    quiet = [tf for tf in ("15m", "1h", "4h") if tf in reads and reads[tf].get("vol_state") == "quiet"]
+    context: list[dict[str, str]] = []
+    for tf in ("1h", "4h"):
+        r = reads.get(tf)
+        if r and r.get("regime") == "trend" and not r["divergence"] and ((r["trend"] == "up" and r["rsi_state"] == "overbought") or (r["trend"] == "down" and r["rsi_state"] == "oversold")):
+            context.append({"tone": "flat", "text": f"{r['label']} grafikte RSI {'aşırı alımda' if r['trend'] == 'up' else 'aşırı satımda'} ama trend güçlü: tek başına dönüş sinyali sayılmaz."})
+            break
+    if len(expanding) >= 2:
+        context.append({"tone": "warn", "text": "Oynaklık genişliyor: stop mesafesi ve kaldıraç buna göre gözden geçirilmeli, ani hareket normalden büyük olabilir."})
+    elif len(quiet) >= 2:
+        context.append({"tone": "flat", "text": "Oynaklık çok düşük: sıkışma sonrası sert hareket gelebilir, yönü belli değil."})
     near = [(lv, "direnç") for lv in levels["resistance"][:1]] + [(lv, "destek") for lv in levels["support"][:1]]
     for lv, name in near:
         if abs(lv["dist_pct"]) <= 0.4:
@@ -401,8 +434,9 @@ def summarize(reads: dict[str, dict[str, Any]], levels: dict[str, list[dict[str,
         r0 = levels["resistance"][0]; sentences.append(f"En yakın direnç {price_text(r0['price'])} ({signed_pct(r0['dist_pct'])}).")
     if levels["support"]:
         s0 = levels["support"][0]; sentences.append(f"En yakın destek {price_text(s0['price'])} ({signed_pct(s0['dist_pct'])}).")
-    return {"bias": round(bias, 2), "lean": lean, "confidence": confidence, "title": title, "text": " ".join(sentences[:3]), "flags": flags[:5],
-            "alignment": {"up": up, "down": down, "flat": flat, "total": len(present)}, "conflict": conflict}
+    return {"bias": round(bias, 2), "lean": lean, "confidence": confidence, "title": title, "text": " ".join(sentences[:3]), "flags": (flags + context)[:5],
+            "alignment": {"up": up, "down": down, "flat": flat, "total": len(present)}, "conflict": conflict,
+            "regime": regime, "volatility": "expanding" if len(expanding) >= 2 else "quiet" if len(quiet) >= 2 else "normal" if any(reads[tf].get("vol_state") for tf in present) else None}
 
 
 # ---------------------------------------------------------------- pozisyon ilişkisi
