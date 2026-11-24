@@ -64,7 +64,7 @@ export function nearestIndex(ratio: number, count: number): number {
   return Math.min(count - 1, Math.max(0, Math.round(ratio * (count - 1))))
 }
 
-export const INTERVAL_LABEL = {'1m': '1 dk', '5m': '5 dk', '15m': '15 dk'} as const
+export const INTERVAL_LABEL = {'1m': '1 dk', '5m': '5 dk', '15m': '15 dk', '1h': '1 saat', '1d': '1 gün'} as const
 export type ChartInterval = keyof typeof INTERVAL_LABEL
 
 /** Değişim yüzdesi: "+0,42%" / "−1,10%" (Türkçe ondalık). */

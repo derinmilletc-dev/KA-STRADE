@@ -106,11 +106,21 @@
 .mxlcNote{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;margin:8px 0 0;text-align:center;font-size:13px;color:#7f8da3}
 .mxlcNote button{padding:7px 14px;border-radius:12px;border:1px solid #2a3b57;background:#16212f;color:#9fd8ff;font-weight:700;cursor:pointer}
 .mxlcSkel{width:100%;height:46px;border-radius:12px;background:linear-gradient(100deg,rgba(255,255,255,.03) 30%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.03) 70%);background-size:200% 100%;animation:mxlcShine 1.4s linear infinite}
-.mxlcFoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
+.mxlcFoot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 10px;margin-top:10px}
 .mxlcFoot small{flex:1;min-width:0;font-size:11px;color:#6f7d92;line-height:1.3}
 .mxlcTabs{display:inline-flex;padding:3px;border-radius:12px;background:rgba(255,255,255,.05);gap:2px}
-.mxlcTabs button{white-space:nowrap;min-width:46px;min-height:32px;padding:0 10px;border-radius:9px;border:0;background:transparent;color:#8e9bb0;font-weight:700;font-size:12.5px;cursor:pointer}
+.mxlcTabs button{white-space:nowrap;min-width:40px;min-height:32px;padding:0 9px;border-radius:9px;border:0;background:transparent;color:#8e9bb0;font-weight:700;font-size:12.5px;cursor:pointer}
 .mxlcTabs button[aria-pressed="true"]{background:#1f3350;color:#f4f7fb;box-shadow:0 1px 6px rgba(0,0,0,.35)}
+/* Otomatik yorum: grafiğin altında, süre sekmesine göre değişir. Renk tonu yorumun yönünü gösterir. */
+.mxlcRead{--mxr-c:#8ea0b4;margin-top:10px;padding:10px 12px 11px;border-radius:14px;background:color-mix(in srgb,var(--mxr-c) 10%,rgba(255,255,255,.02));border:1px solid color-mix(in srgb,var(--mxr-c) 28%,transparent);border-left:3px solid var(--mxr-c)}
+.mxlcRead[data-tone="up"]{--mxr-c:#34d399}
+.mxlcRead[data-tone="down"]{--mxr-c:#fb7185}
+.mxlcRead[data-tone="warn"]{--mxr-c:#f2c46d}
+.mxlcRead small{display:block;font-size:10px;font-weight:800;letter-spacing:.08em;color:#6f7d92}
+.mxlcRead b{display:block;margin-top:3px;font-size:14.5px;font-weight:800;color:var(--mxr-c)}
+.mxlcRead p{margin:4px 0 0;font-size:12.5px;line-height:1.45;color:#c5cfdd}
+.mxlcReadChips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.mxlcReadChips span{padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;color:#9fb0c6;background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
 @keyframes mxlcPing{0%{transform:scale(.6);opacity:.7}100%{transform:scale(1.6);opacity:0}}
 @keyframes mxlcShine{to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){.mxlcPulse::after,.mxlcSkel{animation:none}.mxlcDot{transition:none}}
