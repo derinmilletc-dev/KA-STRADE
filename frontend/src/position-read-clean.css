@@ -1,0 +1,45 @@
+/* Açık pozisyon içindeki Akıllı yorum + Yorum alarmı: sade, hiyerarşik görünüm (yalnız .prx altında). */
+#root .prx{gap:14px !important;margin:10px 0 !important}
+#root .prx .srx{gap:16px !important;padding:16px !important;border-radius:20px !important;background:rgba(255,255,255,.03) !important;border:1px solid rgba(255,255,255,.07) !important;box-shadow:none !important}
+#root .prx .srxHead{padding-bottom:2px !important}
+#root .prx .srxHero{gap:8px !important}
+#root .prx .srxTitle{font-size:18px !important}
+#root .prx .srxHero p{font-size:13px !important;color:#aebbcc !important}
+#root .prx .srxAlign{font-size:11px !important;color:#6f7d92 !important}
+
+#root .prx .srxPos{gap:10px !important;padding:14px !important;border-radius:16px !important;border:0 !important;background:rgba(255,255,255,.045) !important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06) !important}
+#root .prx .srxPos[data-tone="up"]{background:rgba(52,211,153,.08) !important;box-shadow:inset 0 0 0 1px rgba(52,211,153,.25) !important}
+#root .prx .srxPos[data-tone="down"]{background:rgba(251,113,133,.08) !important;box-shadow:inset 0 0 0 1px rgba(251,113,133,.25) !important}
+#root .prx .srxPos[data-tone="warn"]{background:rgba(242,196,109,.07) !important;box-shadow:inset 0 0 0 1px rgba(242,196,109,.22) !important}
+#root .prx .srxPosHead b{font-size:15px !important}
+#root .prx .srxPos p{font-size:12.5px !important;color:#b9c5d4 !important}
+#root .prx .srxPosRows{gap:0 !important;border-radius:12px !important;background:rgba(0,0,0,.14) !important;overflow:hidden !important}
+#root .prx .srxPosRows span{padding:9px 12px !important}
+#root .prx .srxPosRows span+span{border-top:1px solid rgba(255,255,255,.06) !important}
+#root .prx .srxEvt{display:block !important;position:relative !important;margin:0 !important;padding:2px 0 2px 16px !important;font-size:12px !important;line-height:1.5 !important;color:#c3ced9 !important}
+#root .prx .srxEvt::before{content:"" !important;position:absolute !important;left:2px !important;top:8px !important;width:6px !important;height:6px !important;border-radius:50% !important;background:var(--c-flat) !important}
+#root .prx .srxEvt b{font-weight:800 !important;color:#f4f7fb !important}
+#root .prx .srxEvt[data-tone="down"],#root .prx .srxEvt[data-tone="warn"]{color:#f1b6bf !important}
+#root .prx .srxEvt[data-tone="down"]::before{background:var(--c-down) !important}
+#root .prx .srxEvt[data-tone="warn"]::before{background:var(--c-warn) !important}
+#root .prx .srxEvt[data-tone="up"]::before{background:var(--c-up) !important}
+
+#root .prx .srxTf{gap:6px !important}
+#root .prx .srxDetail{gap:8px !important;padding:14px !important;border-radius:16px !important;border-left:0 !important;background:rgba(255,255,255,.04) !important}
+#root .prx .srxFold{border-radius:16px !important;background:rgba(255,255,255,.04) !important}
+#root .prx .srxFoot{text-align:center !important;color:#5f6d82 !important}
+
+/* Alarm kartı: küçük başlık, iki seçenek yan yana, seçili durum okunaklı. */
+#root .prx .prxAlarm{gap:12px !important;padding:14px !important;border-radius:20px !important}
+#root .prx .prxLbl{font-size:10.5px !important;font-weight:800 !important;letter-spacing:.08em !important;text-transform:uppercase !important;color:#7f8da3 !important;margin-bottom:-6px !important}
+#root .prx .prxGroup{gap:6px !important;padding:4px !important;border-radius:16px !important;background:rgba(0,0,0,.2) !important}
+#root .prx .prxGroup button{padding:10px !important;border-radius:12px !important;border:0 !important;background:transparent !important;color:#c3ced9 !important;box-shadow:none !important}
+#root .prx .prxGroup button b{color:inherit !important}
+#root .prx .prxGroup button small{color:#7f8da3 !important}
+#root .prx .prxGroup button[aria-pressed="true"]{background:rgba(250,204,21,.16) !important;color:#fde68a !important;box-shadow:inset 0 0 0 1px rgba(250,204,21,.4) !important}
+#root .prx .prxGroup button[aria-pressed="true"] small{color:#d9c47a !important}
+#root .prx .prxHowFold>summary{list-style:none;cursor:pointer;font-size:12px;font-weight:700;color:#8e9bb0;padding:4px 0}
+#root .prx .prxHowFold>summary::-webkit-details-marker{display:none}
+#root .prx .prxHowFold>summary::before{content:"ⓘ ";}
+#root .prx .prxHowFold[open]>summary{color:#c3ced9}
+#root .prx .prxHow{margin-top:6px !important}
