@@ -132,6 +132,24 @@ export function useEntryWatch() {
 /** Binance işlem geçmişinden kişisel kalıplar (yalnız okuma). */
 export const fetchMyInsights = () => request<Insights & {days: number; truncated: boolean; caveat: string}>('/my-insights?exchange=binance', {}, 30000)
 
+// Kişisel kalıplar tüm yorum kartlarında aynı: 5 dk paylaşılır (sunucu da 10 dk önbellekliyor). Alınamazsa null; kart sessiz kalır.
+let insightsShared: {at: number; value: Promise<Awaited<ReturnType<typeof fetchMyInsights>> | null>} | null = null
+const sharedInsights = () => {
+  const now = Date.now()
+  if (!insightsShared || now - insightsShared.at > 300_000) insightsShared = {at: now, value: fetchMyInsights().catch(() => null)}
+  return insightsShared.value
+}
+export function useMyInsights(enabled = true) {
+  const [data, setData] = useState<Awaited<ReturnType<typeof fetchMyInsights>> | null>(null)
+  useEffect(() => {
+    if (!enabled) return
+    let alive = true
+    void sharedInsights().then(value => { if (alive) setData(value) })
+    return () => { alive = false }
+  }, [enabled])
+  return data
+}
+
 /** Açık pozisyonların kısa yorum nabzı; 45 sn'de bir (ekran görünürken) tazelenir. items null ise çalışmaz. Alınamazsa null: kart sessiz kalır. */
 export function usePositionPulse(items: Array<{symbol: string; side: 'LONG' | 'SHORT'}> | null) {
   const [data, setData] = useState<PulseData | null>(null)

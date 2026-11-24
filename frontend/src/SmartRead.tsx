@@ -1,7 +1,8 @@
 import {useEffect, useState} from 'react'
 import {ChevronDown} from 'lucide-react'
 import './smart-read.css'
-import {useCoinRead, useReadStats} from './coin-read-api'
+import {useCoinRead, useMyInsights, useReadStats} from './coin-read-api'
+import {personalNotes} from './personal-read'
 import type {AlertCall} from './price-alert-api'
 import {
   accuracyLine, alertCandidates, arrowOf, bookPos, confidenceTone, EVENT_LABEL, fitTitle, fitTone, gaugePos, levelBar, priceText, rrText, signedPct, TF_ORDER, topEvent, usdText,
@@ -132,6 +133,7 @@ export default function SmartRead({symbol, focus, side = null, entry = null, onA
   useEffect(() => { if (isTf(focus)) setTf(focus) }, [focus])
   const {data, error, loading, reload} = useCoinRead(symbol, {interval: tf, side, entry})
   const stats = useReadStats(symbol)
+  const insights = useMyInsights(!side)   // pozisyon görünümünde kişisel not yok (zaten kendi pozisyonun)
   if (!data) return error ? <div className="srx" data-state="error" role="status"><p>{error}</p><button type="button" onClick={reload}>Tekrar dene</button></div> : <Skeleton/>
   const {summary, futures, position} = data
   const current = data.timeframes.find(item => item.tf === tf) ?? data.timeframes[0]
@@ -169,6 +171,11 @@ export default function SmartRead({symbol, focus, side = null, entry = null, onA
       <p>{summary.text}</p>
       <small className="srxAlign">{summary.alignment.up} ▲ · {summary.alignment.down} ▼ · {summary.alignment.flat} ■ ({summary.alignment.total} zaman dilimi)</small>
     </div>
+
+    {(() => { const notes = side ? [] : personalNotes(insights, symbol, summary.lean, new Date()); return notes.length ? <div className="srxBlock" aria-label="Sana özel">
+      <h4>Sana özel</h4>
+      {notes.map(note => <p className="srxNoteLine" key={note.key} data-tone={note.tone}>{note.text}</p>)}
+    </div> : null })()}
 
     {position && <div className="srxPos" data-tone={fitTone(position.fit)}>
       <div className="srxPosHead"><b>{fitTitle(position.fit)}</b>{position.pnl_pct !== null && <span data-tone={position.pnl_pct >= 0 ? 'up' : 'down'}>{signedPct(position.pnl_pct)}</span>}</div>

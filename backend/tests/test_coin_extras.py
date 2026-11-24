@@ -201,6 +201,24 @@ class App:
     def __init__(self, pool): self.state = type("S", (), {"db_pool": pool})()
 
 
+class PersonalCoinStatsTests(unittest.TestCase):
+    def test_by_coin_and_average_sizes(self):
+        def trade(coin, net, hour):
+            return {"product_id": coin, "side": "", "net": net, "time": f"2026-11-{10 + hour % 10:02d}T{hour:02d}:00:00+00:00", "opened": None}
+        trades = [trade("POPUSDT", -5, h) for h in range(5)] + [trade("POPUSDT", 2, 6)] + [trade("BTCUSDT", 3, h) for h in range(4)] + [trade("ETHUSDT", -1, 7)]
+        out = ps.analyze(trades, basis="closed")
+        self.assertTrue(out["enough"])
+        coins = {item["coin"]: item for item in out["by_coin"]}
+        self.assertEqual(coins["POPUSDT"]["n"], 6)
+        self.assertEqual(coins["POPUSDT"]["win_rate"], 17)
+        self.assertEqual(coins["POPUSDT"]["net"], -23.0)
+        self.assertNotIn("ETHUSDT", coins)          # 4'ten az işlem: gösterilmez
+        self.assertGreater(out["avg_loss"], out["avg_win"])
+
+    def test_not_enough_trades_has_no_coin_list(self):
+        self.assertNotIn("by_coin", ps.analyze([{"product_id": "X", "net": 1, "time": "2026-11-10T10:00:00+00:00"}], basis="closed"))
+
+
 class EvaluateTests(unittest.TestCase):
     def test_evaluate_grades_and_gives_up(self):
         rl.reset_state()
