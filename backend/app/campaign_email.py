@@ -25,8 +25,9 @@ def send_campaign(*, to_email: str, campaign: dict, token: str, dedupe_key: str,
     link = mail.CANONICAL_EMAIL_ORIGIN + "/announcements/unsubscribe?token=" + token
     body = {"from": f"KaisTrade <{parseaddr(os.environ['EMAIL_FROM'])[1]}>", "to": [to_email],
             "subject": ("[TEST] " if test else "") + campaign["subject"], "text": text,
-            "html": '<!doctype html><html lang="tr"><body><div style="white-space:pre-wrap;font-family:Arial,sans-serif">' +
-                    escape(text).replace(escape(link), '<a href="' + escape(link, quote=True) + '">' + escape(link) + "</a>") + "</div></body></html>",
+            "html": mail.L.shell(lang="tr", title=escape(campaign["subject"]), body=(
+                '<div style="white-space:pre-wrap;font-size:15px;line-height:1.7;color:#E6ECE8">' +
+                escape(text).replace(escape(link), '<a href="' + escape(link, quote=True) + '" style="color:#7FD8A6">' + escape(link) + "</a>") + "</div>")),
             "headers": {"List-Unsubscribe": "<" + link + ">", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}}
     reply = os.getenv("EMAIL_REPLY_TO", "").strip()
     if reply:
