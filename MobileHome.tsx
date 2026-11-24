@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, BarChart3, ChevronRight, Sparkles, Wallet } from 'lucide-react'
+import { BarChart3, ChevronRight, Sparkles, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { useMemberAccess } from './premium-access'
 import { currentLang } from './i18n'
@@ -33,8 +33,7 @@ const COPY = {
     master: 'Master Mode', renews: (d: string) => `${d} tarihinde yenilenir`, ends: (d: string) => `${d} tarihinde sona erer`, active: 'Aktif',
     free: 'Ücretsiz plan', freeDetail: 'AI sinyalleri ve piyasa analizi', upgrade: 'Yükselt', days: (n: number) => `${n}g`,
     market: 'Piyasa', direction: 'Genel yön', up: 'Yükseliş', down: 'Düşüş', flat: 'Dengeli', waiting: 'Piyasa verisi bekleniyor…',
-    featured: 'Öne çıkan fırsat', scanning: 'Tarama yapılıyor…', change24: '24s', locale: 'tr-TR',
-    quick: 'Kısayollar', qAnalyst: 'Analist', qDemo: 'Demo işlem', qAccount: 'Hesap', pulse: 'Tarama dağılımı'},
+    featured: 'Öne çıkan fırsat', scanning: 'Tarama yapılıyor…', change24: '24s', locale: 'tr-TR'},
   en: {greet: (h: number) => h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening', home: 'Home',
     liveTitle: 'Total balance · Binance Futures', coinbaseTitle: 'Balance · Coinbase (futures + spot)', exchange: 'Exchange', demoTitle: 'Demo account balance', account: 'Account', live: 'Live', demo: 'Demo',
     unrealized: 'Unrealized', open: (n: number) => `${n} open ${n === 1 ? 'trade' : 'trades'}`, liveOff: 'Live account not connected', demoOff: 'Demo account not connected',
@@ -43,8 +42,7 @@ const COPY = {
     master: 'Master Mode', renews: (d: string) => `Renews on ${d}`, ends: (d: string) => `Ends on ${d}`, active: 'Active',
     free: 'Free plan', freeDetail: 'AI signals and market analysis', upgrade: 'Upgrade', days: (n: number) => `${n}d`,
     market: 'Market', direction: 'Trend', up: 'Bullish', down: 'Bearish', flat: 'Neutral', waiting: 'Waiting for market data…',
-    featured: 'Top opportunity', scanning: 'Scanning…', change24: '24h', locale: 'en-US',
-    quick: 'Shortcuts', qAnalyst: 'Analyst', qDemo: 'Demo trade', qAccount: 'Account', pulse: 'Scan breakdown'},
+    featured: 'Top opportunity', scanning: 'Scanning…', change24: '24h', locale: 'en-US'},
 }
 const NAMES: Record<string, string> = {BTCUSDT: 'Bitcoin', ETHUSDT: 'Ethereum', BNBUSDT: 'BNB', SOLUSDT: 'Solana', XRPUSDT: 'XRP'}
 const WATCH = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT']
@@ -218,7 +216,7 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
       {shownReady && shown ? <>
         <div className="mhAmount">{money(shown.wallet_balance as number)}<span>{active === 'live' && onCoinbase ? 'USD' : 'USDT'}</span></div>
         <div className="mhChange">
-          {finite(shown.unrealized_pnl) && (() => { const open = active === 'live' && onCoinbase ? {value: null, net: Boolean(shown.net)} : accountNetPnl(shown.positions, shown.unrealized_pnl); const value = open.value ?? shown.unrealized_pnl; return <span className={value >= 0 ? 'mhPnl pos' : 'mhPnl neg'}>{t.unrealized}{open.net ? ' (net)' : ''} <b className={value >= 0 ? 'up' : 'down'}>{signed(value)}</b></span> })()}
+          {finite(shown.unrealized_pnl) && (() => { const open = active === 'live' && onCoinbase ? {value: null, net: Boolean(shown.net)} : accountNetPnl(shown.positions, shown.unrealized_pnl); const value = open.value ?? shown.unrealized_pnl; return <span>{t.unrealized}{open.net ? ' (net)' : ''} <b className={value >= 0 ? 'up' : 'down'}>{signed(value)}</b></span> })()}
           {active === 'live' && onCoinbase && (shown as Account).today ? <span>{(shown as Account).today}</span> : null}
           <span>{t.open(Array.isArray(shown.positions) ? shown.positions.length : 0)}</span>
         </div>
@@ -233,12 +231,6 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
       </div>
     </div>}
 
-    <div className="mhQuick" role="group" aria-label={t.quick}>
-      <button type="button" onClick={() => onNavigate('analyst')}><Sparkles aria-hidden="true"/><span>{t.qAnalyst}</span></button>
-      <button type="button" onClick={() => onNavigate('trading')}><Activity aria-hidden="true"/><span>{t.qDemo}</span></button>
-      <button type="button" onClick={() => onNavigate('setup')}><Wallet aria-hidden="true"/><span>{t.qAccount}</span></button>
-    </div>
-
     {!settled ? <div className="mhPlan mhSkel mhSkelPlan" aria-hidden="true"><i className="big"/><i className="w60"/></div> : <button type="button" className={`mhPlan mhPlan-${plan.kind}`} onClick={() => onNavigate('billing')}>
       {plan.kind === 'free' ? <span className="mhIconTile mhPlanIcon"><Sparkles aria-hidden="true"/></span>
         : <span className="mhRing" style={{'--p': `${Math.round(plan.progress * 100)}%`} as CSSProperties}><span>{plan.days === null ? '✓' : t.days(plan.days)}</span></span>}
@@ -248,12 +240,6 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
 
     <div className="mhMarket">
       <div className="mhMarketHead"><h2>{t.market}</h2>{direction && <span>{t.direction}: <b className={direction === t.down ? 'down' : direction === t.up ? 'up' : ''}>{direction}</b></span>}</div>
-      {universe.length > 0 && <div className="mhPulse" aria-label={t.pulse}>
-        <div className="mhPulseBar" role="img" aria-label={`${longs} LONG, ${shorts} SHORT, ${universe.length - longs - shorts} ${t.flat}`}>
-          <i className="up" style={{flexGrow: longs}}/><i className="flat" style={{flexGrow: universe.length - longs - shorts}}/><i className="down" style={{flexGrow: shorts}}/>
-        </div>
-        <div className="mhPulseLegend"><span className="up">{longs} LONG</span><span>{universe.length - longs - shorts} {t.flat}</span><span className="down">{shorts} SHORT</span></div>
-      </div>}
       {watch.length ? watch.map(item => <div className="mhRow" key={item.symbol}>
         <Coin symbol={item.symbol}/>
         <b>{item.symbol.replace(/USDT$/, '')}<small>{NAMES[item.symbol] || item.display}</small></b>
