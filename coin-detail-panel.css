@@ -1,0 +1,47 @@
+/* Analist coin detayı (CoinDetailPanel). Eski analist stilleri düğmelere !important ile kart rengi verdiği için
+   düğme kuralları aynı öneki ve .cdp.cdp ile daha yüksek özgüllüğü kullanır. */
+.cdp{--cdp-up:#3ddc97;--cdp-down:#ff8479;--cdp-flat:#e5b866;--cdp-line:rgba(160,185,210,.14);--cdp-card:#131d2a;--cdp-ink:#e8f0f8;--cdp-mute:#8fa3b8;display:grid;gap:12px;color:var(--cdp-ink);min-width:0}
+.cdp[data-dir=up]{--cdp-accent:var(--cdp-up)}.cdp[data-dir=down]{--cdp-accent:var(--cdp-down)}.cdp[data-dir=flat]{--cdp-accent:var(--cdp-flat)}
+.cdp small{color:var(--cdp-mute)}
+.cdpHead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.cdpTitle{min-width:0}.cdpTitle small{display:block;font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase}
+.cdpTitle h3{margin:3px 0 2px;font-size:24px;line-height:1.1;letter-spacing:-.3px}
+.cdpTitle p{margin:0;display:flex;align-items:baseline;gap:8px;font-size:16px}.cdpTitle p b{font-variant-numeric:tabular-nums}
+.cdp em{font-style:normal;font-weight:700;font-variant-numeric:tabular-nums}.cdp [data-tone=up]{color:var(--cdp-up)}.cdp [data-tone=down]{color:var(--cdp-down)}.cdp [data-tone=flat]{color:var(--cdp-flat)}
+.cdpSide{display:flex;align-items:center;gap:8px;flex:none}
+.cdpDir{padding:6px 12px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.5px;background:color-mix(in srgb,var(--cdp-accent) 16%,transparent);color:var(--cdp-accent)}
+.cdpVerdict{display:flex;gap:14px;align-items:center;padding:14px;border:1px solid var(--cdp-line);border-radius:16px;background:linear-gradient(160deg,color-mix(in srgb,var(--cdp-accent) 9%,#111a26),#111a26)}
+.cdpScore{--cdp-p:0%;flex:none;width:84px;height:84px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--cdp-accent) var(--cdp-p),rgba(160,185,210,.14) 0)}
+.cdpScore span{width:68px;height:68px;border-radius:50%;background:#101822;display:grid;place-content:center;text-align:center}.cdpScore b{font-size:21px;line-height:1;font-variant-numeric:tabular-nums}.cdpScore small{font-size:10px}
+.cdpVerdictTxt{min-width:0;display:grid;gap:3px}.cdpVerdictTxt strong{font-size:16px;color:var(--cdp-accent)}.cdpVerdictTxt p{margin:0;font-size:13px;line-height:1.4}.cdpVerdictTxt small{font-size:11px}
+.cdpMtf{display:flex;flex-wrap:wrap;gap:6px}
+.cdpMtf span{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--cdp-line);background:var(--cdp-card);font-size:12px;font-weight:700}
+.cdpMtf i{width:8px;height:8px;border-radius:50%;background:currentColor}.cdpMtf [data-tone=flat],.cdpMtf span[data-tone=flat]{color:var(--cdp-mute)}
+.cdpCard{padding:14px;border:1px solid var(--cdp-line);border-radius:16px;background:var(--cdp-card);display:grid;gap:10px;min-width:0}
+.cdpCard>header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.cdpCard h4{margin:0;font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--cdp-mute)}
+.cdpPill{padding:4px 10px;border-radius:999px;background:rgba(160,185,210,.12);font-size:12px;font-weight:800}
+.cdpLadder{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.cdpLadder li{display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:#0f1722;border-left:3px solid var(--cdp-line)}
+.cdpLadder li[data-kind^=tp]{border-left-color:var(--cdp-up)}.cdpLadder li[data-kind=stop]{border-left-color:var(--cdp-down)}.cdpLadder li[data-kind=entry]{border-left-color:var(--cdp-flat)}
+.cdpLadder span{font-size:12px;font-weight:700;color:var(--cdp-mute)}.cdpLadder b{font-size:16px;text-align:right;font-variant-numeric:tabular-nums}.cdpLadder em{min-width:62px;text-align:right;font-size:12px;color:var(--cdp-mute)}
+.cdpLadder li[data-kind^=tp] em{color:var(--cdp-up)}.cdpLadder li[data-kind=stop] em{color:var(--cdp-down)}
+.cdpStats{margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.cdpStats div{padding:10px 12px;border-radius:12px;background:var(--cdp-card);border:1px solid var(--cdp-line);min-width:0}
+.cdpStats dt{font-size:11px;color:var(--cdp-mute);font-weight:700}.cdpStats dd{margin:3px 0 0;font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.cdpLock{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--cdp-flat)}.cdpLock svg{width:13px;height:13px}
+.cdpToggles{display:flex;gap:6px}
+.cdpChart{height:320px;border-radius:12px;overflow:hidden;background:#0a1626}
+/* Telefon kuralı grafiği 280px'e sabitliyordu; kutu 320px olunca altta boşluk kalıyordu. Kutuyu tam doldur. */
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter .cdpChart :is(.v26ChartShell,.v26Chart){height:100%!important;min-height:0!important;max-height:none!important;width:100%!important}
+.cdpWhy{list-style:none;margin:0;padding:0;display:grid;gap:8px}.cdpWhy li{display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.35}.cdpWhy svg{flex:none;width:16px;height:16px;margin-top:2px;color:var(--cdp-up)}
+.cdpCta{position:sticky;bottom:0;padding:10px 0 4px;background:linear-gradient(180deg,transparent,#0f1720 40%)}
+@media(min-width:651px){.cdpClose{display:none!important}.cdpCta{position:static;padding:0;background:none}}
+@media(max-width:380px){.cdpTitle h3{font-size:21px}.cdpScore{width:72px;height:72px}.cdpScore span{width:58px;height:58px}}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter .cdp.cdp button{min-height:40px;padding:0 14px;border:1px solid var(--cdp-line)!important;border-radius:999px!important;background:var(--cdp-card)!important;color:var(--cdp-ink)!important;font-size:13px;font-weight:700;cursor:pointer}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter .cdp.cdp .cdpToggles button[aria-pressed=true]{background:color-mix(in srgb,var(--cdp-up) 18%,#101822)!important;border-color:color-mix(in srgb,var(--cdp-up) 55%,transparent)!important;color:var(--cdp-up)!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter .cdp.cdp button.cdpClose{width:44px;min-width:44px;height:44px;padding:0;display:grid;place-items:center}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter .cdp.cdp button.cdpClose svg{width:20px;height:20px}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter .cdp.cdp button.cdpMore{justify-self:start;min-height:44px;color:var(--cdp-mute)!important;background:transparent!important}
+html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter .cdp.cdp button.cdpGo{width:100%;min-height:52px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:800;background:var(--cdp-accent)!important;border-color:transparent!important;color:#06130d!important}
+.cdpGo svg{width:18px;height:18px}
+@media(min-width:651px){html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter .cdp.cdp button.cdpClose{display:none!important}}
