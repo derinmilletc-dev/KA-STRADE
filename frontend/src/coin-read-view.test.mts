@@ -131,3 +131,25 @@ test('alert candidates dedupe near levels and skip the current price', () => {
 test('alarm summary unaffected by stop field', () => {
   assert.equal(typeof alarmSummary({mode: 'against', min_tf: '15m'}), 'string')
 })
+
+import {pulseChip, pulseSummary, type Pulse} from './coin-read-view.ts'
+const pulse = (over: Partial<Pulse> = {}): Pulse => ({symbol: 'ETHUSDT', side: 'LONG', lean: 'LONG', confidence: 'Orta', fit: 'uyumlu', conflict: false, warnings: [], price: 1, ...over})
+test('pulse chip', () => {
+  assert.deepEqual(pulseChip(pulse()), {text: 'Yorum uyumlu', tone: 'up'})
+  assert.deepEqual(pulseChip(pulse({fit: 'ters', warnings: ['x']})), {text: 'Yorum ters', tone: 'down'})
+  assert.deepEqual(pulseChip(pulse({fit: 'kararsiz'})), {text: 'Yorum kararsız', tone: 'flat'})
+  assert.deepEqual(pulseChip(pulse({warnings: ['x']})), {text: 'Yorum uyumlu · uyarı', tone: 'warn'})
+})
+test('pulse summary: against, concentration, events, quiet', () => {
+  const none = pulseSummary([pulse()], null, ['LONG'])
+  assert.equal(none.length, 1); assert.equal(none[0].tone, 'up')
+  const against = pulseSummary([pulse({symbol: 'SOLUSDT', fit: 'ters'}), pulse({symbol: 'ADAUSDT', fit: 'ters'})], null, ['LONG', 'SHORT'])
+  assert.match(against[0].text, /SOL, ADA için yorum pozisyonuna ters/)
+  const crowd = pulseSummary([pulse(), pulse({symbol: 'BTCUSDT'}), pulse({symbol: 'SOLUSDT'})], null, ['LONG', 'LONG', 'LONG'])
+  assert.ok(crowd.some(line => /Tüm 3 pozisyonun LONG/.test(line.text)))
+  const ev = {covered: true, next_funding: '', items: [{kind: 'fomc' as const, at: '', minutes: 60, level: 'danger' as const, text: 'FOMC 1 sa sonra'}]}
+  const withEvent = pulseSummary([pulse()], ev, ['LONG'])
+  assert.deepEqual(withEvent.map(l => l.text), ['FOMC 1 sa sonra'])
+  assert.deepEqual(pulseSummary([], null, []), [])
+  assert.equal(pulseSummary(Array.from({length: 9}, (_, i) => pulse({symbol: `C${i}USDT`, fit: 'ters'})), ev, Array(9).fill('LONG')).length <= 4, true)
+})

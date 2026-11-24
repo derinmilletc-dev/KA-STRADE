@@ -1,7 +1,8 @@
 import {useMemo, useState, type CSSProperties} from 'react'
 import DcaWatch from './DcaWatch'
 import PositionRead from './PositionRead'
-import {useReadAlarms} from './coin-read-api'
+import {usePositionPulse, useReadAlarms} from './coin-read-api'
+import {pulseChip, pulseSummary, type Pulse} from './coin-read-view'
 import {ChevronDown, SlidersHorizontal, Target, X} from 'lucide-react'
 import {duration} from './live-guide'
 import {closeEstimate, netOfFees, TAKER_FEE_RATE, type QuoteMap} from './live-quote'
@@ -149,6 +150,8 @@ function CloseTargetBox({planId, metrics, plan, busy, onSet}: {planId: string; m
 const Cell = ({label, value, tone: cellTone}: {label: string; value: string | null; tone?: 'up' | 'down' | 'warn'}) =>
   value === null ? null : <div><small>{label}</small><b data-tone={cellTone}>{value}</b></div>
 
+const pulseChip0 = (pulse: Pulse | undefined) => pulse ? pulseChip(pulse) : null
+
 export default function PositionsCard(props: Props) {
   const {live, stale, staleAge, running, busy, now, positions, findPlan} = props
   const [sort, setSort] = useState<PositionSort>('time')
@@ -178,6 +181,11 @@ export default function PositionsCard(props: Props) {
 
   // Yorum alarmı: yalnız pozisyon listesi doğrulanmışken (canlı ve eski değil) kapanan pozisyonların alarmı silinir.
   const readAlarms = useReadAlarms('binance', live && !stale && !props.awaitingSymbol ? positions.map(item => String(item.symbol ?? '').toUpperCase()).filter(Boolean) : null)
+  // Yorum nabzı: her pozisyon için yorumun yönü/uyumu + portföy özeti. Yalnız doğrulanmış canlı listede istenir; alınamazsa kartlar eskisi gibi kalır.
+  const pulseItems = live && !stale && !props.awaitingSymbol ? items.map(item => ({symbol: item.metrics.symbol.toUpperCase(), side: (item.metrics.long ? 'LONG' : 'SHORT') as 'LONG' | 'SHORT'})).filter(item => /^[A-Z0-9]{2,30}$/.test(item.symbol)) : null
+  const pulse = usePositionPulse(pulseItems)
+  const pulseOf = (symbol: string, long: boolean) => pulse?.items.find(item => item.symbol === symbol.toUpperCase() && item.side === (long ? 'LONG' : 'SHORT'))
+  const pulseLines = pulse && pulseItems ? pulseSummary(pulse.items, pulse.events, pulseItems.map(item => item.side)) : []
   const title = `Açık pozisyonlar${live ? ` · ${positions.length}${props.maxPositions !== null ? ` / ${props.maxPositions}` : ''}` : ''}`
   const allLive = items.length > 0 && items.every(item => item.livePrice)
   const freshness = live ? stale ? `${duration(staleAge)} önce` : positions.length === 0 ? 'Binance verisi' : allLive ? '● Canlı fiyat' : '⚠ Fiyat gecikmeli olabilir' : 'Doğrulama bekleniyor'
@@ -212,6 +220,11 @@ export default function PositionsCard(props: Props) {
         <div className="pvTile"><small>Koruma durumu</small><b data-tone={summary.protectedCount === summary.count ? 'up' : 'warn'}>{`${summary.protectedCount} / ${summary.count} korumalı`}</b>
           <em>{summary.protectedCount === summary.count ? 'Stop ve hedefler Binance’te' : 'Doğrulanamayan pozisyon var'}</em></div>
       </div>
+
+      {pulseLines.length > 0 && <div className="pvPulse" role="status" aria-label="Akıllı özet">
+        <b>Akıllı özet</b>
+        {pulseLines.map(line => <p key={line.text} data-tone={line.tone}>{line.text}</p>)}
+      </div>}
 
       <div className="pvCards">{sorted.map(({key, position, plan, external, dca, farmer, confirmed, protection, metrics, livePrice, protectedStop}) => {
         const pnl = metrics.pnl
@@ -256,7 +269,7 @@ export default function PositionsCard(props: Props) {
               <span className="pvCoin" aria-hidden="true">{metrics.coin.slice(0, 4)}</span>
               <span className="pvSlimId">
                 <span className="pvSlimName"><b>{metrics.coin || '—'}{myAlarm && <i className="pvBell" role="img" aria-label="Yorum alarmı açık" title="Yorum alarmı açık">🔔</i>}</b><em data-dir={metrics.direction}>{`${metrics.direction || '—'}${metrics.leverage !== null ? ` ${metrics.leverage}x` : ''}`}</em></span>
-                <small><span>{opened ?? source}</span><span data-tone={statusTone}>{status}</span></small>
+                <small><span>{opened ?? source}</span><span data-tone={statusTone}>{status}</span>{(() => { const chip = pulseChip0(pulseOf(metrics.symbol, metrics.long)); return chip ? <span className="pvPulseChip" data-tone={chip.tone}>{chip.text}</span> : null })()}</small>
               </span>
               <span className="pvSlimPnl"><b data-tone={tone(pnl)}>{pnl === null ? '—' : formatUsdt(pnl, true)}</b><small>{metrics.rMultiple !== null ? `USDT net · ${formatR(metrics.rMultiple)}` : 'USDT net'}{livePrice ? '' : ' · gecikmeli'}</small></span>
               <ChevronDown className="pvSlimChev" aria-hidden="true"/>

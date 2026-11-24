@@ -165,3 +165,28 @@ export function alertCandidates(data: Pick<CoinRead, 'price' | 'levels' | 'plan'
   }
   return kept.sort((a, b) => b.price - a.price)
 }
+
+// ---- Açık pozisyon nabzı (Binance pozisyon kartı)
+export type Pulse = {symbol: string; side: 'LONG' | 'SHORT'; lean: 'LONG' | 'SHORT' | 'NEUTRAL'; confidence: string; fit: ReadPosition['fit']; conflict: boolean; warnings: string[]; price: number}
+export type PulseData = {items: Pulse[]; events: ReadEvents | null}
+
+export function pulseChip(pulse: Pulse): {text: string; tone: ReadTone} {
+  const base = pulse.fit === 'uyumlu' ? {text: 'Yorum uyumlu', tone: 'up' as const} : pulse.fit === 'ters' ? {text: 'Yorum ters', tone: 'down' as const} : {text: 'Yorum kararsız', tone: 'flat' as const}
+  return pulse.fit !== 'ters' && pulse.warnings.length ? {text: `${base.text} · uyarı`, tone: 'warn'} : base
+}
+
+/** Portföy düzeyinde kısa özet: yorumu ters olanlar, aktif uyarılar, tek yöne yığılma, yaklaşan önemli saat. Hiçbiri yoksa tek olumlu satır. */
+export function pulseSummary(pulses: Pulse[], events: ReadEvents | null | undefined, sides: Array<'LONG' | 'SHORT'>): {tone: 'up' | 'down' | 'warn' | 'flat'; text: string}[] {
+  if (!pulses.length && !sides.length) return []
+  const lines: {tone: 'up' | 'down' | 'warn' | 'flat'; text: string}[] = []
+  const name = (p: Pulse) => p.symbol.replace(/USDT$/, '')
+  const against = pulses.filter(p => p.fit === 'ters')
+  if (against.length) lines.push({tone: 'down', text: `${against.map(name).join(', ')} için yorum pozisyonuna ters. Stopun ve planın hâlâ geçerli mi kontrol et.`})
+  const warned = pulses.filter(p => p.fit !== 'ters' && p.warnings.length)
+  if (warned.length) lines.push({tone: 'warn', text: `${warned.map(name).join(', ')} için dikkat uyarısı var: ${warned[0].warnings[0]}`})
+  if (sides.length >= 3 && sides.every(side => side === sides[0])) lines.push({tone: 'warn', text: `Tüm ${sides.length} pozisyonun ${sides[0]}: piyasa tersine dönerse hepsi aynı anda zarar eder.`})
+  const event = topEvent(events)
+  if (event && event.level !== 'info') lines.push({tone: event.level === 'danger' ? 'down' : 'warn', text: event.text})
+  if (!lines.length && pulses.length) lines.push({tone: 'up', text: 'Yorumlar pozisyonlarınla çelişmiyor, aktif uyarı yok.'})
+  return lines.slice(0, 4)
+}

@@ -1492,3 +1492,14 @@ html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcC
 html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 :is(.lcCl2Seg button,.lcHold,.lcCl2Cancel):focus-visible:not(#a){outline:2px solid #7cb8ff!important;outline-offset:2px}
 html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Hint:not(#a){margin:0!important;text-align:center;font-size:13px;color:#93a3b5}
 .pvBell{font-style:normal!important;margin-left:5px!important;font-size:12px!important}
+/* Açık pozisyonlar: akıllı özet şeridi ve kart başına yorum etiketi */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulse{display:grid;gap:6px;padding:11px 12px;border-radius:16px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(142,160,180,.1),rgba(142,160,180,.04))}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulse b{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#7f8da3}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulse p{margin:0;padding:7px 10px;border-radius:10px;border-left:3px solid #8ea0b4;font-size:12.5px;line-height:1.45;color:#c5cfdd;background:rgba(255,255,255,.04)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulse p[data-tone="up"]{border-left-color:#34d399}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulse p[data-tone="down"]{border-left-color:#fb7185;color:#ffb4bd;background:rgba(251,113,133,.09)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulse p[data-tone="warn"]{border-left-color:#f2c46d}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseChip{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:800;background:rgba(255,255,255,.07);color:#c5cfdd;white-space:nowrap}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseChip[data-tone="up"]{color:#34d399;background:rgba(52,211,153,.13)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseChip[data-tone="down"]{color:#fb7185;background:rgba(251,113,133,.14)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseChip[data-tone="warn"]{color:#f2c46d;background:rgba(242,196,109,.14)}

@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from 'react'
 import {API_BASE} from './api'
 import {fetchWithTimeout} from '../../master-trade-request'
 import type {Insights} from './coinbase-stats'
-import type {AlarmMode, AlarmTf, CoinRead, ReadAlarm, ReadStats, WatchDirection, WatchItem} from './coin-read-view'
+import type {AlarmMode, AlarmTf, CoinRead, PulseData, ReadAlarm, ReadStats, WatchDirection, WatchItem} from './coin-read-view'
 
 // Akıllı yorum ve pozisyon yorum alarmı için istemci. Hatalar okunur Türkçe metinle fırlatılır; hiçbiri emir göndermez.
 async function request<T>(path: string, init: RequestInit = {}, timeoutMs = 20000): Promise<T> {
@@ -128,3 +128,22 @@ export function useEntryWatch() {
 
 /** Binance işlem geçmişinden kişisel kalıplar (yalnız okuma). */
 export const fetchMyInsights = () => request<Insights & {days: number; truncated: boolean; caveat: string}>('/my-insights?exchange=binance', {}, 30000)
+
+/** Açık pozisyonların kısa yorum nabzı; 45 sn'de bir (ekran görünürken) tazelenir. items null ise çalışmaz. Alınamazsa null: kart sessiz kalır. */
+export function usePositionPulse(items: Array<{symbol: string; side: 'LONG' | 'SHORT'}> | null) {
+  const [data, setData] = useState<PulseData | null>(null)
+  const [tick, setTick] = useState(0)
+  const key = items && items.length ? items.map(item => `${item.symbol}:${item.side}`).sort().join(',') : ''
+  useEffect(() => {
+    if (!key) { setData(null); return }
+    let alive = true
+    void request<PulseData>(`/positions-pulse?items=${encodeURIComponent(key)}`, {}, 25000).then(result => { if (alive) setData(result) }).catch(() => undefined)
+    return () => { alive = false }
+  }, [key, tick])
+  useEffect(() => {
+    if (!key) return
+    const timer = window.setInterval(() => { if (document.visibilityState !== 'hidden') setTick(value => value + 1) }, 45000)
+    return () => window.clearInterval(timer)
+  }, [key])
+  return key ? data : null
+}

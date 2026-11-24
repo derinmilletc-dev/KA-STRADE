@@ -170,3 +170,28 @@ async def my_insights(request: Request, exchange: str = Query("binance")) -> Any
     except Exception as exc:  # noqa: BLE001
         logger.info("Binance kalıpları hesaplanamadı (%s)", type(exc).__name__)
         raise HTTPException(502, "Kalıplar şu an hazırlanamadı.") from exc
+
+
+@router.get("/positions-pulse")
+async def positions_pulse(request: Request, items: str = Query(..., min_length=3, max_length=600)) -> Any:
+    """Açık pozisyonların kısa yorum nabzı. items: SEMBOL:YÖN,SEMBOL:YÖN (en çok 12). Salt okunur; alarm turuyla aynı 20 sn'lik okumayı paylaşır."""
+    await authenticated_user_async(request)
+    wanted: list[tuple[str, str]] = []
+    for part in items.split(","):
+        symbol, _, side = part.partition(":")
+        clean_symbol, clean_side = coin_read_service.valid_symbol(symbol), side.strip().upper()
+        if clean_symbol and clean_side in ("LONG", "SHORT") and (clean_symbol, clean_side) not in wanted:
+            wanted.append((clean_symbol, clean_side))
+    if not wanted:
+        raise HTTPException(422, "Pozisyon listesi geçersiz.")
+    wanted = wanted[:12]
+    out: list[dict[str, Any]] = []
+    for symbol, side in wanted:
+        try:
+            data = await coin_read_service.read(request.app, symbol, with_futures=False, tfs=coin_read_service.ALARM_TFS)
+            out.append(coin_read.pulse_item(symbol, side, data))
+        except Exception as exc:  # noqa: BLE001 - bir coin düşerse diğerleri döner
+            logger.info("Pozisyon nabzı %s alınamadı (%s)", symbol, type(exc).__name__)
+    from datetime import datetime, timezone
+    from . import market_events
+    return {"items": out, "events": market_events.upcoming(datetime.now(timezone.utc))}
