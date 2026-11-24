@@ -283,7 +283,7 @@ export default function PositionsCard(props: Props) {
               <span className="pvCoin" aria-hidden="true">{metrics.coin.slice(0, 4)}</span>
               <span className="pvSlimId">
                 <span className="pvSlimName"><b>{metrics.coin || '—'}{myAlarm && <i className="pvBell" role="img" aria-label="Yorum alarmı açık" title="Yorum alarmı açık">🔔</i>}</b><em data-dir={metrics.direction}>{`${metrics.direction || '—'}${metrics.leverage !== null ? ` ${metrics.leverage}x` : ''}`}</em></span>
-                <small><span>{opened ?? source}</span><span data-tone={statusTone}>{status}</span>{(() => { const chip = pulseChip0(pulseOf(metrics.symbol, metrics.long)); return chip ? <span className="pvPulseChip" data-tone={chip.tone}>{chip.text}</span> : null })()}</small>
+                <span className="pvSub"><span className="pvSubTxt">{opened ?? source}</span><span className="pvSubTxt" data-tone={statusTone}>{status}</span>{(() => { const chip = pulseChip0(pulseOf(metrics.symbol, metrics.long)); return chip ? <span className="pvPulseChip" data-tone={chip.tone}>{chip.text}</span> : null })()}</span>
               </span>
               <span className="pvSlimPnl"><b data-tone={tone(pnl)}>{pnl === null ? '—' : formatUsdt(pnl, true)}</b><small>{metrics.rMultiple !== null ? `USDT net · ${formatR(metrics.rMultiple)}` : 'USDT net'}{livePrice ? '' : ' · gecikmeli'}</small></span>
               <ChevronDown className="pvSlimChev" aria-hidden="true"/>

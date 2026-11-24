@@ -32,7 +32,7 @@ export default function PositionRead({productId, symbol, side, entry, stop = nul
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stop, alarmStop])
   return <div className="prx">
-    <SmartRead symbol={symbol} focus="15m" side={side} entry={entry}/>
+    <SmartRead symbol={symbol} focus="15m" side={side} entry={entry} fold/>
     <section className="prxAlarm" data-on={alarm ? '1' : undefined} aria-label="Yorum alarmı">
       <div className="prxHead">
         <span className="prxIcon" aria-hidden="true">{alarm ? <BellRing/> : <Bell/>}</span>
