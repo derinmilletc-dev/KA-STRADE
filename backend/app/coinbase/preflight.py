@@ -277,22 +277,25 @@ def run_preflight(
         # Gün içi pencere BOŞSA (uygulanmıyor) ve gece penceresi dolu + sağlıklıysa (BASE) gece penceresine bakılır: gece marjini daha sıkıdır,
         # yani bu kural güvenli tarafta kalır. TERS yönde gevşetme YOK: gece penceresi boşsa ya da sağlıksızsa emir yine reddedilir.
         intraday, overnight = balance.get("intraday_window"), balance.get("overnight_window")
-        waive_intraday = (not flat and _window_empty(intraday) and isinstance(overnight, dict) and not _window_empty(overnight)
-                          and _level_name(overnight.get("margin_level")) == "BASE" and _window_bp(overnight) is not None)
+        waive_intraday = (not flat and _level_name(intraday.get("margin_level") if isinstance(intraday, dict) else None) in ("", "UNSPECIFIED")
+                          and isinstance(overnight, dict) and _level_name(overnight.get("margin_level")) == "BASE"
+                          and _window_bp(overnight) is not None)
         worst_level = overnight.get("margin_level") if waive_intraday else balance.get("worst_margin_level")  # type: ignore[union-attr]
         worst_window = "overnight" if waive_intraday else balance.get("worst_margin_window")
         level_name = _level_name(worst_level)
         if not (flat and level_name == "UNSPECIFIED") and level_rank(worst_level) >= 1:
-            reasons.append(f"Marjin seviyesi sağlıksız ({worst_level}, pencere: {worst_window}).")
+            gi = _level_name(intraday.get("margin_level") if isinstance(intraday, dict) else None) or "-"
+            ge = _level_name(overnight.get("margin_level") if isinstance(overnight, dict) else None) or "-"
+            reasons.append(f"Marjin seviyesi sağlıksız ({worst_level}, pencere: {worst_window}; gün içi: {gi}, gece: {ge}, pozisyon: {'yok' if flat else 'var'}).")
         powers = [
             _amount_value(balance.get("futures_buying_power")),
             _amount_value(balance.get("available_margin")),
-            None if waive_intraday else _window_bp(intraday),
+            _window_bp(intraday),
             _window_bp(overnight),
         ]
         required = powers[:2]  # futures_buying_power ve available_margin her zaman gerekir
         if waive_intraday:
-            powers = [p for i, p in enumerate(powers) if i != 2]  # boş gün içi pencere değerlendirme dışı
+            powers = [p for p in powers if p is not None]  # gün içi pencere boşsa atlanır; doluysa alım gücü yine min'e girer
         if flat:
             powers = [p for p in powers if p is not None]  # pencere değerleri boşsa (pozisyon yok) üst düzey değerlere güvenilir
         if any(p is None for p in required) or any(p is None for p in powers):
