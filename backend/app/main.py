@@ -1322,6 +1322,8 @@ async def lifespan(app: FastAPI):
     app.state.runtime_tasks.append(asyncio.create_task(analysis_universe_warm_loop(app)))
     from .coinbase.price_alerts import alert_loop as price_alert_loop  # Coinbase + Binance fiyat alarmı: ayrı, hafif ~10 sn döngü
     app.state.runtime_tasks.append(asyncio.create_task(price_alert_loop(app)))
+    from .read_alarms import alarm_loop as read_alarm_loop  # pozisyon yorum alarmı: ~60 sn, yalnız alarmı olan coinler
+    app.state.runtime_tasks.append(asyncio.create_task(read_alarm_loop(app)))
     if getattr(app.state, "coinbase_enabled", False):  # Coinbase bildirim izleyicisi (salt okunur; emir göndermez)
         from .coinbase.watcher import watcher_loop as coinbase_watcher_loop
         app.state.runtime_tasks.append(asyncio.create_task(coinbase_watcher_loop(app)))
@@ -1710,6 +1712,8 @@ from .web_push import router as web_push_router
 app.include_router(web_push_router)
 from .price_alerts_routes import router as price_alerts_router
 app.include_router(price_alerts_router)
+from .coin_read_routes import router as coin_read_router
+app.include_router(coin_read_router)
 app.include_router(chart_ai_router)
 app.include_router(instagram_showcase_router)
 from .coinbase import include_coinbase_if_enabled

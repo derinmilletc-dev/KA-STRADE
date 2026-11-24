@@ -1,5 +1,7 @@
 import {useMemo, useState, type CSSProperties} from 'react'
 import DcaWatch from './DcaWatch'
+import PositionRead from './PositionRead'
+import {useReadAlarms} from './coin-read-api'
 import {ChevronDown, SlidersHorizontal, Target, X} from 'lucide-react'
 import {duration} from './live-guide'
 import {closeEstimate, netOfFees, TAKER_FEE_RATE, type QuoteMap} from './live-quote'
@@ -174,6 +176,8 @@ export default function PositionsCard(props: Props) {
   const sorted = useMemo(() => sortPositions(items, sort), [items, sort])
   const summary = useMemo(() => summarize(items, {wallet: props.wallet, dailyLoss: props.dailyLoss, dailyLimit: props.dailyLimit, exposureLimit: props.exposureLimit}), [items, props.wallet, props.dailyLoss, props.dailyLimit, props.exposureLimit])
 
+  // Yorum alarmı: yalnız pozisyon listesi doğrulanmışken (canlı ve eski değil) kapanan pozisyonların alarmı silinir.
+  const readAlarms = useReadAlarms('binance', live && !stale && !props.awaitingSymbol ? positions.map(item => String(item.symbol ?? '').toUpperCase()).filter(Boolean) : null)
   const title = `Açık pozisyonlar${live ? ` · ${positions.length}${props.maxPositions !== null ? ` / ${props.maxPositions}` : ''}` : ''}`
   const allLive = items.length > 0 && items.every(item => item.livePrice)
   const freshness = live ? stale ? `${duration(staleAge)} önce` : positions.length === 0 ? 'Binance verisi' : allLive ? '● Canlı fiyat' : '⚠ Fiyat gecikmeli olabilir' : 'Doğrulama bekleniyor'
@@ -231,6 +235,10 @@ export default function PositionsCard(props: Props) {
         const opened = metrics.openedMs !== null ? duration((now - metrics.openedMs) / 1000) : null
         const risk = metrics.riskAtStop
         const toggle = () => setOpen(current => ({...current, [key]: !isOpen}))
+        const readSymbol = metrics.symbol.toUpperCase()
+        const readSide: 'LONG' | 'SHORT' = metrics.long ? 'LONG' : 'SHORT'
+        const readAlarm = readAlarms.byProduct.get(readSymbol)
+        const myAlarm = readAlarm && readAlarm.side === readSide ? readAlarm : undefined
         const askClose = () => props.onClose({planId: external ? '' : planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,
           long: metrics.long, entryPrice: metrics.entry, quantity: metrics.quantity,
           stopPrice: Number.isFinite(Number(plan?.stop_loss)) && Number(plan?.stop_loss) > 0 ? Number(plan?.stop_loss) : null, canReduce: manual && !external && Boolean(planId)})
@@ -247,7 +255,7 @@ export default function PositionsCard(props: Props) {
             <span className="pvSlimRow">
               <span className="pvCoin" aria-hidden="true">{metrics.coin.slice(0, 4)}</span>
               <span className="pvSlimId">
-                <span className="pvSlimName"><b>{metrics.coin || '—'}</b><em data-dir={metrics.direction}>{`${metrics.direction || '—'}${metrics.leverage !== null ? ` ${metrics.leverage}x` : ''}`}</em></span>
+                <span className="pvSlimName"><b>{metrics.coin || '—'}{myAlarm && <i className="pvBell" role="img" aria-label="Yorum alarmı açık" title="Yorum alarmı açık">🔔</i>}</b><em data-dir={metrics.direction}>{`${metrics.direction || '—'}${metrics.leverage !== null ? ` ${metrics.leverage}x` : ''}`}</em></span>
                 <small><span>{opened ?? source}</span><span data-tone={statusTone}>{status}</span></small>
               </span>
               <span className="pvSlimPnl"><b data-tone={tone(pnl)}>{pnl === null ? '—' : formatUsdt(pnl, true)}</b><small>{metrics.rMultiple !== null ? `USDT net · ${formatR(metrics.rMultiple)}` : 'USDT net'}{livePrice ? '' : ' · gecikmeli'}</small></span>
@@ -297,6 +305,7 @@ export default function PositionsCard(props: Props) {
               {smart && <p data-tone="info">{`Akıllı Kâr Koruma · ${SMART_MODE[smart.mode ?? 'NORMAL'] ?? smart.mode}${smart.last_score !== undefined && smart.last_score !== null ? ` · puan ${smart.last_score}` : ''}`}</p>}
             </details>}
 
+            {isOpen && /^[A-Z0-9]{2,30}$/.test(readSymbol) && <PositionRead productId={readSymbol} symbol={readSymbol} side={readSide} entry={metrics.entry} alarm={myAlarm} onSave={readAlarms.save} onRemove={readAlarms.remove}/>}
             {dca && <DcaWatch bot={dca.bot} mark={metrics.mark}/>}
             {dca && <p className="pvNote">Bu pozisyonu DCA botu yönetiyor: stop, ek alım ve kâr hedefi bot tarafında. Botu DCA ekranından durdurabilirsin; buradan Kapat dersen bot borsayla kendini eşitler.</p>}
             {farmer && <p className="pvNote">Bu pozisyonu KAIS FARMER yönetiyor: stop ve kâr hedefi borsada, bot tarafından kurulu. Kapat dersen Farmer borsayla kendini eşitler.</p>}
