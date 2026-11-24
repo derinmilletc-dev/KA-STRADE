@@ -21,3 +21,20 @@ export function takeAlertSymbol(exchange: LinkExchange): string | null {
     return link.alert
   } catch { return null }
 }
+
+/** Bildirimdeki ?read=SEMBOL (pozisyon yorum alarmı): bu borsaya aitse ve sembol geçerliyse okur; adrese dokunmaz. */
+export function readLinkTarget(exchange: LinkExchange, search: string = window.location.search): string | null {
+  const params = new URLSearchParams(search)
+  const read = params.get('read'), ex = params.get('ex')
+  if (!read || !SYMBOL.test(read) || (isExchange(ex) && ex !== exchange)) return null
+  return read
+}
+
+/** Bildirim hedefi işlendikten sonra adresten ?read ve ?ex silinir (yenilemede tekrar açılmasın). */
+export function clearReadLink(): void {
+  try {
+    const url = new URL(window.location.href)
+    url.searchParams.delete('read'); url.searchParams.delete('ex')
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  } catch { /* adres işlenemedi */ }
+}

@@ -9,12 +9,16 @@ type Data = Insights & {days: number; truncated: boolean; caveat: string}
 
 export default function BinanceInsights() {
   const [data, setData] = useState<Data | null>(null)
+  const [failed, setFailed] = useState(false)
   const [open, setOpen] = useState(false)
+  const [tick, setTick] = useState(0)
   useEffect(() => {
     let alive = true
-    void fetchMyInsights().then(result => { if (alive) setData(result) }).catch(() => { if (alive) setData(null) })
+    void fetchMyInsights().then(result => { if (alive) { setData(result); setFailed(false) } }).catch(() => { if (alive) setFailed(true) })
     return () => { alive = false }
-  }, [])
+  }, [tick])
+  // Okunamadıysa sessizce kaybolmak yerine kısa not + tekrar dene (anahtar yoksa da bu görünür; zararsız).
+  if (failed && !data) return <section className="srx srxMine" data-state="error" aria-label="Senin kalıpların" role="status"><p>Kalıplar şu an okunamadı.</p><button type="button" onClick={() => { setFailed(false); setTick(value => value + 1) }}>Tekrar dene</button></section>
   if (!data || !data.insights.length) return null
   const weak = weakHourNote(data, new Date())
   return <section className="srx srxMine" aria-label="Senin kalıpların" data-open={open || undefined}>

@@ -183,3 +183,4 @@ p.srxPlanVerdict[data-tone="warn"]{color:var(--c-warn) !important}
 .srxMineIcon{display:grid !important;place-items:center !important;width:36px !important;height:36px !important;border-radius:12px !important;background:rgba(159,216,255,.1) !important;color:#9fd8ff !important}
 .srxMineIcon svg{width:18px !important;height:18px !important;color:inherit !important}
 .srxMineBody{display:grid !important;gap:8px !important}
+.srxInline{padding:0 !important;border:0 !important;background:transparent !important;color:#9fd8ff !important;font-weight:800 !important;font-size:inherit !important;text-decoration:underline !important;cursor:pointer !important}

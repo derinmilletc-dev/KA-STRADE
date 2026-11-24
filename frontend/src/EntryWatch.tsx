@@ -7,7 +7,7 @@ import {nextDirection, WATCH_LABEL, type WatchDirection} from './coin-read-view'
 // Giriş fırsatı alarmı: izlenen coinde hacimli kırılım + yorum yönü + zaman dilimi uyumu birlikte olunca telefona bildirim.
 // Yalnız bildirim: emir göndermez, "bakmaya değer" der. Şartlar sunucuda (entry_watch.py) sabittir.
 export default function EntryWatch({symbol, display}: {symbol: string; display: string}) {
-  const {items, max, save, remove} = useEntryWatch()
+  const {items, max, status, reload, save, remove} = useEntryWatch()
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const mine = items.find(item => item.symbol === symbol)
@@ -23,13 +23,14 @@ export default function EntryWatch({symbol, display}: {symbol: string; display: 
   return <section className="srx srxWatch" aria-label="Giriş fırsatı alarmı">
     <header className="srxHead">
       <span className="srxKick">GİRİŞ FIRSATI ALARMI</span>
-      <span className="srxConf" data-level={mine ? 'high' : undefined}>{mine ? 'İzleniyor' : 'Kapalı'}</span>
+      <span className="srxConf" data-level={mine ? 'high' : undefined}>{status === 'error' ? 'Okunamadı' : status === 'loading' ? 'Yükleniyor' : mine ? 'İzleniyor' : 'Kapalı'}</span>
     </header>
     <p className="srxWatchText">Hacimli kırılım, yorum yönü ve zaman dilimi uyumu <b>birlikte</b> oluşunca telefona haber verir. Emir vermez; karar senin.</p>
     <div className="srxWatchRow">
-      <button type="button" className="srxWatchMain" data-on={mine ? 'true' : undefined} disabled={busy} onClick={() => void toggle()}><Crosshair aria-hidden="true"/>{mine ? `${display} izlemeyi bırak` : `${display} izle`}</button>
+      <button type="button" className="srxWatchMain" data-on={mine ? 'true' : undefined} disabled={busy || status !== 'ready'} onClick={() => void toggle()}><Crosshair aria-hidden="true"/>{mine ? `${display} izlemeyi bırak` : `${display} izle`}</button>
       {mine && <button type="button" className="srxWatchDir" disabled={busy} onClick={() => void cycle(mine.direction)} aria-label="Yönü değiştir">{WATCH_LABEL[mine.direction]}</button>}
     </div>
+    {status === 'error' && <p className="srxNoteLine" data-tone="warn" role="alert">İzleme listesi okunamadı, bu yüzden durum belirsiz. <button type="button" className="srxInline" onClick={reload}>Tekrar dene</button></p>}
     {message && <p className="srxNoteLine" data-tone="warn" role="alert">{message}</p>}
     {items.filter(item => item.symbol !== symbol).length > 0 && <ul className="srxWatchList" aria-label="İzlenen coinler">
       {items.filter(item => item.symbol !== symbol).map(item => <li key={item.symbol}><b>{item.symbol.replace(/USDT$/, '')}</b><small>{WATCH_LABEL[item.direction]}</small>

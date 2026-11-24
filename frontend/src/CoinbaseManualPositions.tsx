@@ -1,4 +1,5 @@
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
+import {clearReadLink, readLinkTarget} from './notification-link'
 import {AlertTriangle, ShieldAlert} from 'lucide-react'
 import {CONFIRM, isPositiveDecimal, newRequestId, protectionTone} from './coinbase-manual'
 import {closeParts, closePreview, positionView} from './coinbase-position'
@@ -33,7 +34,16 @@ function PositionRow({position, item, fee = null, target = null, ordersEnabled, 
   const [part, setPart] = useState(0)
   const [goal, setGoal] = useState(false)
   const [goalText, setGoalText] = useState('')
-  const [readOpen, setReadOpen] = useState(false)
+  const fromLink = useRef(readLinkTarget('coinbase') === position.product_id)
+  const [readOpen, setReadOpen] = useState(fromLink.current)
+  const rowRef = useRef<HTMLLIElement | null>(null)
+  // Yorum alarmı bildirimine basılınca (?read=ÜRÜN) bu pozisyon açık gelir ve ekrana getirilir; bir kez.
+  useEffect(() => {
+    if (!fromLink.current) return
+    fromLink.current = false
+    clearReadLink()
+    window.requestAnimationFrame(() => rowRef.current?.scrollIntoView({behavior: 'smooth', block: 'center'}))
+  }, [])
   const view = positionView(position, item)
   const tone = item ? protectionTone(item.state) : 'warn'
   // Hedefe yarıdan fazla ilerlediyse kârı korumayı öner (kapatma/taşıma yine ayrı onay ister).
@@ -106,7 +116,7 @@ function PositionRow({position, item, fee = null, target = null, ordersEnabled, 
     reduce: {title: 'Azalt', text: `1 ile ${Math.max(1, view.contracts - 1)} arasında sözleşme kapatılır, kalan kısım korunur.`, button: 'Azalt'},
   }
 
-  return <li className="cbPos2" data-tone={tone} data-dir={view.dir ?? undefined}>
+  return <li className="cbPos2" ref={rowRef} data-tone={tone} data-dir={view.dir ?? undefined}>
     <div className="cbPos2Head" role="button" tabIndex={0} aria-expanded={readOpen} aria-label={`${root} yorumunu ${readOpen ? 'gizle' : 'göster'}`} data-open={readOpen || undefined}
       onClick={() => setReadOpen(value => !value)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setReadOpen(value => !value) } }}>
       <span className="cbPos2Logo" aria-hidden="true"><CoinIcon symbol={`${root}USDT`} size={36}/></span>
