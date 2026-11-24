@@ -13,7 +13,7 @@ type Candle = {time: number; open: number; high: number; low: number; close: num
 type Props = {symbol: string; compact?: boolean; paused?: boolean}
 
 const WIDTH = 300
-const CANDLE_SECONDS: Record<ChartInterval, number> = {'1m': 60, '5m': 300, '15m': 900}
+const CANDLE_SECONDS: Record<ChartInterval, number> = {'1m': 60, '5m': 300, '15m': 900, '1h': 3600, '1d': 86400}
 const parse = (rows: unknown): Candle[] => (Array.isArray(rows) ? rows : []).map(row => {
   const item = row as Record<string, unknown>
   return {time: Number(item.time), open: Number(item.open), high: Number(item.high), low: Number(item.low), close: Number(item.close), volume: Number(item.volume ?? 0)}

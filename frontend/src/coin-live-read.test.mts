@@ -77,4 +77,6 @@ test('window text', () => {
   assert.equal(windowText(300, 60), 'son 5 saat')
   assert.equal(windowText(900, 60), 'son 15 saat')
   assert.equal(windowText(60, 45), 'son 45 dk')
+  assert.equal(windowText(3600, 60), 'son 60 saat')
+  assert.equal(windowText(86400, 60), 'son 60 gün')
 })

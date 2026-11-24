@@ -22,6 +22,7 @@ const clean = (rows: ReadonlyArray<ReadCandle> | null | undefined): ReadCandle[]
 export function windowText(candleSeconds: number, count: number): string {
   const minutes = Math.round(candleSeconds * count / 60)
   if (!(minutes > 0)) return `son ${count} mum`
+  if (minutes % 1440 === 0) return `son ${minutes / 1440} gün`
   return minutes % 60 === 0 ? `son ${minutes / 60} saat` : `son ${minutes} dk`
 }
 
