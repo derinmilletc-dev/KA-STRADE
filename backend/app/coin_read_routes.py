@@ -150,3 +150,23 @@ async def read_stats(request: Request, symbol: str | None = Query(None)) -> Any:
     except Exception as exc:  # noqa: BLE001
         logger.info("Yorum doğruluğu okunamadı (%s)", type(exc).__name__)
         raise HTTPException(502, "Doğruluk bilgisi şu an alınamadı.") from exc
+
+
+@router.get("/my-insights")
+async def my_insights(request: Request, exchange: str = Query("binance")) -> Any:
+    """Kendi işlem geçmişinden kalıplar. Binance: gelir geçmişi (salt okunur, 10 dk önbellek). Coinbase kalıpları /coinbase/stats içinde."""
+    if exchange != "binance":
+        raise HTTPException(422, "Bu borsa için kalıplar işlem istatistiği kartında.")
+    from . import binance_insights
+    from .v25_execution import LiveExchangeError, client_for, execution_owner
+    owner = execution_owner(request)
+    try:
+        client = client_for(request.app, request)
+        return await binance_insights.load(client, str(owner.get("id") or ""))
+    except HTTPException:
+        raise
+    except LiveExchangeError as exc:
+        raise HTTPException(503, "Binance geçmişi şu an okunamadı.") from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Binance kalıpları hesaplanamadı (%s)", type(exc).__name__)
+        raise HTTPException(502, "Kalıplar şu an hazırlanamadı.") from exc
