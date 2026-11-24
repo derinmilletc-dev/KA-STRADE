@@ -350,13 +350,23 @@ def read_futures(funding: float | None, oi_change_pct: float | None, price_chang
         elif taker_ratio <= 0.87:
             notes.append({"tone": "down", "text": f"Piyasa satımları baskın (alıcı/satıcı {tr_num(taker_ratio)})."}); bias -= 0.3
     # Kalabalık (hesap bazlı long/short): yalnız uyarı notu, bias'a girmez (etkisi kalibrasyonla ölçülmeden puana eklenmez).
+    tags: list[str] = []
+    if funding is not None and funding * 100 >= 0.05:
+        tags.append("funding_hot")
+    elif funding is not None and funding * 100 <= -0.03:
+        tags.append("funding_neg")
+    if crowd_ratio is not None:
+        if crowd_ratio >= 2.0:
+            tags.append("crowd_long")
+        elif crowd_ratio <= 0.6:
+            tags.append("crowd_short")
     if crowd_ratio is not None:
         if crowd_ratio >= 2.0:
             notes.append({"tone": "warn", "text": f"Hesapların çoğu long ({tr_num(crowd_ratio)} kat): kalabalık tarafta ani tasfiye düşüşü riski var."})
         elif crowd_ratio <= 0.6:
             notes.append({"tone": "warn", "text": f"Hesapların çoğu short ({tr_num(crowd_ratio)} kat): kalabalık tarafta ani short sıkışması riski var."})
     return {
-        "crowd_ratio": None if crowd_ratio is None else round(crowd_ratio, 2),
+        "tags": tags, "crowd_ratio": None if crowd_ratio is None else round(crowd_ratio, 2),
         "funding_pct": None if funding is None else round(funding * 100, 4), "oi_change_pct": None if oi_change_pct is None else round(oi_change_pct, 2),
         "taker_ratio": None if taker_ratio is None else round(taker_ratio, 2), "notes": notes, "bias": round(max(-1.0, min(1.0, bias)), 2),
     }
@@ -447,14 +457,22 @@ def summarize(reads: dict[str, dict[str, Any]], levels: dict[str, list[dict[str,
         context.append({"tone": "warn", "text": "Oynaklık genişliyor: stop mesafesi ve kaldıraç buna göre gözden geçirilmeli, ani hareket normalden büyük olabilir."})
     elif len(quiet) >= 2:
         context.append({"tone": "flat", "text": "Oynaklık çok düşük: sıkışma sonrası sert hareket gelebilir, yönü belli değil."})
+    tags: list[str] = list(futures.get("tags", [])) if futures else []
+    if conflict:
+        tags.append("tf_conflict")
+    if len(expanding) >= 2:
+        tags.append("vol_expanding")
     vw = [reads[tf]["vwap_dist_pct"] for tf in ("1h", "4h") if tf in reads and reads[tf].get("vwap_dist_pct") is not None]
     if len(vw) == 2 and lean == "LONG" and all(d <= -0.3 for d in vw):
+        tags.append("vwap_against")
         context.append({"tone": "warn", "text": "Fiyat 1 saat ve 4 saatlik hacim ağırlıklı ortalamanın (VWAP) altında: son alıcıların ortalama maliyeti üstte kalıyor, yükseliş zayıf kalabilir."})
     elif len(vw) == 2 and lean == "SHORT" and all(d >= 0.3 for d in vw):
+        tags.append("vwap_against")
         context.append({"tone": "warn", "text": "Fiyat 1 saat ve 4 saatlik hacim ağırlıklı ortalamanın (VWAP) üstünde: son satıcıların ortalama maliyeti altta kalıyor, düşüş zayıf kalabilir."})
     for tf in ("15m", "1h", "4h"):
         r = reads.get(tf)
         if r and r.get("event") in ("breakout_up", "breakout_down") and not r.get("volume_spike") and r.get("rel_volume") is not None and r["rel_volume"] < 0.8:
+            tags.append("weak_vol_breakout")
             context.append({"tone": "warn", "text": f"{r['label']} grafikte kırılım hacimle desteklenmiyor (hacim normalin %{round(r['rel_volume'] * 100)}'i): tutmayabilir."})
             break
     near = [(lv, "direnç") for lv in levels["resistance"][:1]] + [(lv, "destek") for lv in levels["support"][:1]]
@@ -468,7 +486,7 @@ def summarize(reads: dict[str, dict[str, Any]], levels: dict[str, list[dict[str,
         s0 = levels["support"][0]; sentences.append(f"En yakın destek {price_text(s0['price'])} ({signed_pct(s0['dist_pct'])}).")
     return {"bias": round(bias, 2), "lean": lean, "confidence": confidence, "title": title, "text": " ".join(sentences[:3]), "flags": (flags + context)[:6],
             "alignment": {"up": up, "down": down, "flat": flat, "total": len(present)}, "conflict": conflict,
-            "regime": regime, "volatility": "expanding" if len(expanding) >= 2 else "quiet" if len(quiet) >= 2 else "normal" if any(reads[tf].get("vol_state") for tf in present) else None}
+            "tags": sorted(set(tags)), "regime": regime, "volatility": "expanding" if len(expanding) >= 2 else "quiet" if len(quiet) >= 2 else "normal" if any(reads[tf].get("vol_state") for tf in present) else None}
 
 
 # ---------------------------------------------------------------- pozisyon ilişkisi

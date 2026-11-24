@@ -319,6 +319,17 @@ class VolumeVwapTests(unittest.TestCase):
         self.assertFalse(any("VWAP" in f["text"] for f in b["flags"]))
         self.assertEqual((a["bias"], a["lean"], a["confidence"]), (b["bias"], b["lean"], b["confidence"]))
 
+    def test_tags_follow_notes(self):
+        empty = {"resistance": [], "support": []}
+        base = cr.read_timeframe(series([100 + i * 0.3 for i in range(60)]), "1h")
+        under = {**base, "vwap_dist_pct": -1.0}
+        out = cr.summarize({"1h": under, "4h": {**under, "tf": "4h", "label": "4 saatlik"}}, empty, cr.read_futures(0.0008, None, None, None, 2.4), base["price"])
+        self.assertIn("vwap_against", out["tags"])
+        self.assertIn("crowd_long", out["tags"])
+        self.assertIn("funding_hot", out["tags"])
+        plain = cr.summarize({"1h": {**base, "vwap_dist_pct": None}}, empty, None, base["price"])
+        self.assertEqual(plain["tags"], [])
+
     def test_weak_volume_breakout_note(self):
         empty = {"resistance": [], "support": []}
         base = cr.read_timeframe(series([100 + i * 0.3 for i in range(60)]), "1h")
