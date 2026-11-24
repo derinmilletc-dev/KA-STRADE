@@ -260,8 +260,8 @@ html body #root main.v26App .mhAmount { margin-top: 8px; font-size: clamp(34px, 
 html body #root main.v26App .mhBalanceLabel { margin-top: 14px; font-size: 12px; letter-spacing: .02em; }
 html body #root main.v26App .mhChange { gap: 6px 8px; margin-top: 12px; font-size: 12px; }
 html body #root main.v26App .mhChange > span { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; background: rgba(160, 190, 225, .09); }
-html body #root main.v26App .mhChange > span:first-child:has(b.up) { background: rgba(39, 214, 160, .14); }
-html body #root main.v26App .mhChange > span:first-child:has(b.down) { background: rgba(248, 113, 113, .15); }
+html body #root main.v26App .mhChange > span.mhPnl.pos { background: rgba(39, 214, 160, .14); }
+html body #root main.v26App .mhChange > span.mhPnl.neg { background: rgba(248, 113, 113, .15); }
 html body #root main.v26App .mhOther { padding: 11px 13px; border-radius: 14px; background: rgba(4, 10, 20, .5); }
 
 /* Kısayollar */

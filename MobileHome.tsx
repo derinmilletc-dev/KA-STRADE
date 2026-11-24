@@ -218,7 +218,7 @@ export default function MobileHome({markets, onNavigate}: {markets: Market[]; on
       {shownReady && shown ? <>
         <div className="mhAmount">{money(shown.wallet_balance as number)}<span>{active === 'live' && onCoinbase ? 'USD' : 'USDT'}</span></div>
         <div className="mhChange">
-          {finite(shown.unrealized_pnl) && (() => { const open = active === 'live' && onCoinbase ? {value: null, net: Boolean(shown.net)} : accountNetPnl(shown.positions, shown.unrealized_pnl); const value = open.value ?? shown.unrealized_pnl; return <span>{t.unrealized}{open.net ? ' (net)' : ''} <b className={value >= 0 ? 'up' : 'down'}>{signed(value)}</b></span> })()}
+          {finite(shown.unrealized_pnl) && (() => { const open = active === 'live' && onCoinbase ? {value: null, net: Boolean(shown.net)} : accountNetPnl(shown.positions, shown.unrealized_pnl); const value = open.value ?? shown.unrealized_pnl; return <span className={value >= 0 ? 'mhPnl pos' : 'mhPnl neg'}>{t.unrealized}{open.net ? ' (net)' : ''} <b className={value >= 0 ? 'up' : 'down'}>{signed(value)}</b></span> })()}
           {active === 'live' && onCoinbase && (shown as Account).today ? <span>{(shown as Account).today}</span> : null}
           <span>{t.open(Array.isArray(shown.positions) ? shown.positions.length : 0)}</span>
         </div>
