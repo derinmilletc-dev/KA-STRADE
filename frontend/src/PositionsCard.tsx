@@ -8,7 +8,7 @@ import {duration} from './live-guide'
 import {closeEstimate, netOfFees, TAKER_FEE_RATE, type QuoteMap} from './live-quote'
 import {activeCloseTarget, netAtPrice, parseAmount, priceForNetProfit, type CloseTargetMode} from './close-target'
 import {
-  formatPct, formatPrice, formatR, formatUsdt, num, positionInsights, positionMetrics, sortPositions, summarize,
+  formatPct, formatPrice, formatR, formatUsdt, num, positionInsights, positionMetrics, readRank, sortPositions, summarize,
   type Ladder, type PositionMetrics, type PositionSort, type RawRecord,
 } from './position-view'
 
@@ -43,7 +43,7 @@ type Props = {
   farmerBots?: Array<{symbol: string; side: string}>
 }
 
-const SORTS: ReadonlyArray<readonly [PositionSort, string]> = [['risk', 'Risk'], ['pnl', 'Kâr/Zarar'], ['time', 'Süre']]
+const SORTS: ReadonlyArray<readonly [PositionSort, string]> = [['risk', 'Risk'], ['read', 'Yorum'], ['pnl', 'Kâr/Zarar'], ['time', 'Süre']]
 const SMART_MODE: Record<string, string> = {NORMAL: 'Normal', KAR_KORUMA: 'Kâr koruma', CIKISA_HAZIR: 'Çıkışa hazır'}
 const VIEW_KEY = 'kais-positions-view'
 const readView = (): 'card' | 'table' => { try { return localStorage.getItem(VIEW_KEY) === 'table' ? 'table' : 'card' } catch { return 'card' } }
@@ -176,7 +176,6 @@ export default function PositionsCard(props: Props) {
     const farmer = external && !dca ? (props.farmerBots ?? []).find(bot => bot.symbol.toUpperCase() === String(position.symbol ?? '').toUpperCase() && (!bot.side || bot.side.toUpperCase() === String(position.direction ?? '').toUpperCase())) : undefined
     return {key: `${String(position.symbol)}-${index}`, position, plan, external, dca, farmer, confirmed, protection, metrics, livePrice: estimate !== null, protectedStop: Boolean(dca) || Boolean(farmer) || (confirmed && protection?.stop === true)}
   }), [positions, findPlan, now, props.quotes, props.quoteNow, props.dcaBots, props.farmerBots])
-  const sorted = useMemo(() => sortPositions(items, sort), [items, sort])
   const summary = useMemo(() => summarize(items, {wallet: props.wallet, dailyLoss: props.dailyLoss, dailyLimit: props.dailyLimit, exposureLimit: props.exposureLimit}), [items, props.wallet, props.dailyLoss, props.dailyLimit, props.exposureLimit])
 
   // Yorum alarmı: yalnız pozisyon listesi doğrulanmışken (canlı ve eski değil) kapanan pozisyonların alarmı silinir.
@@ -185,6 +184,7 @@ export default function PositionsCard(props: Props) {
   const pulseItems = live && !stale && !props.awaitingSymbol ? items.map(item => ({symbol: item.metrics.symbol.toUpperCase(), side: (item.metrics.long ? 'LONG' : 'SHORT') as 'LONG' | 'SHORT'})).filter(item => /^[A-Z0-9]{2,30}$/.test(item.symbol)) : null
   const pulse = usePositionPulse(pulseItems)
   const pulseOf = (symbol: string, long: boolean) => pulse?.items.find(item => item.symbol === symbol.toUpperCase() && item.side === (long ? 'LONG' : 'SHORT'))
+  const sorted = useMemo(() => sortPositions(items, sort, item => readRank(pulseOf(item.metrics.symbol, item.metrics.long))), [items, sort, pulse])
   const pulseLines = pulse && pulseItems ? pulseSummary(pulse.items, pulse.events, pulseItems.map(item => item.side)) : []
   const title = `Açık pozisyonlar${live ? ` · ${positions.length}${props.maxPositions !== null ? ` / ${props.maxPositions}` : ''}` : ''}`
   const allLive = items.length > 0 && items.every(item => item.livePrice)
