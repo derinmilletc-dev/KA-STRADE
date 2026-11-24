@@ -5,6 +5,7 @@ import {usePositionPulse, useReadAlarms} from './coin-read-api'
 import {clearReadLink, readLinkTarget} from './notification-link'
 import {pulseChip, pulseSummary, type Pulse} from './coin-read-view'
 import {ChevronDown, SlidersHorizontal, Target, X} from 'lucide-react'
+import './position-detail-clean.css'
 import {duration} from './live-guide'
 import {closeEstimate, netOfFees, TAKER_FEE_RATE, type QuoteMap} from './live-quote'
 import {activeCloseTarget, netAtPrice, parseAmount, priceForNetProfit, type CloseTargetMode} from './close-target'
@@ -305,8 +306,9 @@ export default function PositionsCard(props: Props) {
           </div>}
 
           <div className="pvDetail">
-            {metrics.ladder && !external && <LadderView ladder={metrics.ladder} metrics={metrics}/>}
+            {metrics.ladder && !external && <div className="pvLadderWrap"><LadderView ladder={metrics.ladder} metrics={metrics}/></div>}
             {closable && manual && props.onCloseTarget && <CloseTargetBox planId={planId} metrics={metrics} plan={plan} busy={busy} onSet={props.onCloseTarget}/>}
+            <div className="pvStats">
             {!external && <div className="pvKeys">
               <div data-tone={metrics.level === 'ok' ? 'down' : 'warn'}><small>Stopa kalan</small><b>{metrics.toStopPct !== null ? formatPct(metrics.toStopPct) : '—'}</b></div>
               <div data-tone="up"><small>{breakeven ? 'Sonraki hedef' : 'TP1’e kalan'}</small><b>{metrics.toTp1Pct !== null && metrics.toTp1Pct > 0 && !breakeven ? formatPct(metrics.toTp1Pct) : '—'}</b></div>
@@ -316,6 +318,7 @@ export default function PositionsCard(props: Props) {
               <Cell label="Giriş" value={metrics.entry !== null ? formatPrice(metrics.entry) : null}/>
               <Cell label="Büyüklük" value={metrics.quantity !== null ? `${metrics.quantity.toLocaleString('tr-TR', {maximumFractionDigits: 6})} ${metrics.coin}` : null}/>
               <Cell label="Teminat" value={metrics.margin !== null ? `${formatUsdt(metrics.margin)} USDT` : null}/>
+            </div>
             </div>
 
             {!external && <div className="pvProt" aria-label="Koruma emirleri">
@@ -342,6 +345,7 @@ export default function PositionsCard(props: Props) {
             {closable && manual && <div className="pvActs">
               <>
                 <button type="button" className="lcBtn" disabled={busy || (protection?.stop !== true && !noStopPlan)} onClick={() => props.onEdit(manualTarget)}>{noStopPlan ? 'Stop ekle' : 'Stop / hedef değiştir'}</button>
+                <span className="pvPctLbl">Kısmen kapat</span>
                 <span className="pvPct" role="group" aria-label="Kısmi kapat">{([25, 50, 75] as const).map(percent =>
                   <button type="button" key={percent} className="lcBtn" disabled={busy || (protection?.stop !== true && !noStopPlan)} aria-label={`Pozisyonun %${percent}’ini kapat`} onClick={() => props.onReduce(manualTarget, percent)}>{`%${percent}`}</button>)}</span>
               </>
