@@ -10,7 +10,8 @@ export type StatsData = {
   insights?: Insights | null
 }
 export type InsightBlock = {from: number; to: number; win_rate: number; trades: number}
-export type Insights = {n: number; enough: boolean; insights: Array<{tone: string; text: string}>; bad_blocks: InsightBlock[]; good_blocks: InsightBlock[]; win_rate?: number}
+export type Insights = {n: number; enough: boolean; insights: Array<{tone: string; text: string}>; bad_blocks: InsightBlock[]; good_blocks: InsightBlock[]; win_rate?: number
+  by_coin?: Array<{coin: string; n: number; win_rate: number; net: number}>; avg_win?: number | null; avg_loss?: number | null}
 
 const MIN_COMPARE = 3
 

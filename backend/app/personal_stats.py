@@ -104,4 +104,9 @@ def analyze(trades: list[dict[str, Any]], basis: str = "opened") -> dict[str, An
         ins.append({"tone": "flat", "text": f"{len(rows)} işlemde (%{round(overall)} kazanma) belirgin bir kalıp çıkmadı."})
     out["insights"] = ins[:5]
     out["win_rate"] = round(overall, 1)
+    # Yorum ekranındaki "Sana özel" notları için ham sayılar (coin bazında kayıt, ortalama kazanç/kayıp).
+    out["by_coin"] = sorted(({"coin": c, "n": len(g), "win_rate": round(_rate(g)), "net": round(sum(x["net"] for x in g), 2)}
+                             for c, g in by_coin.items() if len(g) >= MIN_GROUP), key=lambda item: -item["n"])[:30]
+    out["avg_win"] = round(sum(wins) / len(wins), 4) if len(wins) >= 3 else None
+    out["avg_loss"] = round(sum(losses) / len(losses), 4) if len(losses) >= 3 else None
     return out
