@@ -98,3 +98,32 @@ test('weak hour note only inside a flagged block and with enough data', () => {
   assert.equal(weakHourNote({...insights, enough: false}, at(22)), null)
   assert.equal(weakHourNote(null, at(22)), null)
 })
+
+import {planForForm, type ReadPlan} from './coin-read-view.ts'
+const mkPlan = (over: Partial<ReadPlan> = {}): ReadPlan => ({side: 'LONG', entry: 100, stop: 98, stop_pct: -2, stop_basis: 'seviye', targets: [{price: 104, rr: 2, basis: 'seviye'}], rr: 2, verdict: '', tone: 'good', confidence: 'Orta', text: '', ...over})
+test('plan to form levels', () => {
+  const ok = planForForm(mkPlan(), 100)
+  assert.equal(ok.ok, true)
+  if (ok.ok) { assert.equal(ok.stop, 98); assert.deepEqual(ok.tps, [104, 106, 108]) }
+  const two = planForForm(mkPlan({targets: [{price: 104, rr: 2, basis: 'seviye'}, {price: 110, rr: 5, basis: 'seviye'}]}), 100)
+  if (two.ok) assert.equal(two.tps[1], 110)
+  const short = planForForm(mkPlan({side: 'SHORT', stop: 102, targets: [{price: 96, rr: 2, basis: 'seviye'}]}), 100)
+  if (short.ok) { assert.equal(short.stop, 102); assert.deepEqual(short.tps, [96, 94, 92]) } else assert.fail('short should be ok')
+})
+test('plan to form rejects stale or wrong-side levels', () => {
+  assert.equal(planForForm(mkPlan(), 97).ok, false)          // fiyat stopun altına inmiş
+  assert.equal(planForForm(mkPlan(), 105).ok, false)         // hedef geçilmiş
+  assert.equal(planForForm(mkPlan({side: 'SHORT'}), 100).ok, false)   // stop yanlış tarafta
+  assert.equal(planForForm(mkPlan(), 0).ok, false)
+  assert.equal(planForForm(mkPlan({targets: []}), 100).ok, false)
+})
+
+import {alertCandidates} from './coin-read-view.ts'
+test('alert candidates dedupe near levels and skip the current price', () => {
+  const lv = (price: number) => ({price, dist_pct: 0, strength: 3, touches: 2})
+  const out = alertCandidates({price: 100, plan: mkPlan(), levels: {support: [lv(98.05), lv(90)], resistance: [lv(104.05)]}})
+  assert.deepEqual(out.map(i => i.label), ['Hedef 1', 'Stop'])        // destek stopa, direnç hedefe %0,15'ten yakın → elendi
+  const far = alertCandidates({price: 100, plan: null, levels: {support: [lv(95)], resistance: [lv(100.05), lv(110)]}})
+  assert.deepEqual(far.map(i => i.label), ['Destek'])               // ilk direnç fiyata çok yakın; listede yalnız en yakın direnç aranır
+  assert.deepEqual(alertCandidates({price: 0, plan: null, levels: {support: [], resistance: []}}), [])
+})

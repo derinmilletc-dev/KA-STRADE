@@ -12,7 +12,7 @@ export default function AnalystInsight({symbol, display, price, interval}: Props
   const {alerts, reload} = usePriceAlerts(binanceAlertCall)
   const num = Number(price)
   return <div className="mxai">
-    <SmartRead symbol={symbol} focus={interval}/>
+    <SmartRead symbol={symbol} focus={interval} alert={{productId: symbol, call: binanceAlertCall, onSet: reload}}/>
     <EntryWatch symbol={symbol} display={display}/>
     <CoinbaseAlerts productId={symbol} display={display} price={Number.isFinite(num) && num > 0 ? num : null} alerts={alerts} onChanged={reload} call={binanceAlertCall}/>
   </div>

@@ -54,7 +54,7 @@ export default function CoinAnalysisSheet({rows, symbol, signals, onClose, onOpe
             <span><strong>%{sig.confidence}</strong><small>{strength}</small></span>
           </div>
         </section>
-        <CoinLiveChart symbol={row.symbol}/>
+        <CoinLiveChart symbol={row.symbol} alert={{productId: row.symbol, call: binanceAlertCall, onSet: reload}}/>
         <section className="mxsaGauge" aria-label="LONG ve SHORT dengesi">
           <div className="mxsaTrack" data-lean={sig.lean}><i style={{left: `${pos}%`}}/></div>
           <div className="mxsaEnds"><span data-side="SHORT">SHORT</span><span data-side="BEKLE">NÖTR</span><span data-side="LONG">LONG</span></div>
