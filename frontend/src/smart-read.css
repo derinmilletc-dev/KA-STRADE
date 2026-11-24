@@ -123,3 +123,44 @@ p.srxNoteLine[data-tone="warn"]{border-left-color:var(--c-warn) !important;color
 .prxErr{margin:0 !important;padding:8px 10px !important;border-radius:10px !important;font-size:12px !important;color:#ffb4bd !important;background:rgba(251,113,133,.1) !important}
 @media (prefers-reduced-motion:reduce){.prxSwitch,.prxSwitch i{transition:none !important}}
 
+/* ---- Akıllı yorum 2: takvim şeridi, bağlam, plan, emir defteri, doğruluk */
+.srxEventBar{display:flex !important;align-items:flex-start !important;gap:8px !important;margin:0 !important;padding:9px 11px !important;border-radius:12px !important;font-size:12.5px !important;line-height:1.4 !important;color:#f2c46d !important;background:rgba(242,196,109,.1) !important;border:1px solid rgba(242,196,109,.28) !important}
+.srxEventBar[data-level="danger"]{color:#ffb4bd !important;background:rgba(251,113,133,.12) !important;border-color:rgba(251,113,133,.35) !important}
+.srxCtx{display:flex !important;align-items:baseline !important;justify-content:space-between !important;gap:8px !important;margin:0 0 4px !important;font-size:13px !important;color:#c5cfdd !important}
+.srxCtx[data-tone="up"] b{color:var(--c-up) !important}
+.srxCtx[data-tone="down"] b{color:var(--c-down) !important}
+.srxCtx em{font-style:normal !important;font-size:11.5px !important;color:#8e9bb0 !important;font-variant-numeric:tabular-nums !important}
+.srxPlan{border-left:3px solid var(--c-flat) !important;padding-left:10px !important}
+.srxPlan[data-tone="good"]{border-left-color:var(--c-up) !important}
+.srxPlan[data-tone="warn"]{border-left-color:var(--c-warn) !important}
+.srxPlanRows{display:grid !important;gap:5px !important}
+.srxPlanRows span{display:flex !important;align-items:baseline !important;gap:8px !important;font-size:12px !important}
+.srxPlanRows small{flex:1 !important;min-width:0 !important;color:#8e9bb0 !important;font-size:11.5px !important}
+.srxPlanRows b{font-variant-numeric:tabular-nums !important;color:#f4f7fb !important}
+.srxPlanRows em{font-style:normal !important;min-width:62px !important;text-align:right !important;font-variant-numeric:tabular-nums !important;color:#8e9bb0 !important}
+.srxPlanRows [data-kind="stop"] b{color:var(--c-down) !important}
+.srxPlanRows [data-kind="target"] b{color:var(--c-up) !important}
+p.srxPlanVerdict{margin:6px 0 0 !important;font-size:12.5px !important;font-weight:700 !important;color:#c5cfdd !important}
+p.srxPlanVerdict[data-tone="good"]{color:var(--c-up) !important}
+p.srxPlanVerdict[data-tone="warn"]{color:var(--c-warn) !important}
+.srxPlanNote{display:block !important;margin-top:4px !important;font-size:11px !important;color:#6f7d92 !important;line-height:1.4 !important}
+.srxBook{display:flex !important;height:10px !important;border-radius:999px !important;overflow:hidden !important;background:#243044 !important}
+.srxBookBid{display:block !important;background:linear-gradient(90deg,#1f9d77,#34d399) !important;transition:width .35s ease !important}
+.srxBookAsk{display:block !important;background:linear-gradient(90deg,#fb7185,#c0415a) !important;transition:width .35s ease !important}
+.srxAcc{margin:0 !important;padding:9px 11px !important;border-radius:12px !important;font-size:12px !important;line-height:1.45 !important;color:#c5cfdd !important;background:rgba(255,255,255,.04) !important}
+.srxAcc span{margin-right:6px !important}
+.srxAcc small{display:block !important;margin-top:2px !important;color:#6f7d92 !important;font-size:11px !important}
+/* ---- Giriş fırsatı alarmı */
+.srxWatchText{margin:0 !important;font-size:12.5px !important;line-height:1.5 !important;color:#c5cfdd !important}
+.srxWatchRow{display:flex !important;gap:8px !important}
+.srxWatchMain{display:inline-flex !important;align-items:center !important;justify-content:center !important;gap:8px !important;flex:1 !important;min-height:44px !important;padding:0 14px !important;border-radius:14px !important;border:1px solid #2a3b57 !important;background:#16212f !important;color:#9fd8ff !important;font-weight:800 !important;font-size:13.5px !important;cursor:pointer !important}
+.srxWatchMain svg{width:18px !important;height:18px !important}
+.srxWatchMain[data-on="true"]{background:rgba(52,211,153,.12) !important;border-color:rgba(52,211,153,.4) !important;color:#34d399 !important}
+.srxWatchDir{min-height:44px !important;padding:0 12px !important;border-radius:14px !important;border:1px solid #2a3b57 !important;background:transparent !important;color:#c5cfdd !important;font-weight:700 !important;font-size:12.5px !important;cursor:pointer !important;white-space:nowrap !important}
+.srxWatch button:disabled{opacity:.55 !important;cursor:default !important}
+.srxWatchList{display:grid !important;gap:6px !important;margin:0 !important;padding:0 !important;list-style:none !important}
+.srxWatchList li{display:flex !important;align-items:center !important;gap:8px !important;padding:6px 6px 6px 12px !important;border-radius:12px !important;background:rgba(255,255,255,.05) !important}
+.srxWatchList b{color:#f4f7fb !important;font-size:13px !important}
+.srxWatchList small{flex:1 !important;color:#8e9bb0 !important;font-size:11.5px !important}
+.srxWatchList button{display:grid !important;place-items:center !important;width:32px !important;height:32px !important;border-radius:10px !important;border:0 !important;background:transparent !important;color:#8e9bb0 !important;cursor:pointer !important}
+.srxWatchList button svg{width:16px !important;height:16px !important}

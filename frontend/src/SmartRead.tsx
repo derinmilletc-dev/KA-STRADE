@@ -1,8 +1,8 @@
 import {useEffect, useState} from 'react'
 import './smart-read.css'
-import {useCoinRead} from './coin-read-api'
+import {useCoinRead, useReadStats} from './coin-read-api'
 import {
-  arrowOf, confidenceTone, EVENT_LABEL, fitTitle, fitTone, gaugePos, levelBar, priceText, signedPct, TF_ORDER,
+  accuracyLine, arrowOf, bookPos, confidenceTone, EVENT_LABEL, fitTitle, fitTone, gaugePos, levelBar, priceText, rrText, signedPct, TF_ORDER, topEvent, usdText,
   type CoinRead, type ReadTf,
 } from './coin-read-view'
 
@@ -36,6 +36,40 @@ function Levels({data}: {data: CoinRead}) {
   </div>
 }
 
+function Extras({data}: {data: CoinRead}) {
+  const {context, plan, book, liquidations} = data
+  return <>
+    {context && (context.btc || context.regime_text) && <div className="srxBlock" aria-label="Piyasa bağlamı">
+      <h4>Piyasa bağlamı</h4>
+      {context.btc && <p className="srxCtx" data-tone={context.btc.lean === 'LONG' ? 'up' : context.btc.lean === 'SHORT' ? 'down' : 'flat'}><b>{context.btc.text}</b>{context.corr !== null && <em>BTC bağı {context.corr.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</em>}</p>}
+      {context.notes.map(note => <p className="srxNoteLine" key={note} data-tone={note.startsWith('Uyarı') ? 'warn' : 'flat'}>{note}</p>)}
+      {context.regime_text && <p className="srxNoteLine" data-tone="flat">{context.regime_text}</p>}
+    </div>}
+    {plan && <div className="srxBlock srxPlan" data-tone={plan.tone} aria-label="Stop ve hedef önerisi">
+      <h4>{plan.side === 'LONG' ? 'LONG' : 'SHORT'} düşünülürse: stop ve hedef</h4>
+      <div className="srxPlanRows">
+        <span data-kind="stop"><small>Stop{plan.stop_basis === 'seviye' ? ' (seviyenin ötesi)' : ' (ATR)'}</small><b>{priceText(plan.stop)}</b><em>{signedPct(plan.stop_pct)}</em></span>
+        {plan.targets.map((target, index) => <span key={index} data-kind="target"><small>Hedef {index + 1}{target.basis === '2R' ? ' (2 katı risk)' : ''}</small><b>{priceText(target.price)}</b><em>{rrText(target.rr)}</em></span>)}
+      </div>
+      <p className="srxPlanVerdict" data-tone={plan.tone}>{plan.verdict}</p>
+      <small className="srxPlanNote">Öneri değil, hesap: giriş şu anki fiyat varsayıldı. Emir göndermez.</small>
+    </div>}
+    {book && <div className="srxBlock" aria-label="Emir defteri">
+      <h4>Emir defteri (±%1)</h4>
+      <div className="srxBook" role="img" aria-label={book.notes[0]}><i className="srxBookBid" style={{width: `${bookPos(book.imbalance)}%`}}/><i className="srxBookAsk" style={{width: `${100 - bookPos(book.imbalance)}%`}}/></div>
+      <div className="srxGaugeEnds"><span>ALIŞ {usdText(book.bid_value)}</span><span>SATIŞ {usdText(book.ask_value)}</span></div>
+      {book.notes.map(note => <p className="srxNoteLine" key={note} data-tone="flat">{note}</p>)}
+      <small className="srxPlanNote">{book.caveat}</small>
+    </div>}
+    {liquidations && <div className="srxBlock" aria-label="Likidasyon">
+      <h4>Likidasyonlar (son 15 dk)</h4>
+      <p className="srxNoteLine" data-tone="warn">{liquidations.text}</p>
+      <div className="srxFut"><span><small>Long tasfiye</small><b data-tone="down">{usdText(liquidations.long_usd)}</b></span><span><small>Short tasfiye</small><b data-tone="up">{usdText(liquidations.short_usd)}</b></span>
+        {liquidations.zones[0] && <span><small>Yoğun bölge</small><b>{priceText(liquidations.zones[0].price)}</b></span>}</div>
+    </div>}
+  </>
+}
+
 function Detail({read, history}: {read: ReadTf; history: string | null}) {
   const chips: {key: string; text: string; tone: string}[] = [{key: 'net', text: signedPct(read.net_pct), tone: read.net_pct >= 0 ? 'up' : 'down'}]
   chips.push({key: 'rsi', text: `RSI ${Math.round(read.rsi)}${read.rsi_state === 'overbought' ? ' · aşırı alım' : read.rsi_state === 'oversold' ? ' · aşırı satım' : ''}`, tone: read.rsi_state === 'normal' ? 'flat' : 'warn'})
@@ -56,6 +90,7 @@ export default function SmartRead({symbol, focus, side = null, entry = null}: Pr
   const [tf, setTf] = useState<string>(isTf(focus) ? focus : '15m')
   useEffect(() => { if (isTf(focus)) setTf(focus) }, [focus])
   const {data, error, loading, reload} = useCoinRead(symbol, {interval: tf, side, entry})
+  const stats = useReadStats(symbol)
   if (!data) return error ? <div className="srx" data-state="error" role="status"><p>{error}</p><button type="button" onClick={reload}>Tekrar dene</button></div> : <Skeleton/>
   const {summary, futures, position} = data
   const current = data.timeframes.find(item => item.tf === tf) ?? data.timeframes[0]
@@ -65,6 +100,7 @@ export default function SmartRead({symbol, focus, side = null, entry = null}: Pr
       <span className="srxKick">AKILLI YORUM</span>
       <span className="srxConf" data-level={confidenceTone(summary.confidence)} title="Zaman dilimlerinin ne kadar aynı yönde olduğuna göre">Güven: {summary.confidence}</span>
     </header>
+    {(() => { const event = topEvent(data.events); return event && event.level !== 'info' ? <p className="srxEventBar" data-level={event.level} role="status"><span aria-hidden="true">{event.kind === 'funding' ? '⏱' : '🗓'}</span>{event.text}</p> : null })()}
     <div className="srxHero">
       <b className="srxTitle" data-lean={summary.lean}>{summary.title}</b>
       <div className="srxGauge" role="img" aria-label={`Yön ölçeği: ${summary.title}`}><i style={{left: `${gaugePos(summary.bias)}%`}}/></div>
@@ -91,6 +127,7 @@ export default function SmartRead({symbol, focus, side = null, entry = null}: Pr
     {current && <Detail read={current} history={histText}/>}
 
     <Levels data={data}/>
+    <Extras data={data}/>
 
     {futures && <div className="srxBlock" aria-label="Futures verisi">
       <h4>Futures</h4>
@@ -107,6 +144,7 @@ export default function SmartRead({symbol, focus, side = null, entry = null}: Pr
       {summary.flags.filter(flag => !futures?.notes.some(note => note.text === flag.text)).map(flag => <p className="srxNoteLine" key={flag.text} data-tone={toneOf(flag.tone)}>{flag.text}</p>)}
     </div>}
 
+    {(() => { const line = accuracyLine(stats); return line ? <p className="srxAcc"><span aria-hidden="true">🎯</span>{line} <small>Bu, yorumun kısa vadeli yön isabetidir; kâr garantisi değildir.</small></p> : null })()}
     <p className="srxFoot">Kapanmış mumlardan otomatik okuma. Tahmin ya da yatırım tavsiyesi değildir.</p>
   </section>
 }

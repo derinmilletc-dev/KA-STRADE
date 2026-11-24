@@ -7,7 +7,10 @@ export type StatsData = {
   by_coin: Array<Bucket & {coin: string}>
   by_exit: {target: number; stop: number; manual_close: number}
   by_source: {kais: Bucket; manual: Bucket; unknown: Bucket}
+  insights?: Insights | null
 }
+export type InsightBlock = {from: number; to: number; win_rate: number; trades: number}
+export type Insights = {n: number; enough: boolean; insights: Array<{tone: string; text: string}>; bad_blocks: InsightBlock[]; good_blocks: InsightBlock[]; win_rate?: number}
 
 const MIN_COMPARE = 3
 
@@ -47,4 +50,13 @@ export function exitText(exit: StatsData['by_exit']): string {
   if (exit.stop) parts.push(`${exit.stop} stop`)
   if (exit.manual_close) parts.push(`${exit.manual_close} elle kapatma`)
   return parts.join(' · ')
+}
+
+
+/** Şu an (Türkiye saati) kullanıcının geçmişte zayıf kaldığı saat bloğundaysa kısa uyarı; değilse null. Yalnız yeterli örnekte (sunucu karar verir). */
+export function weakHourNote(insights: Insights | null | undefined, now: Date): string | null {
+  if (!insights || !insights.enough || !insights.bad_blocks.length) return null
+  const hour = (now.getUTCHours() + 3) % 24
+  const block = insights.bad_blocks.find(item => hour >= item.from && hour < item.to)
+  return block ? `Şu an senin zayıf saatlerinden biri (TSİ ${String(block.from).padStart(2, '0')}-${String(block.to).padStart(2, '0')}): bu aralıkta ${block.trades} işlemin %${block.win_rate}'i kazandı.` : null
 }
