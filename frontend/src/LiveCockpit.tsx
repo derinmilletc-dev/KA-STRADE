@@ -17,6 +17,7 @@ import FarmerPanel from './FarmerPanel'
 import {MasterOnlyGate} from '../../premium-access'
 import DemoDcaSheet from './DemoDcaSheet'
 import PositionsCard, {type SmartPositionItem} from './PositionsCard'
+import BinanceInsights from './BinanceInsights'
 import {closeEstimate, TAKER_FEE_RATE} from './live-quote'
 import {netAtPrice} from './close-target'
 import {useLiveQuotes} from './useLiveQuotes'
@@ -2199,6 +2200,7 @@ export default function LiveCockpit(props: Props) {
             </div></details>}
         </section>}
 
+        <BinanceInsights/>
         <PositionsCard dcaBots={dcaBots} farmerBots={farmerBots} live={live} stale={stale} staleAge={staleAge} running={running} busy={Boolean(working) || stale} closeBusy={Boolean(working)} now={now} positions={positions as unknown as RawRecord[]}
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
           wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}

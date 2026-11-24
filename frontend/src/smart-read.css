@@ -173,3 +173,13 @@ p.srxPlanVerdict[data-tone="warn"]{color:var(--c-warn) !important}
 .srxQa button[data-tone="down"] b{color:#fb7185 !important}
 .srxQa button[data-tone="warn"] b{color:#f2c46d !important}
 .srxQa button:disabled{opacity:.55 !important;cursor:default !important}
+.srxMine{gap:8px !important}
+.srxMineHead{display:flex !important;align-items:center !important;gap:12px !important;width:100% !important;padding:0 !important;border:0 !important;background:transparent !important;color:inherit !important;text-align:left !important;cursor:pointer !important}
+.srxMineHead span:nth-child(2){flex:1 !important;display:grid !important;gap:2px !important}
+.srxMineHead b{font-size:14px !important;color:#f4f7fb !important}
+.srxMineHead small{font-size:11.5px !important;color:#8e9bb0 !important}
+.srxMineHead svg{width:18px !important;height:18px !important;color:#8e9bb0 !important;transition:transform .2s !important}
+.srxMine[data-open] .srxMineHead>svg:last-child{transform:rotate(180deg) !important}
+.srxMineIcon{display:grid !important;place-items:center !important;width:36px !important;height:36px !important;border-radius:12px !important;background:rgba(159,216,255,.1) !important;color:#9fd8ff !important}
+.srxMineIcon svg{width:18px !important;height:18px !important;color:inherit !important}
+.srxMineBody{display:grid !important;gap:8px !important}

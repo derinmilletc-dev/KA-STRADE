@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app import coin_extras as ex, entry_watch as ew, market_events as me, personal_stats as ps, read_log as rl  # noqa: E402
+from app import binance_insights as bi, coin_extras as ex, entry_watch as ew, market_events as me, personal_stats as ps, read_log as rl  # noqa: E402
 from app.liq_stream import LiquidationStream  # noqa: E402
 
 UTC = timezone.utc
@@ -290,6 +290,43 @@ class PersonalTests(unittest.TestCase):
     def test_bad_rows_are_skipped(self):
         r = ps.analyze([{"net": "x", "time": "bad"}, {"time": "zzz", "net": 1}] + [trade("BTC", "LONG", 1, 10, day=d) for d in range(1, 9)])
         self.assertEqual(r["n"], 8)
+
+
+def inc(symbol, ms, amount, tran, kind="REALIZED_PNL"):
+    return {"symbol": symbol, "incomeType": kind, "income": str(amount), "time": ms, "asset": "USDT", "tranId": tran}
+
+
+class BinanceInsightsTests(unittest.TestCase):
+    def test_partial_closes_merge_and_other_rows_skip(self):
+        base = 1_700_000_000_000
+        rows = [inc("BTCUSDT", base, 1.0, 1), inc("BTCUSDT", base + 30_000, 2.0, 2), inc("BTCUSDT", base + 600_000, -1.5, 3),
+                inc("ETHUSDT", base + 10_000, 0.5, 4), inc("BTCUSDT", base, 9, 5, kind="COMMISSION"), inc("BTCUSDT", base, 1.0, 1),
+                {"symbol": "X", "incomeType": "REALIZED_PNL", "income": "bad", "time": 1}]
+        trades = bi.to_trades(rows)
+        by = {(t["product_id"], round(t["net"], 2)) for t in trades}
+        self.assertEqual(by, {("BTCUSDT", 3.0), ("BTCUSDT", -1.5), ("ETHUSDT", 0.5)})   # kısmi kapanışlar tek işlem, komisyon ve çift kayıt yok
+
+    def test_load_caches_and_reports(self):
+        bi.reset()
+        calls = []
+        base = 1_700_000_000_000
+        class Client:
+            async def signed(self, method, path, params):
+                calls.append(params)
+                return [inc("BTCUSDT", base + i * 3_600_000 * 5, -2.0 if i % 3 == 0 else 1.0, i) for i in range(10)]
+        out = asyncio.run(bi.load(Client(), "u1", now=1_700_100_000))
+        self.assertEqual(out["n"], 10)
+        self.assertIn("komisyon", out["caveat"])
+        asyncio.run(bi.load(Client(), "u1", now=1_700_100_100))
+        self.assertEqual(len(calls), 1)                                  # 10 dk içinde önbellekten
+        asyncio.run(bi.load(Client(), "u1", now=1_700_100_000 + 700))
+        self.assertEqual(len(calls), 2)
+
+    def test_closed_basis_wording(self):
+        trades = [trade("BTC", "", -2, 2, day=d) for d in range(1, 6)] + [trade("BTC", "", 3, 14, day=d) for d in range(1, 6)]
+        for t in trades: t["opened"] = None
+        r = ps.analyze(trades, basis="closed")
+        self.assertTrue(any("kapattığın" in i["text"] for i in r["insights"]))
 
 
 if __name__ == "__main__":

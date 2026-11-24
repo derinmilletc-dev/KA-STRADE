@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {API_BASE} from './api'
 import {fetchWithTimeout} from '../../master-trade-request'
+import type {Insights} from './coinbase-stats'
 import type {AlarmMode, AlarmTf, CoinRead, ReadAlarm, ReadStats, WatchDirection, WatchItem} from './coin-read-view'
 
 // Akıllı yorum ve pozisyon yorum alarmı için istemci. Hatalar okunur Türkçe metinle fırlatılır; hiçbiri emir göndermez.
@@ -124,3 +125,6 @@ export function useEntryWatch() {
   }, [])
   return {items, max, save, remove}
 }
+
+/** Binance işlem geçmişinden kişisel kalıplar (yalnız okuma). */
+export const fetchMyInsights = () => request<Insights & {days: number; truncated: boolean; caveat: string}>('/my-insights?exchange=binance', {}, 30000)

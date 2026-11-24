@@ -30,8 +30,9 @@ def block_of(hour: int) -> tuple[int, int]:
     return BLOCKS[min(hour // 4, 5)]
 
 
-def analyze(trades: list[dict[str, Any]]) -> dict[str, Any]:
-    """trades: [{product_id, side, net (sayı), time (kapanış ISO), opened (açılış ISO)}]."""
+def analyze(trades: list[dict[str, Any]], basis: str = "opened") -> dict[str, Any]:
+    """trades: [{product_id, side, net (sayı), time (kapanış ISO), opened (açılış ISO)}]. basis="closed": açılış bilinmiyor, saat dilimi kapanışa göre."""
+    verb = "kapattığın" if basis == "closed" else "açtığın"
     rows = []
     for t in trades:
         closed, opened = _time(t.get("time")), _time(t.get("opened"))
@@ -53,14 +54,14 @@ def analyze(trades: list[dict[str, Any]]) -> dict[str, Any]:
     # saat dilimi (TSİ)
     groups: dict[tuple[int, int], list[dict[str, Any]]] = {}
     for r in rows:
-        groups.setdefault(block_of(r["opened"].astimezone(TR).hour if r["opened"] else r["closed"].astimezone(TR).hour), []).append(r)
+        groups.setdefault(block_of((r["opened"] if basis != "closed" and r["opened"] else r["closed"]).astimezone(TR).hour), []).append(r)
     ranked = sorted(((b, g) for b, g in groups.items() if len(g) >= MIN_GROUP), key=lambda x: _rate(x[1]))
     if len(ranked) >= 2:
         (wb, wg), (bb, bg) = ranked[0], ranked[-1]
         if _rate(bg) - _rate(wg) >= 25:
             out["bad_blocks"].append({"from": wb[0], "to": wb[1], "win_rate": round(_rate(wg)), "trades": len(wg)})
             out["good_blocks"].append({"from": bb[0], "to": bb[1], "win_rate": round(_rate(bg)), "trades": len(bg)})
-            ins.append({"tone": "warn", "text": f"TSİ {wb[0]:02d}-{wb[1]:02d} arası açtığın {len(wg)} işlemin %{round(_rate(wg))}'i kazandı; {bb[0]:02d}-{bb[1]:02d} arasında %{round(_rate(bg))} ({len(bg)} işlem)."})
+            ins.append({"tone": "warn", "text": f"TSİ {wb[0]:02d}-{wb[1]:02d} arası {verb} {len(wg)} işlemin %{round(_rate(wg))}'i kazandı; {bb[0]:02d}-{bb[1]:02d} arasında %{round(_rate(bg))} ({len(bg)} işlem)."})
 
     # yön
     longs, shorts = [r for r in rows if r["side"] == "LONG"], [r for r in rows if r["side"] == "SHORT"]
