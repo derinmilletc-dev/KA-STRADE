@@ -115,7 +115,7 @@ function PositionRow({position, item, fee = null, target = null, ordersEnabled, 
         <small>{grossPnl === null ? '' : fee !== null ? `komisyon ${fee.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} dahil` : 'komisyon hariç'}{view.movePct === null ? '' : ` · ${view.movePct >= 0 ? '+' : ''}${view.movePct.toFixed(2)}%`}</small></span>
     </div>
 
-    {readOpen && analysisKey(root) && view.dir && <PositionRead productId={position.product_id} symbol={analysisKey(root) as string} side={view.dir} entry={view.entry} alarm={alarm && alarm.side === view.dir ? alarm : undefined} onSave={onSaveAlarm} onRemove={onRemoveAlarm}/>}
+    {readOpen && analysisKey(root) && view.dir && <PositionRead productId={position.product_id} symbol={analysisKey(root) as string} side={view.dir} entry={view.entry} stop={view.stop} alarm={alarm && alarm.side === view.dir ? alarm : undefined} onSave={onSaveAlarm} onRemove={onRemoveAlarm}/>}
 
     {view.bar && <div className="cbPos2Bar" role="img" aria-label={`Stop ${px(view.stop)}, giriş ${px(view.entry)}, güncel ${px(view.current)}, hedef ${px(view.target)}`}>
       <div className="cbPos2Track">

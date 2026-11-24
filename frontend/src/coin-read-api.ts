@@ -53,7 +53,7 @@ export function useCoinRead(symbol: string, {interval, side = null, entry = null
   return {data: sameCoin ? state.data : null, error: state.key === key ? state.error : '', loading: enabled && state.key !== key, reload}
 }
 
-export type AlarmInput = {product_id: string; symbol: string; side: 'LONG' | 'SHORT'; entry: number | null; mode: AlarmMode; min_tf: AlarmTf}
+export type AlarmInput = {product_id: string; symbol: string; side: 'LONG' | 'SHORT'; entry: number | null; mode: AlarmMode; min_tf: AlarmTf; stop?: number | null}
 
 /** Bir borsanın pozisyon yorum alarmları. openIds: şu an AÇIK pozisyonların ürün kodları (bilinmiyorsa null: eşitleme yapılmaz).
  *  Eşitleme: kapanmış pozisyonun alarmı silinir, açık olanınki uzatılır. Liste okunamadıysa openIds null verilmeli (yanlışlıkla silmesin). */

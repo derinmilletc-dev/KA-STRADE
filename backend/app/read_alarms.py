@@ -50,6 +50,7 @@ async def ensure_schema(pool: Any) -> None:
         )
         """
     )
+    await pool.execute(f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS stop DOUBLE PRECISION")
     _SCHEMA_DONE.add(id(pool))
 
 
@@ -57,7 +58,15 @@ def reset_schema_cache() -> None:
     _SCHEMA_DONE.clear()
 
 
-def normalize(exchange: Any, product_id: Any, symbol: Any, side: Any, entry: Any, mode: Any, min_tf: Any) -> dict[str, Any] | None:
+def _positive(value: Any) -> float | None:
+    try:
+        number = float(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+    return number if number is not None and 0 < number < float("inf") else None
+
+
+def normalize(exchange: Any, product_id: Any, symbol: Any, side: Any, entry: Any, mode: Any, min_tf: Any, stop: Any = None) -> dict[str, Any] | None:
     """Gelen alanları doğrular; geçersizse None. Sembol büyük harfe çevrilir, tanınmayan mod/süre varsayılana düşer."""
     ex = str(exchange or "").strip().lower()
     sym = coin_read_service.valid_symbol(symbol)
@@ -72,20 +81,20 @@ def normalize(exchange: Any, product_id: Any, symbol: Any, side: Any, entry: Any
     if entry_value is not None and not (entry_value > 0 and entry_value < float("inf")):
         entry_value = None
     return {"exchange": ex, "product_id": pid, "symbol": sym, "side": sd, "entry": entry_value,
-            "mode": mode if mode in MODES else "against", "min_tf": min_tf if min_tf in MIN_TFS else "15m"}
+            "mode": mode if mode in MODES else "against", "min_tf": min_tf if min_tf in MIN_TFS else "15m", "stop": _positive(stop)}
 
 
 def _row(row: Any) -> dict[str, Any]:
     return {"id": int(row["id"]), "exchange": str(row["exchange"]), "product_id": str(row["product_id"]), "symbol": str(row["symbol"]),
             "side": str(row["side"]), "entry": None if row["entry"] is None else float(row["entry"]), "mode": str(row["mode"]),
-            "min_tf": str(row["min_tf"]), "active_keys": [k for k in str(row["active_keys"] or "").split(",") if k],
+            "min_tf": str(row["min_tf"]), "stop": None if row["stop"] is None else float(row["stop"]), "active_keys": [k for k in str(row["active_keys"] or "").split(",") if k],
             "last_push_at": row["last_push_at"]}
 
 
 async def list_alarms(pool: Any, user_id: str, exchange: str) -> list[dict[str, Any]]:
     await ensure_schema(pool)
     rows = await pool.fetch(
-        f"SELECT id, exchange, product_id, symbol, side, entry, mode, min_tf, active_keys, last_push_at FROM {TABLE} "
+        f"SELECT id, exchange, product_id, symbol, side, entry, mode, min_tf, stop, active_keys, last_push_at FROM {TABLE} "
         "WHERE user_id = $1 AND exchange = $2 AND expires_at > NOW() ORDER BY id", user_id, exchange)
     return [_row(row) for row in rows]
 
@@ -99,15 +108,15 @@ async def upsert(pool: Any, user_id: str, data: dict[str, Any], now: datetime | 
     expires = (now or datetime.now(timezone.utc)) + LIFETIME
     row = await pool.fetchrow(
         f"""
-        INSERT INTO {TABLE} (user_id, exchange, product_id, symbol, side, entry, mode, min_tf, expires_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO {TABLE} (user_id, exchange, product_id, symbol, side, entry, mode, min_tf, expires_at, stop)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ON CONFLICT (user_id, exchange, product_id) DO UPDATE SET
-          symbol = EXCLUDED.symbol, side = EXCLUDED.side, entry = EXCLUDED.entry, mode = EXCLUDED.mode, min_tf = EXCLUDED.min_tf,
+          symbol = EXCLUDED.symbol, side = EXCLUDED.side, entry = EXCLUDED.entry, mode = EXCLUDED.mode, min_tf = EXCLUDED.min_tf, stop = EXCLUDED.stop,
           expires_at = EXCLUDED.expires_at,
           active_keys = CASE WHEN {TABLE}.side = EXCLUDED.side THEN {TABLE}.active_keys ELSE '' END
-        RETURNING id, exchange, product_id, symbol, side, entry, mode, min_tf, active_keys, last_push_at
+        RETURNING id, exchange, product_id, symbol, side, entry, mode, min_tf, stop, active_keys, last_push_at
         """,
-        user_id, data["exchange"], data["product_id"], data["symbol"], data["side"], data["entry"], data["mode"], data["min_tf"], expires)
+        user_id, data["exchange"], data["product_id"], data["symbol"], data["side"], data["entry"], data["mode"], data["min_tf"], expires, data["stop"])
     return _row(row)
 
 
@@ -123,6 +132,24 @@ async def keep_alive(pool: Any, user_id: str, exchange: str, product_ids: list[s
     if product_ids:
         await pool.execute(f"UPDATE {TABLE} SET expires_at = $4 WHERE user_id = $1 AND exchange = $2 AND product_id = ANY($3::text[])",
                            user_id, exchange, product_ids, (now or datetime.now(timezone.utc)) + LIFETIME)
+
+
+STOP_NEAR_MIN_PCT = 0.3
+STOP_NEAR_MAX_PCT = 1.0
+
+
+def stop_events(side: str, stop: float | None, price: float, atr: float | None) -> dict[str, dict[str, str]]:
+    """Stopa yaklaşma / stopu geçme. Yakınlık eşiği: yarım ATR (en az %0,3, en çok %1). Saf hesap."""
+    if not stop or stop <= 0 or price <= 0:
+        return {}
+    long = side.upper() == "LONG"
+    dist = ((price - stop) if long else (stop - price)) / price * 100
+    if dist <= 0:
+        return {"stop:hit": {"tone": "danger", "text": "Fiyat stop seviyesini geçti. Stop çalışmış olabilir; pozisyonunu kontrol et."}}
+    near = min(STOP_NEAR_MAX_PCT, max(STOP_NEAR_MIN_PCT, (atr / price * 100 * 0.5) if atr else STOP_NEAR_MIN_PCT))
+    if dist <= near:
+        return {"stop:near": {"tone": "danger", "text": f"Fiyat stopuna yaklaştı: %{dist:.2f} kaldı."}}
+    return {}
 
 
 def plan(active: list[str], events: dict[str, dict[str, str]], last_push_at: datetime | None, now: datetime) -> tuple[list[str], list[str]]:
@@ -180,7 +207,7 @@ async def run_once(app: Any, now: datetime | None = None) -> int:
     now = now or datetime.now(timezone.utc)
     await pool.execute(f"DELETE FROM {TABLE} WHERE expires_at <= $1", now)
     rows = await pool.fetch(
-        f"SELECT id, user_id, exchange, product_id, symbol, side, entry, mode, min_tf, active_keys, last_push_at FROM {TABLE}")
+        f"SELECT id, user_id, exchange, product_id, symbol, side, entry, mode, min_tf, stop, active_keys, last_push_at FROM {TABLE}")
     alarms = [{**_row(row), "user_id": str(row["user_id"])} for row in rows]
     if not alarms:
         return 0
@@ -207,6 +234,7 @@ async def run_once(app: Any, now: datetime | None = None) -> int:
             continue
         reads = {r["tf"]: r for r in data["timeframes"]}
         events = coin_read.position_events(reads, data["summary"], alarm["side"], min_tf=alarm["min_tf"], mode=alarm["mode"])
+        events.update(stop_events(alarm["side"], alarm.get("stop"), float(data.get("price") or 0), data.get("atr")))
         send, next_keys = plan(alarm["active_keys"], events, alarm["last_push_at"], now)
         if send:
             title, body = message(alarm["product_id"].split("-")[0] if alarm["exchange"] == "coinbase" else alarm["symbol"], alarm["side"], events, send)
