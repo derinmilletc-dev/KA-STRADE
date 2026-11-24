@@ -475,3 +475,15 @@ def build(candles: dict[str, Any], futures_raw: dict[str, Any] | None = None, *,
         result["history"] = {"tf": history_tf, "kinds": history["kinds"], "candles": history["candles"], "horizon": history["horizon"],
                              "text": history_text(history, ev, TF_LABEL.get(history_tf, history_tf)), "event": ev}
     return result
+
+
+def pulse_item(symbol: str, side: str, data: dict[str, Any]) -> dict[str, Any]:
+    """Açık pozisyon kartı için kısa nabız: yorumun yönü, pozisyonla uyumu ve pozisyona ters aktif olaylar. Saf hesap."""
+    side = side.upper()
+    reads = {r["tf"]: r for r in data.get("timeframes", [])}
+    summary = data["summary"]
+    fit = position_fit(summary, data["levels"], data["price"], side, None)
+    events = position_events(reads, summary, side, min_tf="15m", mode="against")
+    danger = [e["text"] for e in events.values() if e["tone"] in ("danger", "warn")]
+    return {"symbol": symbol, "side": side, "lean": summary["lean"], "confidence": summary["confidence"], "fit": fit["fit"],
+            "conflict": bool(summary.get("conflict")), "warnings": danger[:3], "price": data["price"]}

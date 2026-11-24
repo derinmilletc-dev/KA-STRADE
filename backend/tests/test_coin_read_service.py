@@ -271,3 +271,13 @@ class StopEventTests(unittest.TestCase):
         with patch.object(svc, "read", AsyncMock(return_value={**flat, "atr": None})), patch.object(ra, "_push", push):
             self.assertEqual(asyncio.run(ra.run_once(App, datetime(2026, 11, 24, 12, 0, tzinfo=timezone.utc))), 1)
         self.assertIn("stopuna yaklaştı", push.await_args.args[3])
+
+
+class PulseTests(unittest.TestCase):
+    def test_pulse_flags_against_position(self):
+        long_pulse = coin_read.pulse_item("BTCUSDT", "long", down_read())
+        self.assertEqual((long_pulse["side"], long_pulse["fit"], long_pulse["lean"]), ("LONG", "ters", "SHORT"))
+        self.assertTrue(long_pulse["warnings"])
+        short_pulse = coin_read.pulse_item("BTCUSDT", "SHORT", down_read())
+        self.assertEqual(short_pulse["fit"], "uyumlu")
+        self.assertEqual(short_pulse["warnings"], [])
