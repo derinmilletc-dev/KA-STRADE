@@ -724,3 +724,11 @@ html body #root .cbTerminal .mxtAutoNote:not(#a){margin:0 0 10px!important;paddi
 .cbPos2Bell{font-style:normal!important;margin-left:5px!important;font-size:12px!important}
 @media (prefers-reduced-motion:reduce){.cbTerminal .cbPos2Head::after{transition:none!important}}
 html body #root .cbTerminal .cbStatsWeak:not(#a){padding:8px 12px!important;border-radius:12px!important;color:#f2c46d!important;background:rgba(242,196,109,.1)!important;border:1px solid rgba(242,196,109,.28)!important}
+
+/* Pozisyon başlığı: coin adı ve yön etiketi asla satıra bölünmez; yer darsa K/Z açıklaması alt satıra iner. */
+.cbTerminal .cbPos2Head{gap:10px!important}
+.cbTerminal .cbPos2Name{flex:1 0 auto!important;min-width:112px!important;max-width:46%}
+.cbTerminal .cbPos2Name b{white-space:nowrap!important;flex-wrap:nowrap!important;gap:6px!important;word-break:keep-all!important;overflow-wrap:normal!important}
+.cbTerminal .cbPos2Name em{flex:none!important;white-space:nowrap!important;word-break:keep-all!important;line-height:1.2!important}
+.cbTerminal .cbPos2Pnl{flex:0 1 auto!important;min-width:0!important;text-align:right}
+.cbTerminal .cbPos2Pnl small{white-space:normal!important;text-align:right!important;line-height:1.3!important}
