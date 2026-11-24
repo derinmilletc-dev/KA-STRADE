@@ -3,6 +3,8 @@ import {type AccountOverview} from '../../account-settings-api'
 import {mockAssistant} from './helpers/assistant-api'
 
 const base = 'http://127.0.0.1:4176'
+// Uygulama dili tarayıcı dilinden seçilir; bu testler Türkçe metinleri bekler (CI tarayıcısı varsayılan İngilizce).
+test.use({locale: 'tr-TR'})
 const account = (): AccountOverview => ({
   user: {id: 'account-test-user', display_name: 'Ada Yılmaz', email: 'ada@example.test', role: 'CUSTOMER', active: true, email_verified: true, created_at: '2026-10-01T12:00:00Z', last_login: '2026-10-05T12:00:00Z', password_changed_at: null, auth_methods: ['password']},
   subscription: {plan: 'FREE', status: 'NONE', expires_at: null, is_premium: false, features: [{key: 'scanner', label: 'Temel Scanner', included: true}, {key: 'auto', label: 'Auto Trade', included: false}]},
