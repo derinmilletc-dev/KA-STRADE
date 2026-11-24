@@ -305,7 +305,7 @@ export default function PositionsCard(props: Props) {
               {smart && <p data-tone="info">{`Akıllı Kâr Koruma · ${SMART_MODE[smart.mode ?? 'NORMAL'] ?? smart.mode}${smart.last_score !== undefined && smart.last_score !== null ? ` · puan ${smart.last_score}` : ''}`}</p>}
             </details>}
 
-            {isOpen && /^[A-Z0-9]{2,30}$/.test(readSymbol) && <PositionRead productId={readSymbol} symbol={readSymbol} side={readSide} entry={metrics.entry} alarm={myAlarm} onSave={readAlarms.save} onRemove={readAlarms.remove}/>}
+            {isOpen && /^[A-Z0-9]{2,30}$/.test(readSymbol) && <PositionRead productId={readSymbol} symbol={readSymbol} side={readSide} entry={metrics.entry} stop={metrics.stop} alarm={myAlarm} onSave={readAlarms.save} onRemove={readAlarms.remove}/>}
             {dca && <DcaWatch bot={dca.bot} mark={metrics.mark}/>}
             {dca && <p className="pvNote">Bu pozisyonu DCA botu yönetiyor: stop, ek alım ve kâr hedefi bot tarafında. Botu DCA ekranından durdurabilirsin; buradan Kapat dersen bot borsayla kendini eşitler.</p>}
             {farmer && <p className="pvNote">Bu pozisyonu KAIS FARMER yönetiyor: stop ve kâr hedefi borsada, bot tarafından kurulu. Kapat dersen Farmer borsayla kendini eşitler.</p>}

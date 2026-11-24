@@ -127,3 +127,7 @@ test('alert candidates dedupe near levels and skip the current price', () => {
   assert.deepEqual(far.map(i => i.label), ['Destek'])               // ilk direnç fiyata çok yakın; listede yalnız en yakın direnç aranır
   assert.deepEqual(alertCandidates({price: 0, plan: null, levels: {support: [], resistance: []}}), [])
 })
+
+test('alarm summary unaffected by stop field', () => {
+  assert.equal(typeof alarmSummary({mode: 'against', min_tf: '15m'}), 'string')
+})

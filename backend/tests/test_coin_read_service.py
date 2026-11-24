@@ -158,7 +158,7 @@ class FakePool:
 
 def row(**over):
     base = {"id": 1, "user_id": "u1", "exchange": "binance", "product_id": "BTCUSDT", "symbol": "BTCUSDT", "side": "LONG", "entry": 100.0,
-            "mode": "against", "min_tf": "15m", "active_keys": "", "last_push_at": None}
+            "mode": "against", "min_tf": "15m", "stop": None, "active_keys": "", "last_push_at": None}
     return {**base, **over}
 
 
@@ -233,3 +233,41 @@ class AlarmRunTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StopEventTests(unittest.TestCase):
+    def test_long_near_hit_and_far(self):
+        self.assertEqual(list(ra.stop_events("LONG", 99.0, 99.2, None)), ["stop:near"])      # %0,20 kaldı (< %0,3)
+        self.assertEqual(ra.stop_events("LONG", 99.0, 101.0, None), {})                      # %1,98 uzak
+        self.assertEqual(list(ra.stop_events("LONG", 99.0, 98.9, None)), ["stop:hit"])       # geçti
+        self.assertEqual(list(ra.stop_events("LONG", 99.0, 99.0, None)), ["stop:hit"])       # tam üstünde
+
+    def test_short_mirrors(self):
+        self.assertEqual(list(ra.stop_events("SHORT", 101.0, 100.8, None)), ["stop:near"])
+        self.assertEqual(list(ra.stop_events("SHORT", 101.0, 101.2, None)), ["stop:hit"])
+        self.assertEqual(ra.stop_events("SHORT", 101.0, 95.0, None), {})
+
+    def test_threshold_scales_with_atr_but_is_capped(self):
+        self.assertEqual(ra.stop_events("LONG", 99.0, 99.6, None), {})                       # %0,6 > %0,3
+        self.assertEqual(list(ra.stop_events("LONG", 99.0, 99.6, 1.4)), ["stop:near"])       # yarım ATR = %0,7
+        self.assertEqual(ra.stop_events("LONG", 98.0, 100.0, 10.0), {})                      # tavan %1; %2 uzak
+
+    def test_missing_stop_or_price_is_silent(self):
+        self.assertEqual(ra.stop_events("LONG", None, 100.0, 1.0), {})
+        self.assertEqual(ra.stop_events("LONG", 99.0, 0, 1.0), {})
+
+    def test_normalize_keeps_only_valid_stop(self):
+        self.assertEqual(ra.normalize("binance", "BTCUSDT", "BTCUSDT", "LONG", 100, "all", "5m", 98.5)["stop"], 98.5)
+        self.assertIsNone(ra.normalize("binance", "BTCUSDT", "BTCUSDT", "LONG", 100, "all", "5m", -1)["stop"])
+        self.assertIsNone(ra.normalize("binance", "BTCUSDT", "BTCUSDT", "LONG", 100, "all", "5m", "x")["stop"])
+
+    def test_run_pushes_when_price_nears_stop(self):
+        flat = coin_read.build({tf: [{"time": 1000 + i * 60, "open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "volume": 100.0} for i in range(80)] for tf in svc.ALARM_TFS})
+        class App:
+            class state:
+                db_pool = FakePool([row(stop=99.9, mode="against")])
+        ra.reset_schema_cache()
+        push = AsyncMock()
+        with patch.object(svc, "read", AsyncMock(return_value={**flat, "atr": None})), patch.object(ra, "_push", push):
+            self.assertEqual(asyncio.run(ra.run_once(App, datetime(2026, 11, 24, 12, 0, tzinfo=timezone.utc))), 1)
+        self.assertIn("stopuna yaklaştı", push.await_args.args[3])

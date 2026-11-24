@@ -23,6 +23,7 @@ class AlarmInput(BaseModel):
     entry: float | None = None
     mode: str = "against"
     min_tf: str = "15m"
+    stop: float | None = None
 
 
 class KeepInput(BaseModel):
@@ -70,7 +71,7 @@ async def alarms_list(request: Request, exchange: str = Query(...)) -> Any:
 @router.post("/read-alarms")
 async def alarms_set(payload: AlarmInput, request: Request) -> Any:
     user = await authenticated_user_async(request)
-    data = read_alarms.normalize(payload.exchange, payload.product_id, payload.symbol, payload.side, payload.entry, payload.mode, payload.min_tf)
+    data = read_alarms.normalize(payload.exchange, payload.product_id, payload.symbol, payload.side, payload.entry, payload.mode, payload.min_tf, payload.stop)
     if data is None:
         raise HTTPException(422, "Alarm bilgileri geçersiz.")
     try:

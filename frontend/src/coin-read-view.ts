@@ -70,7 +70,7 @@ export const fitTitle = (fit: ReadPosition['fit']): string => fit === 'uyumlu' ?
 // ---- Pozisyon yorum alarmı ayarı
 export type AlarmMode = 'against' | 'all'
 export type AlarmTf = '5m' | '15m' | '1h'
-export type ReadAlarm = {id: number; exchange: 'binance' | 'coinbase'; product_id: string; symbol: string; side: 'LONG' | 'SHORT'; entry: number | null; mode: AlarmMode; min_tf: AlarmTf; active_keys: string[]}
+export type ReadAlarm = {id: number; exchange: 'binance' | 'coinbase'; product_id: string; symbol: string; side: 'LONG' | 'SHORT'; entry: number | null; mode: AlarmMode; min_tf: AlarmTf; stop?: number | null; active_keys: string[]}
 export const ALARM_MODES: ReadonlyArray<{id: AlarmMode; label: string; hint: string}> = [
   {id: 'against', label: 'Yalnız ters sinyal', hint: 'Pozisyonuna karşı bir şey çıkınca haber ver'},
   {id: 'all', label: 'Her şey', hint: 'Lehine olan gelişmeleri de bildir'},
