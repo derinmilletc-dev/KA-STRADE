@@ -139,10 +139,16 @@ export function positionInsights(metrics: PositionMetrics, plan: RawRecord | und
   return out
 }
 
-export type PositionSort = 'risk' | 'pnl' | 'time'
-export function sortPositions<T extends {metrics: PositionMetrics}>(items: T[], sort: PositionSort): T[] {
+export type PositionSort = 'risk' | 'pnl' | 'time' | 'read'
+/** Yoruma göre sıra: pozisyona ters olan en üstte, uyarılı, kararsız, uyumlu; yorumu bilinmeyen en altta. */
+export function readRank(pulse: {fit: 'uyumlu' | 'ters' | 'kararsiz'; warnings: string[]} | null | undefined): number {
+  if (!pulse) return 4
+  return pulse.fit === 'ters' ? 0 : pulse.warnings.length ? 1 : pulse.fit === 'kararsiz' ? 2 : 3
+}
+export function sortPositions<T extends {metrics: PositionMetrics}>(items: T[], sort: PositionSort, rankOf?: (item: T) => number): T[] {
   const cmpNullLast = (a: number | null, b: number | null, dir: 1 | -1) => a === null ? (b === null ? 0 : 1) : b === null ? -1 : (a - b) * dir
-  const primary = (a: T, b: T) => sort === 'risk' ? cmpNullLast(a.metrics.toStopPct, b.metrics.toStopPct, 1)
+  const primary = (a: T, b: T) => sort === 'read' ? ((rankOf?.(a) ?? 4) - (rankOf?.(b) ?? 4)) || cmpNullLast(a.metrics.toStopPct, b.metrics.toStopPct, 1)
+    : sort === 'risk' ? cmpNullLast(a.metrics.toStopPct, b.metrics.toStopPct, 1)
     : sort === 'pnl' ? cmpNullLast(a.metrics.pnl, b.metrics.pnl, -1)
     : cmpNullLast(a.metrics.openedMs, b.metrics.openedMs, -1)
   // Eşitlikte sembole göre sırala: canlı fiyat her değiştiğinde kartlar yer değiştirmesin.

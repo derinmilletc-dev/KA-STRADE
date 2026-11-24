@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {buildLadder, formatPct, formatUsdt, positionInsights, positionMetrics, sortPositions, summarize} from '../frontend/src/position-view.ts'
+import {buildLadder, formatPct, formatUsdt, positionInsights, positionMetrics, readRank, sortPositions, summarize} from '../frontend/src/position-view.ts'
 
 const NOW = Date.parse('2026-10-30T12:00:00Z')
 const pos = (extra = {}) => ({symbol: 'SOLUSDT', direction: 'LONG', quantity: 3.2, entry_price: 142.5, mark_price: 144.9, notional: 463.68, liquidation_price: 118, unrealized_pnl: 7.68, leverage: 5, margin_type: 'isolated', ...extra})
@@ -103,4 +103,18 @@ test('Biçimlendirme', () => {
   assert.equal(formatUsdt(7.68, true), '+7,68')
   assert.equal(formatUsdt(-0.77, true), '−0,77')
   assert.equal(formatUsdt(null), '—')
+})
+
+test('Yoruma göre sıralama: ters üstte, uyarılı, kararsız, uyumlu, bilinmeyen en altta', () => {
+  assert.equal(readRank({fit: 'ters', warnings: []}), 0)
+  assert.equal(readRank({fit: 'uyumlu', warnings: ['x']}), 1)
+  assert.equal(readRank({fit: 'kararsiz', warnings: []}), 2)
+  assert.equal(readRank({fit: 'uyumlu', warnings: []}), 3)
+  assert.equal(readRank(undefined), 4)
+  const m = (symbol, mark) => ({metrics: positionMetrics(pos({symbol, mark_price: mark}), plan(), NOW)})
+  const list = [m('AUSDT', 150), m('BUSDT', 150), m('CUSDT', 150), m('DUSDT', 150)]
+  const rank = {AUSDT: 3, BUSDT: 0, CUSDT: 4, DUSDT: 0}
+  const sorted = sortPositions(list, 'read', item => rank[item.metrics.symbol])
+  assert.deepEqual(sorted.map(item => item.metrics.symbol), ['BUSDT', 'DUSDT', 'AUSDT', 'CUSDT'])   // eşitlikte sembol sırası, sıralama titremez
+  assert.deepEqual(sortPositions(list, 'read').map(item => item.metrics.symbol), ['AUSDT', 'BUSDT', 'CUSDT', 'DUSDT'])   // yorum yoksa hepsi eşit
 })
