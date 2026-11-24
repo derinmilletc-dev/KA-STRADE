@@ -234,3 +234,73 @@ html body #root main.v26App .mobileHome .mhSkelPlan i.big { width: 38px; height:
   html body #root > main.v26App.homeRoute > .v26Header.v26HomeHeader .v26BrandLogo img { backface-visibility: hidden; -webkit-font-smoothing: antialiased; image-rendering: auto; }
 }
 html body #root main.v26App .mhExchange { align-self: flex-start !important; margin: 2px 0 6px !important; width: fit-content !important; }
+
+/* ===== Premium görünüm (yalnız düzen/yüzey; veri ve davranış aynı) ===== */
+html body #root main.v26App .mobileHome {
+  --mh-card: rgba(16, 28, 44, .78); --mh-card2: rgba(26, 42, 64, .92); --mh-line: rgba(160, 190, 225, .12);
+  --mh-glow: rgba(39, 214, 160, .16);
+  gap: 12px; padding: 4px 16px 16px;
+}
+html body #root main.v26App .mhHello { margin: 8px 2px 2px; font-size: 13.5px; letter-spacing: .01em; }
+html body #root main.v26App .mhHello b { display: block; margin-top: 1px; font-size: 24px; font-weight: 700; letter-spacing: -.02em; color: var(--mh-tx); }
+
+/* Ortak kart: cam yüzey, ince üst ışık çizgisi */
+html body #root main.v26App .mhCard, html body #root main.v26App .mhPlan, html body #root main.v26App .mhOpp, html body #root main.v26App .mhRow {
+  border: 1px solid var(--mh-line) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--mh-card) !important;
+  box-shadow: 0 10px 30px rgba(2, 8, 18, .35), inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+}
+html body #root main.v26App .mhRow { box-shadow: none !important; }
+
+/* Bakiye kartı: yeşil ışıma, büyük rakam */
+html body #root main.v26App .mhBalance { padding: 16px; border-radius: 20px; }
+html body #root main.v26App .mhBalance::before { content: ""; position: absolute; inset: -40% -20% auto auto; width: 220px; height: 220px; background: radial-gradient(closest-side, var(--mh-glow), transparent); pointer-events: none; }
+html body #root main.v26App .mhBalance > * { position: relative; }
+html body #root main.v26App .mhAmount { margin-top: 8px; font-size: clamp(34px, 10.5vw, 44px); letter-spacing: -.045em; }
+html body #root main.v26App .mhBalanceLabel { margin-top: 14px; font-size: 12px; letter-spacing: .02em; }
+html body #root main.v26App .mhChange { gap: 6px 8px; margin-top: 12px; font-size: 12px; }
+html body #root main.v26App .mhChange > span { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; background: rgba(160, 190, 225, .09); }
+html body #root main.v26App .mhChange > span.mhPnl.pos { background: rgba(39, 214, 160, .14); }
+html body #root main.v26App .mhChange > span.mhPnl.neg { background: rgba(248, 113, 113, .15); }
+html body #root main.v26App .mhOther { padding: 11px 13px; border-radius: 14px; background: rgba(4, 10, 20, .5); }
+
+/* Kısayollar */
+html body #root main.v26App .mhQuick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+html body #root main.v26App .mobileHome .mhQuick button {
+  display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 6px !important;
+  min-height: 64px !important; padding: 10px 6px !important; border: 1px solid var(--mh-line) !important; border-radius: 16px !important;
+  background: var(--mh-card) !important; font-size: 12px !important; font-weight: 600 !important; color: var(--mh-tx) !important;
+  transition: transform .15s ease, background .15s ease;
+}
+html body #root main.v26App .mobileHome .mhQuick button:active { transform: scale(.97); background: var(--mh-card2) !important; }
+html body #root main.v26App .mhQuick button svg { width: 20px; height: 20px; color: var(--mh-acc); }
+
+/* Abonelik şeridi */
+html body #root main.v26App .mhPlan { border-radius: 16px !important; padding: 11px 14px !important; }
+
+/* Piyasa: tarama dağılımı çubuğu */
+html body #root main.v26App .mhMarket { display: grid; gap: 6px; }
+html body #root main.v26App .mhMarketHead { margin: 4px 2px 0; }
+html body #root main.v26App .mhPulse { display: grid; gap: 6px; margin: 2px 2px 6px; }
+html body #root main.v26App .mhPulseBar { display: flex; gap: 3px; height: 8px; }
+html body #root main.v26App .mhPulseBar i { display: block; min-width: 0; border-radius: 99px; background: rgba(160, 190, 225, .22); transition: flex-grow .4s ease; }
+html body #root main.v26App .mhPulseBar i.up { background: var(--mh-up); }
+html body #root main.v26App .mhPulseBar i.down { background: var(--mh-dn); }
+html body #root main.v26App .mhPulseBar i[style*="flex-grow: 0"] { display: none; }
+html body #root main.v26App .mhPulseLegend { display: flex; justify-content: space-between; font-size: 11.5px; font-weight: 600; color: var(--mh-mut); }
+html body #root main.v26App .mhRow { margin-bottom: 0; padding: 9px 12px; border-radius: 14px; }
+html body #root main.v26App .mhCoin { width: 30px; height: 30px; }
+
+/* Öne çıkan fırsat */
+html body #root main.v26App .mhOpp { border-radius: 18px !important; padding: 14px 16px !important; background: linear-gradient(135deg, rgba(39, 214, 160, .13), rgba(16, 28, 44, .78) 60%) !important; }
+html body #root main.v26App .mhScore { font-size: 32px; }
+
+/* Kartlar yumuşakça belirir */
+@keyframes mhIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+html body #root main.v26App .mobileHome > * { animation: mhIn .4s ease both; }
+html body #root main.v26App .mobileHome > *:nth-child(2) { animation-delay: .04s; }
+html body #root main.v26App .mobileHome > *:nth-child(3) { animation-delay: .08s; }
+html body #root main.v26App .mobileHome > *:nth-child(4) { animation-delay: .12s; }
+html body #root main.v26App .mobileHome > *:nth-child(5) { animation-delay: .16s; }
+html body #root main.v26App .mobileHome > *:nth-child(6) { animation-delay: .2s; }
+@media (prefers-reduced-motion: reduce) { html body #root main.v26App .mobileHome > * { animation: none; } }
