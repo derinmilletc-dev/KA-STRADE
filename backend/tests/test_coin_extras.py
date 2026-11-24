@@ -221,6 +221,51 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual(graded[1][2], "hit")
 
 
+class CalibrationTests(unittest.TestCase):
+    def rows(self, bias, hits, misses, **extra):
+        return [{"result": "hit", "bias": bias, "confidence": "Orta", **extra}] * hits + [{"result": "miss", "bias": bias, "confidence": "Orta", **extra}] * misses
+
+    def test_bias_buckets_and_ordering(self):
+        rows = self.rows(0.6, 6, 6) + self.rows(0.9, 8, 4) + self.rows(1.4, 10, 2)
+        out = rl.calibration(rows)
+        self.assertEqual([out["by_bias"][k]["rate"] for k in ("zayıf", "orta", "güçlü")], [50, 67, 83])
+        self.assertTrue(out["bias_ordered"])
+        flipped = rl.calibration(self.rows(0.6, 10, 2) + self.rows(1.4, 6, 6) + self.rows(0.9, 8, 4))
+        self.assertFalse(flipped["bias_ordered"])
+
+    def test_not_enough_data_is_honest(self):
+        out = rl.calibration(self.rows(0.6, 3, 2))
+        self.assertIsNone(out["bias_ordered"])
+        self.assertIsNone(out["by_bias"]["zayıf"]["rate"])
+
+    def test_regime_volatility_and_long_horizon(self):
+        rows = self.rows(1.0, 8, 4, regime="trend", vol_state="expanding", result_4h="hit") + self.rows(1.0, 2, 10, regime="range", vol_state="quiet", result_4h="miss")
+        out = rl.calibration(rows)
+        self.assertEqual(out["by_regime"]["trend"]["rate"], 67)
+        self.assertEqual(out["by_regime"]["range"]["rate"], 17)
+        self.assertEqual(out["by_volatility"]["expanding"]["n"], 12)
+        self.assertEqual(out["horizon_4h"]["n"], 24)
+
+
+class EvaluateLongTests(unittest.TestCase):
+    def test_four_hour_grade_and_give_up(self):
+        rl.reset_state()
+        now = datetime(2026, 11, 24, 12, 0, tzinfo=UTC)
+        logged = now - timedelta(hours=6)
+        rows = [{"id": 1, "symbol": "BTCUSDT", "logged_at": logged, "lean": "SHORT", "price": 100.0},
+                {"id": 2, "symbol": "BTCUSDT", "logged_at": now - timedelta(hours=50), "lean": "LONG", "price": 100.0}]
+        pool = FakePool(rows)
+        base = logged.timestamp()
+        candles = [{"time": base + i * 900, "open": 1, "high": 1, "low": 1, "close": 100 - i * 0.1, "volume": 1} for i in range(-2, 40)]
+
+        async def fetch(symbol, tf, limit): return candles
+        done = asyncio.run(rl.evaluate_long_once(App(pool), now=now, fetch=fetch))
+        self.assertEqual(done, 1)
+        graded = next(u for u in pool.updates if "SET later_price_4h" in u[0])
+        self.assertEqual(graded[1][2], "hit")
+        self.assertTrue(any("result_4h = 'skip'" in u[0] for u in pool.updates))
+
+
 def data(lean="LONG", up=3, down=0, conflict=None, tf_event=("15m", "breakout_up"), spike=True):
     reads = [{"tf": "15m", "label": "15 dk", "event": tf_event[1] if tf_event[0] == "15m" else None, "volume_spike": spike},
              {"tf": "1h", "label": "1 saat", "event": tf_event[1] if tf_event[0] == "1h" else None, "volume_spike": spike}]

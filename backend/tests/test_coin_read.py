@@ -251,6 +251,32 @@ class PositionTests(unittest.TestCase):
         self.assertIn("5m:bull_trap", cr.position_events(reads, {"bias": 0.0}, "LONG", min_tf="5m"))
 
 
+class RegimeVolatilityTests(unittest.TestCase):
+    def test_volatility_expanding_and_quiet(self):
+        wide_end = [candle(i, 100 + (0.3 if i % 2 else -0.3), 0.2) for i in range(80)] + [candle(80 + i, 100 + (0.3 if i % 2 else -0.3), 2.0) for i in range(20)]
+        quiet_end = [candle(i, 100 + (0.3 if i % 2 else -0.3), 2.0) for i in range(80)] + [candle(80 + i, 100 + (0.3 if i % 2 else -0.3), 0.1) for i in range(20)]
+        self.assertEqual(cr.volatility(wide_end)[1], "expanding")
+        self.assertEqual(cr.volatility(quiet_end)[1], "quiet")
+        self.assertEqual(cr.volatility(series(flat(10))), (None, None))
+
+    def test_regime_on_timeframe_and_summary(self):
+        trend = cr.read_timeframe(series([100 + i * 0.3 for i in range(60)]), "1h")
+        rangey = cr.read_timeframe(series(flat(60)), "1h")
+        self.assertEqual(trend["regime"], "trend")
+        self.assertEqual(rangey["regime"], "range")
+        empty = {"resistance": [], "support": []}
+        summary = cr.summarize({"1h": trend}, empty, None, trend["price"])
+        self.assertEqual(summary["regime"], "trend")
+        self.assertTrue(any("trend güçlü" in f["text"] for f in summary["flags"]))   # aşırı alım ama trend: dönüş sinyali sayılmaz
+        self.assertEqual(cr.summarize({"1h": rangey}, empty, None, 100.0)["regime"], "range")
+
+    def test_regime_notes_do_not_change_bias(self):
+        trend = cr.read_timeframe(series([100 + i * 0.3 for i in range(60)]), "1h")
+        a = cr.summarize({"1h": trend}, {"resistance": [], "support": []}, None, trend["price"])
+        b = cr.summarize({"1h": {**trend, "regime": "range", "vol_state": None}}, {"resistance": [], "support": []}, None, trend["price"])
+        self.assertEqual((a["bias"], a["lean"], a["confidence"]), (b["bias"], b["lean"], b["confidence"]))
+
+
 class FormatTests(unittest.TestCase):
     def test_numbers(self):
         self.assertEqual(cr.signed_pct(1.234), "+%1,23")
