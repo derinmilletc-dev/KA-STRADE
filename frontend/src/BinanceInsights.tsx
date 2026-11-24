@@ -21,9 +21,11 @@ export default function BinanceInsights() {
     <button type="button" className="srxMineHead" aria-expanded={open} onClick={() => setOpen(value => !value)}>
       <span className="srxMineIcon"><Fingerprint aria-hidden="true"/></span>
       <span><b>Senin kalıpların</b><small>Binance · son {data.days} gün · {data.n} işlem</small></span>
+      {typeof data.win_rate === 'number' && <span className="srxMineRate" title="Son işlemlerinde kazanan oranı"><b>%{Math.round(data.win_rate)}</b><small>kazanma</small></span>}
       <ChevronDown aria-hidden="true"/>
     </button>
     {weak && <p className="srxNoteLine" data-tone="warn" role="status">{weak}</p>}
+    {!open && !weak && data.insights[0] && <p className="srxMinePeek" data-tone={data.insights[0].tone === 'good' ? 'up' : data.insights[0].tone === 'warn' ? 'warn' : 'flat'}>{data.insights[0].text}</p>}
     {open && <div className="srxMineBody">
       {data.insights.map(item => <p className="srxNoteLine" key={item.text} data-tone={item.tone === 'good' ? 'up' : item.tone === 'warn' ? 'warn' : 'flat'}>{item.text}</p>)}
       <small className="srxPlanNote">{data.caveat}{data.truncated ? ' Çok işlem olduğu için yalnız ilk 1000 kayıt okundu.' : ''} Geçmişin dağılımıdır; neden-sonuç göstermez.</small>

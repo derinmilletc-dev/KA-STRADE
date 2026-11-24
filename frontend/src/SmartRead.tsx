@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react'
+import {ChevronDown} from 'lucide-react'
 import './smart-read.css'
 import {useCoinRead, useReadStats} from './coin-read-api'
 import type {AlertCall} from './price-alert-api'
@@ -11,7 +12,7 @@ import {
 // futures verisini ve bu kuralın coindeki geçmiş doğruluğunu gösterir. Pozisyon verilirse yorumu pozisyona bağlar.
 // Yalnız okuma: kapanmış mumlardan otomatik tarif; tahmin ya da yatırım tavsiyesi değildir.
 export type AlertTarget = {productId: string; call: AlertCall; onSet?: () => void}
-type Props = {symbol: string; focus?: string; side?: 'LONG' | 'SHORT' | null; entry?: number | null; onApplyPlan?: (plan: ReadPlan) => string | null | void; alert?: AlertTarget}
+type Props = {symbol: string; focus?: string; side?: 'LONG' | 'SHORT' | null; entry?: number | null; onApplyPlan?: (plan: ReadPlan) => string | null | void; alert?: AlertTarget; fold?: boolean}
 
 const isTf = (value: string | undefined): value is typeof TF_ORDER[number] => !!value && (TF_ORDER as readonly string[]).includes(value)
 const toneOf = (value: string): 'up' | 'down' | 'warn' | 'flat' => value === 'up' || value === 'good' ? 'up' : value === 'down' || value === 'danger' ? 'down' : value === 'warn' ? 'warn' : 'flat'
@@ -113,7 +114,7 @@ function Detail({read, history}: {read: ReadTf; history: string | null}) {
   </div>
 }
 
-export default function SmartRead({symbol, focus, side = null, entry = null, onApplyPlan, alert}: Props) {
+export default function SmartRead({symbol, focus, side = null, entry = null, onApplyPlan, alert, fold = false}: Props) {
   const [tf, setTf] = useState<string>(isTf(focus) ? focus : '15m')
   useEffect(() => { if (isTf(focus)) setTf(focus) }, [focus])
   const {data, error, loading, reload} = useCoinRead(symbol, {interval: tf, side, entry})
@@ -122,6 +123,26 @@ export default function SmartRead({symbol, focus, side = null, entry = null, onA
   const {summary, futures, position} = data
   const current = data.timeframes.find(item => item.tf === tf) ?? data.timeframes[0]
   const histText = data.history && data.history.tf === current?.tf ? data.history.text : null
+  const market = <>
+    <Levels data={data}/>
+    <Extras data={data} onApplyPlan={onApplyPlan}/>
+
+    {futures && <div className="srxBlock" aria-label="Futures verisi">
+      <h4>Futures</h4>
+      <div className="srxFut">
+        {futures.funding_pct !== null && <span><small>Fonlama</small><b>{signedPct(futures.funding_pct, 3)}</b></span>}
+        {futures.oi_change_pct !== null && <span><small>Açık poz. (4 sa)</small><b data-tone={futures.oi_change_pct >= 0 ? 'up' : 'down'}>{signedPct(futures.oi_change_pct, 1)}</b></span>}
+        {futures.taker_ratio !== null && <span><small>Alıcı / satıcı</small><b data-tone={futures.taker_ratio >= 1.15 ? 'up' : futures.taker_ratio <= 0.87 ? 'down' : undefined}>{futures.taker_ratio.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>}
+      </div>
+      {futures.notes.map(note => <p className="srxNoteLine" key={note.text} data-tone={toneOf(note.tone)}>{note.text}</p>)}
+    </div>}
+
+    {summary.flags.filter(flag => !futures?.notes.some(note => note.text === flag.text)).length > 0 && <div className="srxBlock" aria-label="Dikkat">
+      <h4>Dikkat</h4>
+      {summary.flags.filter(flag => !futures?.notes.some(note => note.text === flag.text)).map(flag => <p className="srxNoteLine" key={flag.text} data-tone={toneOf(flag.tone)}>{flag.text}</p>)}
+    </div>}
+
+  </>
   return <section className="srx" data-lean={summary.lean} aria-label="Akıllı yorum" aria-busy={loading || undefined}>
     <header className="srxHead">
       <span className="srxKick">AKILLI YORUM</span>
@@ -153,24 +174,8 @@ export default function SmartRead({symbol, focus, side = null, entry = null, onA
     </div>
     {current && <Detail read={current} history={histText}/>}
 
-    <Levels data={data}/>
-    <Extras data={data} onApplyPlan={onApplyPlan}/>
+    {fold ? <details className="srxFold"><summary>Piyasa, emir defteri ve futures<ChevronDown aria-hidden="true"/></summary>{market}</details> : market}
     {alert && <QuickAlerts data={data} alert={alert}/>}
-
-    {futures && <div className="srxBlock" aria-label="Futures verisi">
-      <h4>Futures</h4>
-      <div className="srxFut">
-        {futures.funding_pct !== null && <span><small>Fonlama</small><b>{signedPct(futures.funding_pct, 3)}</b></span>}
-        {futures.oi_change_pct !== null && <span><small>Açık poz. (4 sa)</small><b data-tone={futures.oi_change_pct >= 0 ? 'up' : 'down'}>{signedPct(futures.oi_change_pct, 1)}</b></span>}
-        {futures.taker_ratio !== null && <span><small>Alıcı / satıcı</small><b data-tone={futures.taker_ratio >= 1.15 ? 'up' : futures.taker_ratio <= 0.87 ? 'down' : undefined}>{futures.taker_ratio.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>}
-      </div>
-      {futures.notes.map(note => <p className="srxNoteLine" key={note.text} data-tone={toneOf(note.tone)}>{note.text}</p>)}
-    </div>}
-
-    {summary.flags.filter(flag => !futures?.notes.some(note => note.text === flag.text)).length > 0 && <div className="srxBlock" aria-label="Dikkat">
-      <h4>Dikkat</h4>
-      {summary.flags.filter(flag => !futures?.notes.some(note => note.text === flag.text)).map(flag => <p className="srxNoteLine" key={flag.text} data-tone={toneOf(flag.tone)}>{flag.text}</p>)}
-    </div>}
 
     {(() => { const line = accuracyLine(stats); return line ? <p className="srxAcc"><span aria-hidden="true">🎯</span>{line} <small>Bu, yorumun kısa vadeli yön isabetidir; kâr garantisi değildir.</small></p> : null })()}
     <p className="srxFoot">Kapanmış mumlardan otomatik okuma. Tahmin ya da yatırım tavsiyesi değildir.</p>

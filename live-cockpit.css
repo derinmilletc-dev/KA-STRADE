@@ -1507,3 +1507,10 @@ html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcC
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseDot[data-tone="up"]{background:#34d399}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseDot[data-tone="down"]{background:#fb7185}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseDot[data-tone="warn"]{background:#f2c46d}
+
+/* Açık pozisyon kartı sadeleştirme: alt etiketler üst üste binmez; kapat satırı ince çizgiyle ayrılır. */
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimId .pvSub>*{position:static!important;transform:none!important;margin-top:0!important;margin-bottom:0!important}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimId .pvSub .pvSubTxt+.pvSubTxt::before{content:"· ";color:var(--lc-mute);font-weight:400}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot{display:grid!important;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot>span:last-child{text-align:right}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuick{margin:2px 12px 0!important;padding:10px 0 11px!important;border-top:1px solid rgba(160,185,210,.12)!important}
