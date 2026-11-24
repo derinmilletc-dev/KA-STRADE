@@ -69,6 +69,20 @@ class ServiceTests(unittest.TestCase):
         svc.reset()
         self.assertIsNone(asyncio.run(svc.read(None, "SOLUSDT", fetch=fetch, get=none_get))["futures"])
 
+    def test_crowd_ratio_is_fetched_and_optional(self):
+        async def fetch(symbol, tf, limit): return candles(0.3)
+        async def get(path, params):
+            if path.endswith("globalLongShortAccountRatio"): return [{"longShortRatio": "2.4"}]
+            raise RuntimeError("no")
+        data = asyncio.run(svc.read(None, "SOLUSDT", fetch=fetch, get=get))
+        self.assertAlmostEqual(data["futures"]["crowd_ratio"], 2.4)
+        self.assertTrue(any("çoğu long" in n["text"] for n in data["futures"]["notes"]))
+        svc.reset()
+        async def broken(path, params):
+            if path.endswith("globalLongShortAccountRatio"): raise RuntimeError("no")
+            return {"lastFundingRate": "0.0001"}
+        self.assertIsNone(asyncio.run(svc.read(None, "SOLUSDT", fetch=fetch, get=broken))["futures"]["crowd_ratio"])
+
     def test_extras_attach_and_degrade(self):
         async def fetch(symbol, tf, limit): return candles(0.3, n=max(80, min(limit, 200)))
         async def get(path, params):

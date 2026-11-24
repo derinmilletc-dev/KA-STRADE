@@ -38,6 +38,15 @@ def _pool(request: Request) -> Any:
     return pool
 
 
+@router.get("/coin-read-events")
+async def coin_read_events(request: Request) -> Any:
+    """Makro takvim ve fonlama uyarıları (coinden bağımsız). Yalnız bilgi: işlem açmayı hiçbir yerde engellemez."""
+    await authenticated_user_async(request)
+    from datetime import datetime, timezone
+    from . import market_events
+    return market_events.upcoming(datetime.now(timezone.utc))
+
+
 @router.get("/coin-read/{symbol}")
 async def coin_read_get(symbol: str, request: Request, interval: str = Query("15m"), side: str | None = Query(None), entry: float | None = Query(None, gt=0)) -> Any:
     await authenticated_user_async(request)

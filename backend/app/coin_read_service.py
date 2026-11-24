@@ -83,7 +83,7 @@ def _floats(rows: Any, key: str) -> list[float]:
 
 async def fetch_futures_raw(symbol: str, price_change_pct: float | None, get: Get) -> dict[str, Any] | None:
     """Fonlama, açık pozisyon değişimi (4 saat) ve alıcı/satıcı oranı (son 1 saat). Biri alınamazsa o parça boş kalır."""
-    funding = oi_change = taker = None
+    funding = oi_change = taker = crowd = None
     try:
         funding = float((await get("/fapi/v1/premiumIndex", {"symbol": symbol}))["lastFundingRate"])
     except Exception:  # noqa: BLE001 - parça düşer, yorum devam eder
@@ -100,9 +100,14 @@ async def fetch_futures_raw(symbol: str, price_change_pct: float | None, get: Ge
         taker = buy / sell if sell > 0 else None
     except Exception:  # noqa: BLE001
         taker = None
-    if funding is None and oi_change is None and taker is None:
+    try:
+        crowd_rows = _floats(await get("/futures/data/globalLongShortAccountRatio", {"symbol": symbol, "period": "1h", "limit": 1}), "longShortRatio")
+        crowd = crowd_rows[-1] if crowd_rows and crowd_rows[-1] > 0 else None
+    except Exception:  # noqa: BLE001
+        crowd = None
+    if funding is None and oi_change is None and taker is None and crowd is None:
         return None
-    return {"funding": funding, "oi_change_pct": oi_change, "price_change_pct": price_change_pct, "taker_ratio": taker}
+    return {"funding": funding, "oi_change_pct": oi_change, "price_change_pct": price_change_pct, "taker_ratio": taker, "crowd_ratio": crowd}
 
 
 def _price_change_4h(candles: dict[str, list[dict[str, Any]]]) -> float | None:

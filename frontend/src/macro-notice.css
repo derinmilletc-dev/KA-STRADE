@@ -1,0 +1,3 @@
+#root .mnBar{display:flex;align-items:flex-start;gap:8px;margin:0 0 10px;padding:9px 11px;border-radius:12px;font-size:12.5px;line-height:1.4;color:#f2c46d;background:rgba(242,196,109,.1);border:1px solid rgba(242,196,109,.28)}
+#root .mnBar[data-level="danger"]{color:#ffb4bd;background:rgba(251,113,133,.12);border-color:rgba(251,113,133,.35)}
+#root .mnBar em{font-style:normal;opacity:.75}

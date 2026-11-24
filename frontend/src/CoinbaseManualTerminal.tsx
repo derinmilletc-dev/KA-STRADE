@@ -8,6 +8,7 @@ import {createPortal} from 'react-dom'
 import {BarChart3, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, RefreshCw, Search, Send, ShieldAlert, TriangleAlert, X, Zap} from 'lucide-react'
 import {CoinIcon} from '../../src/components/CoinIcon'
 import CoinLiveChart from './CoinLiveChart'
+import MacroNotice from './MacroNotice'
 import {planForForm, type ReadPlan} from './coin-read-view'
 import {computeGrid, GRID_MAX_COUNT, GRID_MIN_COUNT, type GridFilters, type GridSide} from './gridMath'
 import {buildGridAlerts} from './gridAlerts'
@@ -751,6 +752,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
 
   const reviewStep = <>
     <h4>Son kontrol</h4>
+    <MacroNotice/>
     {expiry && expiry.tone !== 'info' && expiryEl}
     <p className="mxtLead">Önce ön kontrolle sına (gerçek emir gitmez), sonra gönder. Gönderirken yazı onayı istenir.</p>
     {futuresMissing && <div className="mxtLockCard" role="alert"><span><b>Bakiye ekle</b><small>Vadeli cüzdanında bakiye yok. Coinbase'de vadeli cüzdana USD ekle, buradan yenile ve tekrar dene.</small></span></div>}
@@ -1030,7 +1032,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
             {status?.resting_enabled === true && <label className="mxtHint"><input type="checkbox" checked={ticket.rest} onChange={event => patch({rest: event.target.checked})}/> Bekleyen limit: emir dolana kadar Coinbase'de bekler (limit giriş ve hedef zorunlu; stop+hedef emre ekli gider ve ekran dolumu izler).</label>}
             <p className="mxtHint">Limit fiyatı yazarsan emir yalnızca bu fiyattan ya da daha iyisinden anında dolar; dolmazsa hiçbir işlem açılmaz. Bekleyen emir bırakılmaz, çünkü dolduğunda stop'suz kalabilirdi. Sözleşme sayısını elle yazarsan kaldıraç ona göre kendiliğinden belirlenir.</p>
           </details></div></>}
-        {step === 3 && <><h4>Stop ve hedefleri belirle</h4><p className="mxtLead">Stop, zararı sınırlar; hedef kârı alır. Hazır önerilerden birine dokun, sonra değiştirebilirsin.</p>
+        {step === 3 && <><h4>Stop ve hedefleri belirle</h4><p className="mxtLead">Stop, zararı sınırlar; hedef kârı alır. Hazır önerilerden birine dokun, sonra değiştirebilirsin.</p><MacroNotice/>
           {stopMobile}<div className="mxtDesk">
           <div className="cbLv">
             <label className="cbLvField"><span>Stop fiyatı</span><input className="cbAmtInput small" aria-label="Stop fiyatı" value={ticket.stopPrice} onChange={event => setStop(event.target.value)} inputMode="decimal" autoComplete="off" placeholder="stop fiyatı"/></label>

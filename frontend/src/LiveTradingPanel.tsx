@@ -40,6 +40,7 @@ import {LIVE_ORDER_SENT_EVENT, MANUAL_CLOSED_EVENT, MANUAL_INTENT_EVENT, MANUAL_
 import {checkProtection} from './order-protection'
 import {sameConfirm} from './confirm-text'
 import {suggestVolatilityStop, type StopCandle} from './volatility-stop'
+import MacroNotice from './MacroNotice'
 import {readLiveStatusResponses, liveCredentialStatusMatches} from './live-status-read'
 export {liveCredentialStatusMatches} from './live-status-read'
 
@@ -2053,6 +2054,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const stopStep = <>
       <h4>Stop ve hedefleri belirle</h4>
       <p className="mxtLead">Stop, zararı sınırlar; hedefler kârı alır. Hazır önerilerden birine dokun, sonra değiştirebilirsin.</p>
+      <MacroNotice/>
       {stopMobile}
       <div className="mxtSuggest mxtDesk" role="group" aria-label="Hazır stop ve hedef önerileri">
         {hasAnalysis && <button type="button" className="mxtPick" data-rec="1" data-on={analysisOn || undefined} aria-pressed={analysisOn} onClick={() => { if (fillAnalysis()) setStopPick('analysis') }}><b>Kais analizi <em>Önerilen</em></b><small>Analizin stop ve hedefleri doldurulur</small></button>}
@@ -2102,6 +2104,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const reviewStep = <>
       <h4>Son kontrol</h4>
       <p className="mxtLead">Önce dry-run ile kontrol et (gerçek emir gitmez), sonra gönder. Gönderirken yazı onayı istenir.</p>
+      <MacroNotice/>
       {reviewVisual}
       {!manualOrderReady && <div className="mxtLockCard" role="status"><span><b>Emir şu an kilitli</b><small>{sendBlock || blocker}</small></span>{armable && <button type="button" className="mxtBtn primary" onClick={() => void slidePermission()} disabled={Boolean(busy)}>İzni aç</button>}</div>}
       <div className="mxtReviewGrid"><SummaryList rows={summaryRows.slice(0, 8)}/><SummaryList rows={summaryRows.slice(8)}/></div>
