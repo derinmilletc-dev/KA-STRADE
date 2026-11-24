@@ -44,6 +44,17 @@ def _window_bp(window: Any) -> Decimal | None:
     return None
 
 
+MIN_LIQUIDATION_BUFFER_PCT = Decimal("100")   # Coinbase: yeni hesap >%100 ile başlar, %0'da pozisyonlar tasfiye edilir
+
+
+def _decimal_or_none(value: Any) -> Decimal | None:
+    try:
+        out = Decimal(str(value).strip().rstrip("%"))
+    except Exception:  # noqa: BLE001
+        return None
+    return out if out.is_finite() else None
+
+
 def _level_name(level: Any) -> str:
     return str(level or "").rsplit("_", 1)[-1].upper()
 
@@ -283,7 +294,17 @@ def run_preflight(
         worst_level = overnight.get("margin_level") if waive_intraday else balance.get("worst_margin_level")  # type: ignore[union-attr]
         worst_window = "overnight" if waive_intraday else balance.get("worst_margin_window")
         level_name = _level_name(worst_level)
-        if not (flat and level_name == "UNSPECIFIED") and level_rank(worst_level) >= 1:
+        # Coinbase bazı hesaplarda iki pencerede de seviyeyi hiç bildirmez (UNSPECIFIED). Bu "sağlıksız" demek değildir, "bilinmiyor" demektir:
+        # pozisyon varken seviyeye güvenemeyiz, bunun yerine ölçülebilir likidasyon tamponuna (>= %100) bakarız; yoksa/yetersizse reddedilir.
+        unreported = (not flat and _level_name(intraday.get("margin_level") if isinstance(intraday, dict) else None) in ("", "UNSPECIFIED")
+                      and _level_name(overnight.get("margin_level") if isinstance(overnight, dict) else None) in ("", "UNSPECIFIED"))
+        if unreported:
+            buffer = _decimal_or_none(balance.get("liquidation_buffer_percentage"))
+            if buffer is None:
+                reasons.append("Marjin seviyesi Coinbase'ten alınamadı ve likidasyon tamponu da okunamadı; güvenlik için emir verilmez.")
+            elif buffer < MIN_LIQUIDATION_BUFFER_PCT:
+                reasons.append(f"Marjin seviyesi Coinbase'ten alınamadı; likidasyon tamponu %{fmt(buffer.quantize(Decimal('0.1')))} (en az %{fmt(MIN_LIQUIDATION_BUFFER_PCT)} olmalı).")
+        elif not (flat and level_name == "UNSPECIFIED") and level_rank(worst_level) >= 1:
             gi = _level_name(intraday.get("margin_level") if isinstance(intraday, dict) else None) or "-"
             ge = _level_name(overnight.get("margin_level") if isinstance(overnight, dict) else None) or "-"
             reasons.append(f"Marjin seviyesi sağlıksız ({worst_level}, pencere: {worst_window}; gün içi: {gi}, gece: {ge}, pozisyon: {'yok' if flat else 'var'}).")
@@ -294,7 +315,7 @@ def run_preflight(
             _window_bp(overnight),
         ]
         required = powers[:2]  # futures_buying_power ve available_margin her zaman gerekir
-        if waive_intraday:
+        if waive_intraday or unreported:
             powers = [p for p in powers if p is not None]  # gün içi pencere boşsa atlanır; doluysa alım gücü yine min'e girer
         if flat:
             powers = [p for p in powers if p is not None]  # pencere değerleri boşsa (pozisyon yok) üst düzey değerlere güvenilir
