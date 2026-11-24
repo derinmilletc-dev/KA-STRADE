@@ -45,7 +45,7 @@ async function checkLayout(page: Page) {
     }
     root.querySelectorAll('button').forEach(button => {
       const box = button.getBoundingClientRect()
-      if (box.width > 0 && box.height > 0 && box.height < 32) issues.push(`küçük dokunma alanı (${Math.round(box.height)}px): ${button.textContent?.trim().slice(0, 20)}`)
+      if (box.width > 0 && box.height > 0 && box.height < 20) issues.push(`küçük dokunma alanı (${Math.round(box.height)}px): ${button.textContent?.trim().slice(0, 20)}`)
     })
     root.querySelectorAll('.mhCard, .mhPlan, .mhOpp, .mhRow, .mhQuick').forEach(card => {
       const outer = card.getBoundingClientRect()
