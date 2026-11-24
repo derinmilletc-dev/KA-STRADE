@@ -863,7 +863,7 @@ class PasswordAndEmailSecurityTests(unittest.TestCase):
     def test_email_escapes_every_interpolation_including_attribute_quotes(self):
         value = '<img src=x onerror="alert(1)">&\''
         body = auth.auth_email_html(value, value, 'https://example.test/?x=" onmouseover="bad', value, value)
-        self.assertNotIn("<img", body)
+        self.assertNotIn("<img src=x", body)  # logo <img> yasal; enjekte edilen etiket kaçırılmış olmalı
         self.assertNotIn('href="https://example.test/?x="', body)
         self.assertIn("&lt;img", body)
         self.assertIn("&quot;", body)
