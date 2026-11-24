@@ -5,6 +5,7 @@ import {useLiveCandles} from '../../useLiveCandles'
 import {buildChart, changeText, clockText, INTERVAL_LABEL, nearestIndex, type ChartInterval} from './coin-live-chart'
 import {formatPrice} from './position-view'
 import {readCandles, windowText} from './coin-live-read'
+import CandleReadBox from './CandleReadBox'
 
 // Manuel işlemde seçilen/incelenen coinin canlı hareketi: son 60 mum (REST) + Binance'ten canlı akan son mum.
 // Parmağı grafik üstünde gezdirince o andaki fiyat ve saat görünür; bırakınca canlı fiyata döner.
@@ -85,11 +86,6 @@ export default function CoinLiveChart({symbol, compact = false, paused = false}:
       <small>{shape ? `Son 60 mum · parmağınla gez` : ''}</small>
       <div className="mxlcTabs" role="group" aria-label="Grafik süresi">{(Object.keys(INTERVAL_LABEL) as ChartInterval[]).map(item => <button type="button" key={item} aria-pressed={interval === item} onClick={() => setIntervalValue(item)}>{INTERVAL_LABEL[item]}</button>)}</div>
     </div>}
-    {read && shape && <div className="mxlcRead" data-tone={read.tone} role="status" aria-live="polite">
-      <small>OTOMATİK YORUM · {INTERVAL_LABEL[interval]}</small>
-      <b>{read.head}</b>
-      <p>{read.text}</p>
-      <div className="mxlcReadChips">{read.chips.map(chip => <span key={chip}>{chip}</span>)}</div>
-    </div>}
+    {read && shape && <CandleReadBox read={read} label={INTERVAL_LABEL[interval]}/>}
   </div>
 }

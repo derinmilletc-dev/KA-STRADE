@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {readCandles, windowText, type ReadCandle} from './coin-live-read.ts'
+import {intervalSeconds, readCandles, windowText, type ReadCandle} from './coin-live-read.ts'
 
 const candle = (i: number, close: number, spread = 0.2, volume = 100): ReadCandle => ({time: 1000 + i * 60, open: close, high: close + spread, low: close - spread, close, volume})
 const series = (closes: number[], volume = 100) => closes.map((close, i) => candle(i, close, 0.2, volume))
@@ -79,4 +79,12 @@ test('window text', () => {
   assert.equal(windowText(60, 45), 'son 45 dk')
   assert.equal(windowText(3600, 60), 'son 60 saat')
   assert.equal(windowText(86400, 60), 'son 60 gün')
+})
+test('interval seconds', () => {
+  assert.equal(intervalSeconds('1m'), 60)
+  assert.equal(intervalSeconds('15m'), 900)
+  assert.equal(intervalSeconds('4h'), 14400)
+  assert.equal(intervalSeconds('1d'), 86400)
+  assert.equal(intervalSeconds('x'), 0)
+  assert.equal(intervalSeconds(''), 0)
 })
