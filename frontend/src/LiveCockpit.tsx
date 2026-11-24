@@ -28,6 +28,7 @@ import '../../live-cockpit.css'
 import '../../live-cockpit-mobile.css'
 import '../../live-cockpit-coach-mobile.css'
 import './lc-guide-sheet.css'
+import './position-levels.css'
 import {sameConfirm} from './confirm-text'
 
 const LAUNCH_TARGETS = ['[data-testid="launch-open-mobile"]', '[data-testid="launch-open"]']
@@ -71,7 +72,7 @@ const FILL_LOCK_PHRASE = 'DOLUM RİSKİNİ İNCELEDİM'
 type Sheet = null | 'approvals' | 'start' | 'stop' | 'close-all' | 'close-position' | 'edit-protection' | 'reduce-position' | 'fill-lock' | 'emergency-clear' | 'recovery' | 'extend' | 'why' | 'wizard' | 'summary' | 'launch'
 type CloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null; long?: boolean; entryPrice?: number | null; quantity?: number | null; stopPrice?: number | null; canReduce?: boolean}
 // Manuel pozisyon: stop/hedef değiştirme ve kısmi kapatma hedefi (yalnız MANUEL planlar).
-type ManualTarget = CloseTarget & {stop: string; targets: [string, string, string]; mark: string}
+type ManualTarget = CloseTarget & {stop: string; targets: [string, string, string]; mark: string; focus?: 'stop' | 'tp1' | 'tp2' | 'tp3'; tpOpen?: [boolean, boolean, boolean]; removed?: number[]}
 type ItemState = 'done' | 'todo' | 'working' | 'error'
 
 const HIGH_RISK_PHRASE = 'YÜKSEK RİSKİ KABUL EDİYORUM'
@@ -163,7 +164,7 @@ const riskTier = (risk: number) => risk > 5 ? 'red' : risk > 2 ? 'orange' : risk
 
 const STALE_LIMIT_MS = 30 * 60 * 1000
 // Bu işlemler bittiğinde ekran tam durum yenilemesini beklemez (kapatma sonrası pozisyon ~1 dk listede kalmasın).
-const QUICK_RELEASE_KEYS = new Set(['close-position', 'edit-protection', 'reduce-position', 'close-target'])
+const QUICK_RELEASE_KEYS = new Set(['close-position', 'edit-protection', 'reduce-position', 'close-target', 'remove-target'])
 const OPTIMISTIC_HIDE_MS = 12_000
 
 let lastLedgerPnl: {day: string; value: number} | null = null
@@ -669,6 +670,10 @@ export default function LiveCockpit(props: Props) {
     setEditLevels({stop: target.stop, tp1: target.targets[0], tp2: target.targets[1], tp3: target.targets[2]})
     setSheet('edit-protection')
   }
+  // Açık hedefi borsadan kaldırır (Stop yerinde kalır). Sunucu iptali Binance'ten doğrular; doğrulanamazsa hiçbir şey değişmez.
+  const removeTarget = (target: ManualTarget, index: 1 | 2 | 3) => perform('remove-target', async () => {
+    await request('/position/target-remove', {plan_id: target.planId, index, confirmation: 'HEDEFİ KALDIR'})
+  }, `${target.symbol.replace('USDT', '')} TP${index} kaldırıldı; stop yerinde duruyor.`)
   const askReduce = (target: ManualTarget, percent: 25 | 50 | 75 = 50) => { setSheetError(''); setManualTarget(target); setReducePct(percent); setSheet('reduce-position') }
   const changedLevel = (value: string, original: string) => {
     const next = Number(value.replace(',', '.')), before = Number(original)
@@ -1875,11 +1880,30 @@ export default function LiveCockpit(props: Props) {
   })() : sheet === 'edit-protection' && manualTarget ? <>
     <h2 id="lc-sheet-title">{manualTarget.symbol.replace('USDT', '')} · stop ve hedefler</h2>
     <p className="lcSheetLead">{manualTarget.direction} · giriş {manualTarget.entry} · şu anki fiyat {manualTarget.mark}. Yalnız değiştirdiğin alanlar gönderilir.</p>
-    <div className="lcPosEdit">
-      <label className="lcField">Stop<input type="text" inputMode="decimal" autoComplete="off" value={editLevels.stop} onChange={event => setEditLevels(current => ({...current, stop: event.target.value.replace(/[^0-9.,]/g, '')}))}/></label>
-      <label className="lcField">TP1<input type="text" inputMode="decimal" autoComplete="off" value={editLevels.tp1} onChange={event => setEditLevels(current => ({...current, tp1: event.target.value.replace(/[^0-9.,]/g, '')}))}/></label>
-      <label className="lcField">TP2<input type="text" inputMode="decimal" autoComplete="off" value={editLevels.tp2} onChange={event => setEditLevels(current => ({...current, tp2: event.target.value.replace(/[^0-9.,]/g, '')}))}/></label>
-      <label className="lcField">TP3<input type="text" inputMode="decimal" autoComplete="off" value={editLevels.tp3} onChange={event => setEditLevels(current => ({...current, tp3: event.target.value.replace(/[^0-9.,]/g, '')}))}/></label>
+    <div className="lcLvEdit">
+      {([['stop', 'Stop', editLevels.stop, manualTarget.stop, true], ['tp1', 'TP1', editLevels.tp1, manualTarget.targets[0], manualTarget.tpOpen?.[0] !== false], ['tp2', 'TP2', editLevels.tp2, manualTarget.targets[1], manualTarget.tpOpen?.[1] !== false], ['tp3', 'TP3', editLevels.tp3, manualTarget.targets[2], manualTarget.tpOpen?.[2] !== false]] as const).map(([id, label, value, original, open]) => {
+        const removed = id !== 'stop' && Boolean(manualTarget.removed?.includes(Number(id.slice(2))))
+        const markNumber = Number(String(manualTarget.mark).replace(/\./g, '').replace(',', '.'))
+        const typed = Number(value.replace(',', '.'))
+        const gap = Number.isFinite(typed) && typed > 0 && Number.isFinite(markNumber) && markNumber > 0 ? (typed - markNumber) / markNumber * 100 : null
+        const changed = changedLevel(value, original) !== undefined
+        const nudge = (pct: number) => {
+          const base = Number.isFinite(typed) && typed > 0 ? typed : Number(original)
+          if (!Number.isFinite(base) || base <= 0) return
+          const next = base * (1 + pct / 100)
+          const text = String(Number(next.toPrecision(7)))
+          setEditLevels(current => ({...current, [id]: text}))
+        }
+        return <div className="lcLvRow" key={id} data-kind={id === 'stop' ? 'stop' : 'tp'} data-changed={changed || undefined} data-off={(!open || removed) || undefined}>
+          <div className="lcLvTop"><b>{label}</b><small>{removed ? 'Kaldırıldı' : !open ? 'Borsada açık değil' : gap !== null ? `fiyata ${gap >= 0 ? '+' : '−'}%${Math.abs(gap).toLocaleString('tr-TR', {maximumFractionDigits: 2})}` : ''}</small>{changed && <em>değişti</em>}</div>
+          <div className="lcLvInput">
+            <button type="button" aria-label={`${label} %0,5 azalt`} disabled={!open || removed || Boolean(working)} onClick={() => nudge(-0.5)}>−</button>
+            <input type="text" inputMode="decimal" autoComplete="off" aria-label={label} autoFocus={manualTarget.focus === id} disabled={!open || removed} value={value}
+              onChange={event => setEditLevels(current => ({...current, [id]: event.target.value.replace(/[^0-9.,]/g, '')}))}/>
+            <button type="button" aria-label={`${label} %0,5 artır`} disabled={!open || removed || Boolean(working)} onClick={() => nudge(0.5)}>+</button>
+          </div>
+        </div>
+      })}
     </div>
     <ul className="lcStopList">
       <li data-tone="mute"><ShieldCheck aria-hidden="true"/><span>Yeni stop Binance'te doğrulanır. Kurulamazsa eski stop geri konur; o da olmazsa pozisyon güvenlik için kapatılır. Pozisyon stopsuz bırakılmaz.</span></li>
@@ -2204,7 +2228,7 @@ export default function LiveCockpit(props: Props) {
         <PositionsCard dcaBots={dcaBots} farmerBots={farmerBots} live={live} stale={stale} staleAge={staleAge} running={running} busy={Boolean(working) || stale} closeBusy={Boolean(working)} now={now} positions={positions as unknown as RawRecord[]}
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
           wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}
-          awaitingSymbol={awaitingSymbol} onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now} onCloseTarget={demo ? undefined : saveCloseTarget}
+          awaitingSymbol={awaitingSymbol} onClose={askClosePosition} onEdit={askEditProtection} onReduce={askReduce} quotes={liveQuotes.quotes} quoteNow={liveQuotes.now} onCloseTarget={demo ? undefined : saveCloseTarget} onRemoveTarget={demo ? undefined : removeTarget}
           onRiskSettings={() => props.onManualRiskEdit?.()}/>
         {original && !coach && <MasterOnlyGate label="Canlı strateji">{strategyCard}</MasterOnlyGate>}
       </div>

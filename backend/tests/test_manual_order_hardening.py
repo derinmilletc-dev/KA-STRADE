@@ -470,6 +470,40 @@ class ManualPositionActionTests(ManualActionBase):
             self.update(exchange, state, plan, targets={1: 111})
         self.assertIn("açık değil", str(raised.exception))
 
+    def test_remove_target_cancels_verified_and_keeps_stop(self):
+        for index, key in ((1, "TP12"), (2, "TP2"), (3, "TP3")):
+            with self.subTest(index=index):
+                exchange = FakeExchange()
+                state, plan = open_manual_plan(exchange)
+                stop_before = plan["stop_algo_id"]
+                result = asyncio.run(execution.manual_remove_target(exchange, state, plan, index=index))
+                self.assertEqual(result["removed"], f"TP{index}")
+                ids = {row["clientAlgoId"] for row in exchange.algos.values()}
+                self.assertNotIn(execution.client_id_for(key, plan["intent_id"]), ids)
+                self.assertEqual(plan["stop_algo_id"], stop_before)
+                self.assertEqual(len(self.stops(exchange)), 1)
+                self.assertIn(index, plan["removed_targets"])
+        # TP1 kaldırılınca sahte "TP1 doldu" izi kalmaz
+        exchange = FakeExchange()
+        state, plan = open_manual_plan(exchange)
+        asyncio.run(execution.manual_remove_target(exchange, state, plan, index=1))
+        self.assertNotIn("tp12_algo_id", plan)
+
+    def test_remove_target_not_on_exchange_is_rejected(self):
+        exchange = FakeExchange()
+        state, plan = open_manual_plan(exchange)
+        exchange.algos.pop(plan["tp2_algo_id"])
+        with self.assertRaises(execution.ManualPlanActionError) as raised:
+            asyncio.run(execution.manual_remove_target(exchange, state, plan, index=2))
+        self.assertIn("açık değil", str(raised.exception))
+        self.assertNotIn("removed_targets", plan)
+
+    def test_remove_target_only_manual_plans(self):
+        exchange = FakeExchange()
+        state, plan = open_manual_plan(exchange, source="ORIGINAL_V2_LIVE")
+        with self.assertRaises(execution.ManualPlanActionError):
+            asyncio.run(execution.manual_remove_target(exchange, state, plan, index=1))
+
     def test_only_manual_and_verified_plans(self):
         exchange = FakeExchange()
         state, plan = open_manual_plan(exchange, source="ORIGINAL_V2_LIVE")

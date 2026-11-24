@@ -6,6 +6,7 @@ import {clearReadLink, readLinkTarget} from './notification-link'
 import {pulseChip, pulseSummary, type Pulse} from './coin-read-view'
 import {ChevronDown, SlidersHorizontal, Target, X} from 'lucide-react'
 import './position-detail-clean.css'
+import './position-levels.css'
 import {duration} from './live-guide'
 import {closeEstimate, netOfFees, TAKER_FEE_RATE, type QuoteMap} from './live-quote'
 import {activeCloseTarget, netAtPrice, parseAmount, priceForNetProfit, type CloseTargetMode} from './close-target'
@@ -17,7 +18,7 @@ import {
 // Kapatma / düzenleme hedefleri LiveCockpit'teki türlerle birebir aynıdır (orada onay penceresi açılır; bu dosya emir göndermez).
 // long/entryPrice/quantity: onay penceresi açıkken K/Z'yi canlı fiyattan yeniden hesaplamak için.
 export type PositionCloseTarget = {planId: string; symbol: string; direction: string; entry: string; pnl: number | null; long?: boolean; entryPrice?: number | null; quantity?: number | null; stopPrice?: number | null; canReduce?: boolean}
-export type PositionManualTarget = PositionCloseTarget & {stop: string; targets: [string, string, string]; mark: string}
+export type PositionManualTarget = PositionCloseTarget & {stop: string; targets: [string, string, string]; mark: string; focus?: 'stop' | 'tp1' | 'tp2' | 'tp3'; tpOpen?: [boolean, boolean, boolean]; removed?: number[]}
 export type SmartPositionItem = {plan_id?: string; symbol?: string; mode?: string; last_score?: number | null; timer_end?: number | null; direction_state?: string; opposite_confidence?: number | null}
 
 type Props = {
@@ -32,6 +33,8 @@ type Props = {
   onClose: (target: PositionCloseTarget) => void
   onEdit: (target: PositionManualTarget) => void
   onReduce: (target: PositionManualTarget, percent: 25 | 50 | 75) => void
+  /** Açık bir hedefi (TP1/TP2/TP3) borsadan kaldırır; stop yerinde kalır. Verilmezse (demo) "Kaldır" görünmez. */
+  onRemoveTarget?: (target: PositionManualTarget, index: 1 | 2 | 3) => Promise<boolean>
   /** Binance'ten canlı en iyi alış/satış (useLiveQuotes). Taze değilse sunucu verisi gösterilir ve uyarı çıkar. */
   quotes?: QuoteMap; quoteNow?: number
   /** Risk kutusundaki "Düzenle" butonu: manuel işlem risk limitleri penceresini açar. Ayar yoksa verilmez, buton görünmez. */
@@ -71,6 +74,42 @@ function scoreInfo(plan: RawRecord | undefined, smart: SmartPositionItem | undef
 }
 
 const tone = (value: number | null) => value === null ? undefined : value < 0 ? 'down' : value > 0 ? 'up' : undefined
+
+// Stop ve hedefler: her seviye kendi satırında; fiyat, fiyata uzaklık, durum + "Değiştir" / "Kaldır".
+// Kaldır iki adımlıdır (Kaldır → Emin misin?). Stop yalnız değiştirilir; kaldırılamaz (pozisyon stopsuz bırakılmaz).
+type LevelRow = {id: 'stop' | 'tp1' | 'tp2' | 'tp3'; index: 0 | 1 | 2 | 3; label: string; price: number | null; share: string; state: 'open' | 'removed' | 'closed'}
+function LevelsPanel({target, rows, mark, busy, sourceLabel, onEdit, onRemove}: {
+  target: PositionManualTarget; rows: LevelRow[]; mark: number | null; busy: boolean; sourceLabel: string
+  onEdit: (target: PositionManualTarget) => void; onRemove?: (target: PositionManualTarget, index: 1 | 2 | 3) => Promise<boolean>
+}) {
+  const [asking, setAsking] = useState<number | null>(null)
+  const [working, setWorking] = useState<number | null>(null)
+  const distance = (price: number | null) => price !== null && mark !== null && mark > 0 ? (price - mark) / mark * 100 : null
+  const remove = async (index: 1 | 2 | 3) => {
+    if (!onRemove || working !== null) return
+    setWorking(index)
+    await onRemove(target, index).catch(() => false)
+    setWorking(null); setAsking(null)
+  }
+  return <div className="pvLevels" aria-label="Stop ve hedefler">
+    <header><b>Stop ve hedefler</b><span className="pvChip" data-kind="manual">{sourceLabel}</span></header>
+    <ul>{rows.map(row => {
+      const gap = distance(row.price)
+      const confirming = asking === row.index
+      return <li key={row.id} data-kind={row.id === 'stop' ? 'stop' : 'tp'} data-state={row.state}>
+        <span className="pvLvName"><b>{row.label}</b><small>{row.state === 'removed' ? 'Kaldırıldı' : row.state === 'closed' ? (row.id === 'stop' ? 'Binance’te doğrulanamadı' : 'Açık değil (gerçekleşti)') : row.share}</small></span>
+        <span className="pvLvPrice"><b>{row.price !== null ? formatPrice(row.price) : '—'}</b>{gap !== null && <small>{`${gap >= 0 ? '+' : '−'}${formatPct(Math.abs(gap), 2)}`}</small>}</span>
+        {row.state === 'open' && (confirming
+          ? <span className="pvLvAsk"><span>Kaldırılsın mı?</span>
+            <button type="button" disabled={busy || working !== null} onClick={() => setAsking(null)}>Vazgeç</button>
+            <button type="button" data-danger="1" disabled={busy || working !== null} onClick={() => void remove(row.index as 1 | 2 | 3)}>{working === row.index ? '…' : 'Evet, kaldır'}</button></span>
+          : <span className="pvLvAct">
+            <button type="button" disabled={busy} aria-label={`${row.label} değiştir`} onClick={() => onEdit({...target, focus: row.id})}>Değiştir</button>
+            {row.id !== 'stop' && onRemove && <button type="button" data-danger="1" disabled={busy} aria-label={`${row.label} kaldır`} onClick={() => setAsking(row.index)}>Kaldır</button>}</span>)}
+      </li>
+    })}</ul>
+  </div>
+}
 
 function LadderView({ladder, metrics}: {ladder: Ladder; metrics: PositionMetrics}) {
   const rows = ladder.markers.some(marker => marker.row === 1) ? 2 : 1
@@ -259,7 +298,15 @@ export default function PositionsCard(props: Props) {
         const flag = (ok: boolean | undefined, name: string, withBinance = false) => <span className="pvFlag" data-ok={ok === true || undefined}>{ok === true ? `${name} ✓${withBinance ? ' Binance’te' : ''}` : `${name} doğrulanamadı`}</span>
         const levels = Array.isArray(plan?.targets) ? (plan?.targets as unknown[]).map(value => String(value ?? '')) : []
         const manualTarget: PositionManualTarget = {planId, symbol: String(position.symbol || ''), direction: String(position.direction || ''), entry: String(position.entry_price ?? '—'), pnl,
-          stop: String(plan?.stop_loss ?? ''), targets: [levels[0] ?? '', levels[1] ?? '', levels[2] ?? ''], mark: metrics.mark !== null ? formatPrice(metrics.mark) : String(position.mark_price ?? '—')}
+          stop: String(plan?.stop_loss ?? ''), targets: [levels[0] ?? '', levels[1] ?? '', levels[2] ?? ''], mark: metrics.mark !== null ? formatPrice(metrics.mark) : String(position.mark_price ?? '—'),
+          tpOpen: [protection?.tp1 === true, protection?.tp2 === true, protection?.tp3 === true],
+          removed: Array.isArray(plan?.removed_targets) ? (plan?.removed_targets as unknown[]).map(item => Number(item)).filter(item => item >= 1 && item <= 3) : []}
+        const levelRows: LevelRow[] = [
+          ...(Number.isFinite(Number(plan?.stop_loss)) && Number(plan?.stop_loss) > 0 ? [{id: 'stop' as const, index: 0 as const, label: 'Stop', price: Number(plan?.stop_loss), share: 'Tüm pozisyon', state: protection?.stop === true ? 'open' as const : 'closed' as const}] : []),
+          ...([1, 2, 3] as const).map(n => ({id: `tp${n}` as 'tp1' | 'tp2' | 'tp3', index: n, label: `TP${n}`, price: Number.isFinite(Number(levels[n - 1])) && Number(levels[n - 1]) > 0 ? Number(levels[n - 1]) : null,
+            share: n === 1 ? `Payın %${props.tp1Share(plan)}'i` : n === 2 ? `Payın %${props.tp2Share(plan)}'i` : 'Kalanın tamamı',
+            state: manualTarget.removed?.includes(n) ? 'removed' as const : manualTarget.tpOpen?.[n - 1] ? 'open' as const : 'closed' as const})),
+        ]
         const opened = metrics.openedMs !== null ? duration((now - metrics.openedMs) / 1000) : null
         const risk = metrics.riskAtStop
         const toggle = () => setOpen(current => ({...current, [key]: !isOpen}))
@@ -321,7 +368,8 @@ export default function PositionsCard(props: Props) {
             </div>
             </div>
 
-            {!external && <div className="pvProt" aria-label="Koruma emirleri">
+            {!external && manual && closable && confirmed && <LevelsPanel target={manualTarget} rows={levelRows} mark={metrics.mark} busy={props.closeBusy ?? busy} sourceLabel={source} onEdit={props.onEdit} onRemove={props.onRemoveTarget}/>}
+            {!external && !(manual && closable && confirmed) && <div className="pvProt" aria-label="Koruma emirleri">
               <span className="pvChip" data-kind={manual ? 'manual' : 'bot'}>{source}</span>{noStopPlan ? <span className="pvFlag" data-warn="1" data-testid="pos-no-stop">Stopsuz · stop yok</span> : flag(protection?.stop, 'Stop', true)}{flag(protection?.tp1, `TP1 %${props.tp1Share(plan)}`)}{manual && flag(protection?.tp2, `TP2 %${props.tp2Share(plan)}`)}{flag(protection?.tp3, 'TP3')}
             </div>}
 
