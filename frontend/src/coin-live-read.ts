@@ -26,6 +26,13 @@ export function windowText(candleSeconds: number, count: number): string {
   return minutes % 60 === 0 ? `son ${minutes / 60} saat` : `son ${minutes} dk`
 }
 
+/** "15m" / "1h" / "1d" → saniye; tanınmayan süre için 0. */
+export function intervalSeconds(interval: string): number {
+  const match = /^(\d+)([mhd])$/.exec(String(interval ?? '').trim())
+  if (!match) return 0
+  return Number(match[1]) * {m: 60, h: 3600, d: 86400}[match[2] as 'm' | 'h' | 'd']
+}
+
 export function readCandles(input: ReadonlyArray<ReadCandle> | null | undefined, window = 'son 60 mum'): CandleRead | null {
   const rows = clean(input)
   if (rows.length < MIN_CANDLES) return null

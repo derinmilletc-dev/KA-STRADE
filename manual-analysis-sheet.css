@@ -124,3 +124,8 @@
 @keyframes mxlcPing{0%{transform:scale(.6);opacity:.7}100%{transform:scale(1.6);opacity:0}}
 @keyframes mxlcShine{to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){.mxlcPulse::after,.mxlcSkel{animation:none}.mxlcDot{transition:none}}
+
+/* Coin Analist sayfası: grafik altı yorum + alarm bloğu */
+.mxai{display:grid;gap:10px;margin:12px 0}
+.mxai .mxlcRead{margin-top:0}
+.mxaiNote{margin:0;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);font-size:12.5px;color:#8e9bb0}
