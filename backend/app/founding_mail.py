@@ -10,7 +10,7 @@ import hmac
 import html
 from typing import Literal
 
-from . import email_service
+from . import email_layout, email_service
 
 Kind = Literal["received", "review", "approved", "waitlist", "rejected", "invite", "reminder", "invite_expired",
                "account_created", "payment_pending", "active"]
@@ -131,8 +131,7 @@ def render(kind: Kind, *, name: str, reference: str, lang: str, action_url: str 
     body_html = f"""<!doctype html><html><body style="margin:0;padding:0;background:#05090d">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#05090d;padding:28px 12px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#0b1218;border:1px solid #1f4a3a;border-radius:20px;font-family:Arial,Helvetica,sans-serif;color:#e8eef4">
-<tr><td style="padding:24px 26px 6px"><span style="font-size:20px;font-weight:800;color:#e8eef4">kais</span><span style="font-size:20px;font-weight:800;color:{GREEN}">trade</span>
-<span style="float:right;margin-top:4px;border:1px solid {GREEN};color:{GREEN};border-radius:99px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:.14em">FOUNDING 30</span></td></tr>
+<tr><td style="padding:24px 26px 6px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td>{email_layout.logo()}</td><td align="right"><span style="border:1px solid {GREEN};color:{GREEN};border-radius:99px;padding:4px 10px;font-size:11px;font-weight:700;letter-spacing:.14em">FOUNDING 30</span></td></tr></table></td></tr>
 <tr><td style="padding:14px 26px 0"><p style="margin:0 0 6px;color:#93a1b0;font-size:14px">{e(words['hello'].format(name=first))}</p>
 <h1 style="margin:0 0 12px;font-size:22px;line-height:1.3;color:#ffffff">{e(copy['title'])}</h1>
 <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#c3ced9">{e(copy['body'])}</p></td></tr>
@@ -162,7 +161,7 @@ def owner_alert(*, to_email: str, subject: str, lines: list[tuple[str, str]], in
                    f"<td style='padding:7px 0;font-size:13px;color:#e8eef4;border-top:1px solid #1d2a35'>{e(v)}</td></tr>" for k, v in lines)
     body_html = f"""<!doctype html><html><body style="margin:0;background:#05090d"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px">
 <tr><td align="center"><table role="presentation" width="100%" style="max-width:520px;background:#0b1218;border:1px solid #1f4a3a;border-radius:18px;font-family:Arial,Helvetica,sans-serif;color:#e8eef4">
-<tr><td style="padding:22px 24px 4px"><span style="font-weight:800;font-size:18px">kais</span><span style="font-weight:800;font-size:18px;color:{GREEN}">trade</span> <span style="color:#93a1b0;font-size:12px">· yönetim</span></td></tr>
+<tr><td style="padding:22px 24px 4px"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td>{email_layout.logo(30)}</td><td style="padding-left:10px;color:#93a1b0;font-size:12px">· yönetim</td></tr></table></td></tr>
 <tr><td style="padding:10px 24px 4px"><p style="margin:0 0 12px;font-size:15px;line-height:1.5">{e(intro)}</p><table role="presentation" width="100%">{rows}</table></td></tr>
 <tr><td style="padding:16px 24px 24px"><a href="{e(action_url)}" style="display:inline-block;background:{GREEN};color:#04130c;text-decoration:none;font-weight:700;padding:11px 20px;border-radius:10px">Admin'de aç</a></td></tr>
 </table></td></tr></table></body></html>"""

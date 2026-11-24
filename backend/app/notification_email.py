@@ -6,6 +6,7 @@ from html import escape
 
 import httpx
 
+from . import email_layout as L
 from . import email_service as mail
 
 SUBJECT = "KaisTrade · Onay bildirimi"
@@ -38,10 +39,8 @@ def notification_content(kind: str, payload: dict) -> tuple[str, str, str]:
     link = base + path
     mail.validate_action_url(link)
     text = f"KaisTrade\n\n{message}\n\nPanele git:\n{link}"
-    html = f"""<!doctype html><html lang="tr"><body style="margin:0;background:#f4f6f8;color:#18242d;font-family:Arial,sans-serif">
-<div style="max-width:520px;margin:32px auto;padding:28px;background:white;border-radius:16px">
-<p style="font-weight:700">KaisTrade</p><p>{escape(message)}</p>
-<p><a href="{escape(link, quote=True)}">Panele git</a></p></div></body></html>"""
+    html = L.shell(lang="tr", title=escape(SUBJECT), body=(
+        L.heading("Onay bildirimi", level=2) + L.callout(escape(message)) + L.button(escape(link, quote=True), "Panele git")))
     return SUBJECT, text, html
 
 

@@ -19,6 +19,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from . import email_layout as L
 from .server_i18n import localize
 from .web_security import production_or_hosted_environment
 
@@ -238,21 +239,11 @@ def auth_email_html(title: str, display_name: str, action_url: str, action_label
         escape(str(value), quote=True) for value in (title, display_name, action_url, action_label, expiry)
     )
     instruction = w["info"] if information_only else w["action"]
-    expiry_notice = "" if information_only else f'<p style="font-size:13px">{w["expiry_html"].format(expiry=expiry)}</p>'
-    return f"""<!doctype html><html lang="{'en' if language == 'en' else 'tr'}"><body style="margin:0;background:#f4f6f8;font-family:Arial,sans-serif;color:#18242d">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border-radius:12px"><tr><td style="padding:32px">
-<p style="font-weight:700;color:#2457c5">KaisTrade</p>
-<h1 style="font-size:24px">{title}</h1>
-<p>{w['hello']} {display_name or w['user']},</p>
-<p>{instruction}</p>
-<p style="margin:28px 0"><a href="{action_url}" style="display:inline-block;padding:14px 24px;background:#2457c5;color:#fff;border-radius:8px;text-decoration:none;font-weight:700">{action_label}</a></p>
-<p style="font-size:13px">{w['copy']}</p>
-<p style="font-size:13px;overflow-wrap:anywhere"><a href="{action_url}">{action_url}</a></p>
-{expiry_notice}
-<p style="font-size:13px;color:#566570">{w['ignore']}</p>
-<p style="font-size:13px;color:#566570">{w['never']}</p>
-</td></tr></table></td></tr></table></body></html>"""
+    expiry_notice = "" if information_only else L.para(w["expiry_html"].format(expiry=expiry), muted=True, size=13)
+    body = (L.heading(title) + L.para(f"{w['hello']} {display_name or w['user']},") + L.para(instruction)
+            + L.button(action_url, action_label) + L.para(w["copy"], muted=True, size=13) + L.link_line(action_url, action_url)
+            + expiry_notice + L.para(w["ignore"], muted=True, size=13) + L.para(w["never"], muted=True, size=13))
+    return L.shell(lang=language, title=title, body=body)
 
 
 def verification_email(action_url: str, language: str = "tr") -> tuple[str, str]:
@@ -262,18 +253,13 @@ def verification_email(action_url: str, language: str = "tr") -> tuple[str, str]
         f"KaisTrade\n\n{w['verify_title']}\n\n{w['verify_body']}\n\n"
         f"{action_url}\n\n{w['verify_ignore']}"
     )
-    html = f"""<!doctype html><html lang="{'en' if language == 'en' else 'tr'}"><body style="margin:0;background:#0B0E0C;color:#E6ECE8;font-family:Arial,sans-serif">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0B0E0C"><tr><td align="center" style="padding:36px 16px">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;background:#121714;border:1px solid #1F2823;border-radius:18px"><tr><td style="padding:32px">
-<p style="margin:0 0 28px;font-size:22px;font-weight:700;color:#F2F6F3">Kais<span style="color:#5FCB8E">Trade</span></p>
-<p style="font-size:32px;color:#5FCB8E" aria-hidden="true">&#9993;</p>
-<h1 style="font-size:25px;color:#F2F6F3">{w['verify_title']}</h1>
-<p style="font-size:15px;line-height:1.7">{w['verify_btn_body']}</p>
-<table role="presentation" cellspacing="0" cellpadding="0" style="margin:28px 0"><tr><td bgcolor="#5FCB8E" style="border-radius:14px"><a href="{link}" style="display:inline-block;padding:16px 24px;color:#06120C;font-size:15px;font-weight:700;text-decoration:none">{w['verify_cta']}</a></td></tr></table>
-<p style="font-size:13px;color:#A3B0A9;line-height:1.6">{w['verify_copy']}</p>
-<p style="font-size:13px;overflow-wrap:anywhere;word-break:break-all"><a href="{link}" style="color:#7FD8A6">{link}</a></p>
-<p style="margin-top:28px;font-size:12px;line-height:1.7;color:#8E9C95">{w['verify_ignore']}</p>
-</td></tr></table></td></tr></table></body></html>"""
+    icon = ('<table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 16px"><tr>'
+            '<td width="52" height="52" align="center" style="width:52px;height:52px;border-radius:26px;background:#16301F;'
+            'color:#5FCB8E;font-size:24px;line-height:52px" aria-hidden="true">&#9993;</td></tr></table>')
+    body = (icon + L.heading(w["verify_title"]) + L.para(w["verify_btn_body"]) + L.button(link, w["verify_cta"])
+            + L.para(w["verify_copy"], muted=True, size=13) + L.link_line(link, link)
+            + f'<p style="margin:22px 0 0;font-size:12px;line-height:1.7;color:{L.DIM}">{w["verify_ignore"]}</p>')
+    html = L.shell(lang=language, title=w["verify_title"], body=body)
     return text, html
 
 
@@ -301,12 +287,9 @@ def send_auth_email(*, to_email: str, display_name: str, subject: str, title: st
             text, html = verification_email(action_url, language)
         if security_notice is not None:
             text = f"KaisTrade\n\n{title}\n\n{security_notice}\n\n{w['sec_check']}\n{action_url}\n\n{w['sec_never']}"
-            html = f"""<!doctype html><html lang="{'en' if language == 'en' else 'tr'}"><body style="margin:0;background:#080e0c;color:#e7ecf3;font-family:Arial,sans-serif">
-<div style="max-width:480px;margin:32px auto;padding:28px;border:1px solid #ffffff26;border-radius:16px">
-<p style="color:#37c98a;font-weight:bold">KaisTrade</p><h1 style="font-size:24px">{escape(title)}</h1>
-<p>{escape(security_notice)}</p><p>{w['sec_check_short']}</p>
-<p><a style="color:#37c98a" href="{escape(action_url, quote=True)}">{w['sec_link']}</a></p>
-<p>{w['sec_never']}</p></div></body></html>"""
+            html = L.shell(lang=language, title=escape(title), body=(
+                L.heading(escape(title)) + L.callout(escape(security_notice)) + L.para(w["sec_check_short"])
+                + L.button(escape(action_url, quote=True), w["sec_link"]) + L.para(w["sec_never"], muted=True, size=13)))
         reply_to = os.getenv("EMAIL_REPLY_TO", "").strip()
         if selected == "resend":
             payload = {"from": f"KaisTrade <{parseaddr(os.environ['EMAIL_FROM'])[1]}>", "to": [to_email],
@@ -431,9 +414,8 @@ def send_chart_ai_budget_warning_email(*, to_email: str, month: str,
     subject = "KaisTrade · Grafik AI aylık bütçe uyarısı"
     notice = f"{month} dönemi Grafik AI harcaması {spent} / {budget} USD seviyesine ulaştı."
     text = f"KaisTrade\n\n{notice}\nAylık bütçe sınırı geçerlidir."
-    html = f"""<!doctype html><html lang="tr"><body style="font-family:Arial,sans-serif;color:#18242d">
-<p><strong>KaisTrade</strong></p><p>{escape(notice)}</p>
-<p>Aylık bütçe sınırı geçerlidir.</p></body></html>"""
+    html = L.shell(lang="tr", title=escape(subject), body=(
+        L.heading("Grafik AI bütçe uyarısı", level=2) + L.callout(escape(notice)) + L.para("Aylık bütçe sınırı geçerlidir.", muted=True)))
     if not idempotency_key:
         raise ValueError("Chart AI notification idempotency key is required")
     send_email_message(to_email=to_email, subject=subject, text=text, html=html,
@@ -467,15 +449,10 @@ def support_reply_content(*, ticket_subject: str, reply: str, language: str = "t
     text = (f"KaisTrade\n\n{words['lead']}\n\n{words['topic']}: {topic}\n\n{body}\n\n"
             f"{words['open']}\n{link}\n\n{words['foot']}")
     paragraphs = "".join(f"<p style=\"margin:0 0 10px\">{escape(line)}</p>" for line in body.splitlines() if line.strip())
-    html = f"""<!doctype html><html lang="{'en' if language == 'en' else 'tr'}"><body style="margin:0;background:#f4f6f8;color:#18242d;font-family:Arial,sans-serif">
-<div style="max-width:560px;margin:32px auto;padding:28px;background:white;border-radius:16px">
-<p style="font-weight:700;margin:0 0 16px">KaisTrade</p>
-<p style="margin:0 0 6px">{escape(words['lead'])}</p>
-<p style="margin:0 0 16px;color:#5b6b76">{escape(words['topic'])}: {escape(topic)}</p>
-<div style="padding:14px 16px;border-left:3px solid #1fa88f;background:#f2faf8;border-radius:8px;margin:0 0 18px">{paragraphs}</div>
-<p style="margin:0 0 18px"><a href="{escape(link, quote=True)}" style="display:inline-block;padding:11px 18px;background:#1fa88f;color:white;text-decoration:none;border-radius:10px;font-weight:700">{escape(words['button'])}</a></p>
-<p style="margin:0;color:#7a8a94;font-size:12px">{escape(words['foot'])}</p>
-</div></body></html>"""
+    html = L.shell(lang=language, title=escape(subject), body=(
+        L.heading(escape(words["lead"]), level=2) + L.para(f"{escape(words['topic'])}: {escape(topic)}", muted=True, size=14)
+        + L.callout(paragraphs) + L.button(escape(link, quote=True), escape(words["button"]))
+        + L.para(escape(words["foot"]), muted=True, size=12)))
     return subject, text, html
 
 
@@ -505,14 +482,9 @@ def support_staff_content(*, kind: str, subject_line: str, preview: str) -> tupl
     lead = "Yeni bir destek talebi geldi." if kind == "new" else "Bir müşteri destek talebine yanıt yazdı."
     subject = "KaisTrade · Yeni destek talebi" if kind == "new" else "KaisTrade · Müşteri destek talebine yazdı"
     text = f"KaisTrade\n\n{lead}\n\nKonu: {topic}\n\n{body}\n\nTalebi aç:\n{link}"
-    html = f"""<!doctype html><html lang="tr"><body style="margin:0;background:#f4f6f8;color:#18242d;font-family:Arial,sans-serif">
-<div style="max-width:520px;margin:32px auto;padding:28px;background:white;border-radius:16px">
-<p style="font-weight:700;margin:0 0 16px">KaisTrade</p>
-<p style="margin:0 0 6px">{escape(lead)}</p>
-<p style="margin:0 0 14px;color:#5b6b76">Konu: {escape(topic)}</p>
-<div style="padding:12px 14px;border-left:3px solid #1fa88f;background:#f2faf8;border-radius:8px;margin:0 0 18px">{escape(body)}</div>
-<p style="margin:0"><a href="{escape(link, quote=True)}" style="display:inline-block;padding:11px 18px;background:#1fa88f;color:white;text-decoration:none;border-radius:10px;font-weight:700">Talebi aç</a></p>
-</div></body></html>"""
+    html = L.shell(lang="tr", title=escape(subject), badge="DESTEK", body=(
+        L.heading(escape(lead), level=2) + L.para(f"Konu: {escape(topic)}", muted=True, size=14)
+        + L.callout(escape(body)) + L.button(escape(link, quote=True), "Talebi aç")))
     return subject, text, html
 
 
