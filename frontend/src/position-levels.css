@@ -1,0 +1,36 @@
+/* Stop ve hedefler paneli (açık pozisyon) + stop/hedef düzenleme penceresi. */
+html body #root .pvLevels{display:grid;gap:10px;padding:14px;border-radius:18px;background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+html body #root .pvLevels>header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+html body #root .pvLevels>header b{font-size:14px;font-weight:800;color:#f4f7fb}
+html body #root .pvLevels ul{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+html body #root .pvLevels li{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"name price" "act act";align-items:center;gap:8px 12px;padding:10px 12px;border-radius:14px;background:rgba(0,0,0,.16);border-left:3px solid #8ea0b4}
+html body #root .pvLevels li[data-kind="stop"]{border-left-color:#ff8f8f}
+html body #root .pvLevels li[data-kind="tp"]{border-left-color:#3ddc97}
+html body #root .pvLevels li[data-state="removed"],html body #root .pvLevels li[data-state="closed"]{opacity:.55;border-left-color:#5f6d82}
+html body #root .pvLvName{grid-area:name;display:grid;gap:1px;min-width:0}
+html body #root .pvLvName b{font-size:13.5px;font-weight:800;color:#e6eef7}
+html body #root .pvLvName small{font-size:11px;color:#8e9bb0}
+html body #root .pvLvPrice{grid-area:price;display:grid;justify-items:end;gap:1px}
+html body #root .pvLvPrice b{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;color:#f4f7fb}
+html body #root .pvLvPrice small{font-size:11px;font-variant-numeric:tabular-nums;color:#8e9bb0}
+html body #root .pvLvAct,html body #root .pvLvAsk{grid-area:act;display:flex;align-items:center;gap:8px}
+html body #root .pvLvAct button,html body #root .pvLvAsk button{flex:1;min-height:38px;padding:0 12px;border:0;border-radius:12px;background:rgba(255,255,255,.07);color:#e6eef7;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+html body #root .pvLvAct button[data-danger],html body #root .pvLvAsk button[data-danger]{background:rgba(251,113,133,.14);color:#ffb4bd}
+html body #root .pvLvAsk>span{flex:none;font-size:12px;font-weight:700;color:#ffd7dc}
+html body #root .pvLevels button:disabled{opacity:.5;cursor:default}
+
+/* Düzenleme penceresi: seviye satırları */
+html body #root .lcLvEdit{display:grid;gap:10px;margin:8px 0 12px}
+html body #root .lcLvRow{display:grid;gap:8px;padding:12px;border-radius:16px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+html body #root .lcLvRow[data-changed]{box-shadow:inset 0 0 0 1px rgba(124,184,255,.5);background:rgba(124,184,255,.07)}
+html body #root .lcLvRow[data-off]{opacity:.55}
+html body #root .lcLvTop{display:flex;align-items:baseline;gap:8px}
+html body #root .lcLvTop b{font-size:14px;font-weight:800}
+html body #root .lcLvRow[data-kind="stop"] .lcLvTop b{color:#ff8f8f}
+html body #root .lcLvRow[data-kind="tp"] .lcLvTop b{color:#3ddc97}
+html body #root .lcLvTop small{font-size:11.5px;color:#8e9bb0}
+html body #root .lcLvTop em{margin-left:auto;font-style:normal;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:99px;background:rgba(124,184,255,.18);color:#9fd0ff}
+html body #root .lcLvInput{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px}
+html body #root .lcLvInput input{min-height:46px;padding:0 12px;border:0;border-radius:12px;background:rgba(0,0,0,.25);color:#f4f7fb;font:inherit;font-size:16px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+html body #root .lcLvInput button{min-height:46px;border:0;border-radius:12px;background:rgba(255,255,255,.08);color:#e6eef7;font:inherit;font-size:20px;font-weight:700;cursor:pointer}
+html body #root .lcLvInput button:disabled,html body #root .lcLvInput input:disabled{opacity:.5;cursor:default}

@@ -3769,6 +3769,45 @@ async def manual_update_protection(
     return result
 
 
+async def manual_remove_target(
+    client: BinanceLiveClient,
+    state: dict[str, Any],
+    plan: dict[str, Any],
+    *,
+    index: int,
+) -> dict[str, Any]:
+    """Manuel pozisyonda açık bir hedefi (TP1/TP2/TP3) borsadan kaldırır. Stop'a ve pozisyona dokunmaz.
+
+    Hedef emri yalnız borsada hâlâ açıksa iptal edilir ve iptal borsadan DOĞRULANIR; doğrulanamazsa plan değişmez.
+    Kaldırılan hedefin payı Stop ya da kalan hedeflerle kapanır. Plan "removed_targets" listesine işlenir:
+    koruma döngüsü bu hedefi geri koymaz ve TP1 kaldırıldığında sahte "TP1 doldu, stopu girişe çek" tetiklenmez."""
+    if index not in (1, 2, 3):
+        raise ManualPlanActionError("Geçersiz hedef.", http_status=422)
+    _manual_plan_guard(state, plan)
+    symbol, direction = plan["symbol"], plan["direction"]
+    position = await live_plan_position(client, symbol)
+    if position is None or position["direction"] != direction:
+        raise ManualPlanActionError("Borsada bu plana ait açık pozisyon doğrulanamadı.", http_status=409)
+    rows = await _open_algo_rows(client, symbol)
+    row = _row_for_client(rows, client_id_for(MANUAL_TARGET_KEYS[index - 1], plan["intent_id"]))
+    if row is None:
+        raise ManualPlanActionError(f"TP{index} borsada açık değil (gerçekleşmiş, kaldırılmış ya da hiç konmamış).", http_status=409)
+    if not await _delete_algo_verified(client, symbol, row["algo_id"]):
+        raise ManualPlanActionError(f"TP{index} iptali borsadan doğrulanamadı; hedef yerinde duruyor olabilir. Birkaç saniye sonra tekrar bak.", http_status=502)
+    removed = sorted({*(int(item) for item in plan.get("removed_targets") or []), index})
+    plan["removed_targets"] = removed
+    if index == 1:
+        plan.pop("tp12_algo_id", None)
+    elif index == 2:
+        plan.pop("tp2_algo_id", None)
+    ids = plan.get("protection_ids")
+    if isinstance(ids, list):
+        plan["protection_ids"] = [item for item in ids if str(item) != str(row["algo_id"])]
+    add_event(state, "MANUAL_TARGET_REMOVED", f"{symbol} TP{index} kullanıcı isteğiyle kaldırıldı; Stop yerinde.", symbol=symbol, plan_id=plan.get("id"))
+    persist_state(state)
+    return {"removed": f"TP{index}", "removed_targets": removed}
+
+
 async def manual_trailing_step(client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any], position: dict[str, Any]) -> bool:
     """Manuel plan için sunucu tarafı iz süren stop. Yalnız sıkılaştırır; aynı doğrulamalı stop değiştirme akışını kullanır.
 
@@ -10456,6 +10495,34 @@ async def v25_manual_protection(request: Request, body: ManualProtectionRequest)
             persist_state(state)
             raise safe_exchange_error(exc) from exc
         add_event(state, "MANUAL_PROTECTION_REQUEST", "Manuel koruma değişikliği uygulandı.", actor=user["id"], plan_id=body.plan_id)
+        persist_state(state)
+    return {"ok": True, **result, "plan": plan}
+
+
+class ManualRemoveTargetRequest(BaseModel):
+    plan_id: str = Field(min_length=6, max_length=64)
+    index: Literal[1, 2, 3]
+    confirmation: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/position/target-remove")
+async def v25_manual_remove_target(request: Request, body: ManualRemoveTargetRequest) -> dict[str, Any]:
+    """Manuel pozisyonda bir hedefi (TP1/TP2/TP3) kaldır; Stop yerinde kalır (yalnız MANUEL planlar)."""
+    user = execution_owner(request)
+    if body.confirmation.strip().upper() != "HEDEFİ KALDIR":
+        raise HTTPException(422, "Hedefi kaldırmak için HEDEFİ KALDIR yazın.")
+    state = request.app.state.v25_execution
+    async with position_guard(state, _plan_symbol(state, body.plan_id)):
+        plan = state.get("plans", {}).get(body.plan_id)
+        try:
+            result = await manual_remove_target(client_for(request.app, request), state, plan, index=int(body.index))
+        except ManualPlanActionError as exc:
+            persist_state(state)
+            raise HTTPException(exc.http_status, str(exc)) from exc
+        except LiveExchangeError as exc:
+            persist_state(state)
+            raise safe_exchange_error(exc) from exc
+        add_event(state, "MANUAL_TARGET_REMOVE_REQUEST", "Manuel hedef kaldırma uygulandı.", actor=user["id"], plan_id=body.plan_id)
         persist_state(state)
     return {"ok": True, **result, "plan": plan}
 
