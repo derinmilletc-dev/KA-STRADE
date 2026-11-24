@@ -156,6 +156,29 @@ class PreflightTests(unittest.TestCase):
         low = {"balance": {**acct["balance"], "futures_buying_power": {"value": "1"}, "available_margin": {"value": "1"}}}
         self.assertFalse(go(account=low)["ok"])
 
+    def test_empty_intraday_window_with_positions_uses_overnight(self):
+        overnight = {"margin_level": "MARGIN_LEVEL_TYPE_BASE", "futures_buying_power": "400"}
+        acct = {"balance": {**ACCOUNT["balance"], "worst_margin_level": "MARGIN_LEVEL_TYPE_UNSPECIFIED", "worst_margin_window": "intraday",
+                            "intraday_window": {"margin_level": "MARGIN_LEVEL_TYPE_UNSPECIFIED"}, "overnight_window": overnight}}
+        other = [{"product_id": "OTHER"}]
+        r = go(account=acct, positions=other)
+        self.assertTrue(r["ok"], r["reasons"])
+        # gece penceresi yetmezse yine reddedilir
+        low = {"balance": {**acct["balance"], "overnight_window": {**overnight, "futures_buying_power": "20"}}}
+        self.assertIn("Alım gücü yetersiz", " ".join(go(account=low, positions=other)["reasons"]))
+        # gece penceresi sağlıksızsa reddedilir
+        warn = {"balance": {**acct["balance"], "overnight_window": {**overnight, "margin_level": "MARGIN_LEVEL_TYPE_WARNING"}}}
+        self.assertFalse(go(account=warn, positions=other)["ok"])
+        # gece penceresi boşsa (ters yön) reddedilir
+        gece_bos = {"balance": {**acct["balance"], "overnight_window": {}}}
+        self.assertFalse(go(account=gece_bos, positions=other)["ok"])
+        # her iki pencere de boşsa reddedilir
+        ikisi_bos = {"balance": {**acct["balance"], "overnight_window": {"margin_level": "MARGIN_LEVEL_TYPE_UNSPECIFIED"}}}
+        self.assertFalse(go(account=ikisi_bos, positions=other)["ok"])
+        # gün içi pencere DOLU ama seviyesi belirsizse (boş değil) eski sıkı davranış
+        dolu = {"balance": {**acct["balance"], "intraday_window": {"margin_level": "MARGIN_LEVEL_TYPE_UNSPECIFIED", "futures_buying_power": "300"}}}
+        self.assertFalse(go(account=dolu, positions=other)["ok"])
+
     def test_unknown_margin_level_is_unhealthy(self):
         acct = {"balance": {**ACCOUNT["balance"], "worst_margin_level": "SOMETHING_NEW"}}
         self.assertFalse(go(account=acct)["ok"])
