@@ -8,6 +8,9 @@ import {CoinIcon} from '../../src/components/CoinIcon'
 import {sameConfirm} from './confirm-text'
 import {CoinbaseApiError, coinbaseCall, postJson} from './coinbase-manual-api'
 import {TARGET_CHIPS, parseTarget, targetProgress} from './coinbase-profit-target'
+import PositionRead from './PositionRead'
+import {useReadAlarms, type AlarmInput} from './coin-read-api'
+import {analysisKey, type ReadAlarm} from './coin-read-view'
 
 export type CbPosition = {product_id: string; side: string | null; number_of_contracts: string | null; avg_entry_price: string | null; current_price: string | null; unrealized_pnl: string | null; expiration_time: string | null}
 export type CbProtectionItem = {product_id: string; side: string; contracts: number; state: string; message: string; stop_price: string | null; take_profit_price?: string | null}
@@ -22,7 +25,7 @@ const px = (value: number | null) => value === null ? '—' : value.toLocaleStri
 const plain = (value: number) => String(Number(value.toPrecision(8)))
 const hoursLeft = (ms: number) => ms <= 0 ? 'vadesi doldu' : ms < 86_400_000 ? `${Math.max(1, Math.round(ms / 3_600_000))} saat sonra kapanıyor` : `${Math.floor(ms / 86_400_000)} gün sonra kapanıyor`
 
-function PositionRow({position, item, fee = null, target = null, ordersEnabled, onDone, onError, onTarget}: {position: CbPosition; item?: CbProtectionItem; fee?: number | null; target?: number | null; ordersEnabled: boolean; onDone: Props['onDone']; onError: Props['onError']; onTarget: () => void}) {
+function PositionRow({position, item, fee = null, target = null, ordersEnabled, onDone, onError, onTarget, alarm, onSaveAlarm, onRemoveAlarm}: {alarm?: ReadAlarm; onSaveAlarm: (input: AlarmInput) => Promise<string | null>; onRemoveAlarm: (productId: string) => Promise<string | null>; position: CbPosition; item?: CbProtectionItem; fee?: number | null; target?: number | null; ordersEnabled: boolean; onDone: Props['onDone']; onError: Props['onError']; onTarget: () => void}) {
   const [act, setAct] = useState<Act | null>(null)
   const [value, setValue] = useState('')
   const [busy, setBusy] = useState(false)
@@ -30,6 +33,7 @@ function PositionRow({position, item, fee = null, target = null, ordersEnabled, 
   const [part, setPart] = useState(0)
   const [goal, setGoal] = useState(false)
   const [goalText, setGoalText] = useState('')
+  const [readOpen, setReadOpen] = useState(false)
   const view = positionView(position, item)
   const tone = item ? protectionTone(item.state) : 'warn'
   // Hedefe yarıdan fazla ilerlediyse kârı korumayı öner (kapatma/taşıma yine ayrı onay ister).
@@ -103,12 +107,15 @@ function PositionRow({position, item, fee = null, target = null, ordersEnabled, 
   }
 
   return <li className="cbPos2" data-tone={tone} data-dir={view.dir ?? undefined}>
-    <div className="cbPos2Head">
+    <div className="cbPos2Head" role="button" tabIndex={0} aria-expanded={readOpen} aria-label={`${root} yorumunu ${readOpen ? 'gizle' : 'göster'}`} data-open={readOpen || undefined}
+      onClick={() => setReadOpen(value => !value)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setReadOpen(value => !value) } }}>
       <span className="cbPos2Logo" aria-hidden="true"><CoinIcon symbol={`${root}USDT`} size={36}/></span>
-      <span className="cbPos2Name"><b>{root} <em data-dir={view.dir ?? undefined}>{view.dir ?? '—'}</em></b><small>{position.product_id} · {view.contracts} sözleşme</small></span>
+      <span className="cbPos2Name"><b>{root} <em data-dir={view.dir ?? undefined}>{view.dir ?? '—'}</em>{alarm && <i className="cbPos2Bell" role="img" aria-label="Yorum alarmı açık" title="Yorum alarmı açık">🔔</i>}</b><small>{position.product_id} · {view.contracts} sözleşme</small></span>
       <span className="cbPos2Pnl"><b data-tone={pnl === null || pnl === 0 ? undefined : pnl > 0 ? 'up' : 'down'}>{pnl === null ? '—' : `${pnl > 0 ? '+' : ''}${pnl.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`}</b>
         <small>{grossPnl === null ? '' : fee !== null ? `komisyon ${fee.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} dahil` : 'komisyon hariç'}{view.movePct === null ? '' : ` · ${view.movePct >= 0 ? '+' : ''}${view.movePct.toFixed(2)}%`}</small></span>
     </div>
+
+    {readOpen && analysisKey(root) && view.dir && <PositionRead productId={position.product_id} symbol={analysisKey(root) as string} side={view.dir} entry={view.entry} alarm={alarm && alarm.side === view.dir ? alarm : undefined} onSave={onSaveAlarm} onRemove={onRemoveAlarm}/>}
 
     {view.bar && <div className="cbPos2Bar" role="img" aria-label={`Stop ${px(view.stop)}, giriş ${px(view.entry)}, güncel ${px(view.current)}, hedef ${px(view.target)}`}>
       <div className="cbPos2Track">
@@ -197,6 +204,8 @@ export default function CoinbaseManualPositions({positions, fees = {}, protectio
     if (!ordersEnabled) return
     coinbaseCall<{targets: Record<string, {target_usd?: string}>}>('/orders/profit-targets').then(data => setTargets(data.targets ?? {})).catch(() => undefined)
   }, [ordersEnabled])
+  // Yorum alarmı: pozisyon listesi doluyken kapanan pozisyonların alarmı silinir, açık olanınki uzar (boş liste = bilinmiyor; sunucu ayrıca temizler).
+  const readAlarms = useReadAlarms('coinbase', positions.length > 0 ? positions.map(position => position.product_id) : null)
   const count = positions.length
   useEffect(() => { loadTargets() }, [loadTargets, count])
 
@@ -218,7 +227,7 @@ export default function CoinbaseManualPositions({positions, fees = {}, protectio
     {protection && positions.length > 0 && !protection.all_protected && <p className="cbNote warn" role="alert">Korumasız pozisyon var; aşağıdan düzelt.</p>}
     {protection?.has_problem && <p className="cbNote bad" role="alert"><AlertTriangle/>Koruma sorunu var. Aşağıdaki kırmızı/sarı satırları düzelt.</p>}
     <ul className="cbPositions cbPos2List">{positions.map(position => <PositionRow key={position.product_id} position={position} fee={num(fees[position.product_id])} target={Number(targets[position.product_id]?.target_usd) > 0 ? Number(targets[position.product_id]?.target_usd) : null} onTarget={loadTargets} ordersEnabled={ordersEnabled}
-      item={protection?.positions.find(entry => entry.product_id === position.product_id)} onDone={onDone} onError={onError}/>)}</ul>
+      item={protection?.positions.find(entry => entry.product_id === position.product_id)} onDone={onDone} onError={onError} alarm={readAlarms.byProduct.get(position.product_id)} onSaveAlarm={readAlarms.save} onRemoveAlarm={readAlarms.remove}/>)}</ul>
     {orphans.length > 0 && <div className="cbNote warn" role="alert">
       <b>Sahipsiz stop emri var ({orphans.length}).</b> Pozisyon yokken kalan stop, ters yönde pozisyon açabilir.
       <ul>{orphans.map(entry => <li key={entry.order_id}>{entry.product_id} · {entry.order_id}</li>)}</ul>

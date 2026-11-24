@@ -16,7 +16,7 @@ const PUSH_WHY: Partial<Record<PushState, string>> = {
 }
 
 /** Alarm kutusunda telefon bildirimi durumu: kapalıysa açma düğmesi, açıksa test gönderme. */
-function PushLine() {
+export function PushLine() {
   const [state, setState] = useState<PushState | 'busy' | 'unknown'>('unknown')
   const [note, setNote] = useState('')
   useEffect(() => { let alive = true; void pushState().then(next => { if (alive) setState(next) }).catch(() => { if (alive) setState('unsupported') }); return () => { alive = false } }, [])

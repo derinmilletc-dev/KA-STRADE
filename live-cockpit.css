@@ -1491,3 +1491,4 @@ html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcH
 html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Cancel:not(#a){background:none!important;border:0!important;color:#9fb0c1!important;min-height:44px!important}
 html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 :is(.lcCl2Seg button,.lcHold,.lcCl2Cancel):focus-visible:not(#a){outline:2px solid #7cb8ff!important;outline-offset:2px}
 html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcCl2Hint:not(#a){margin:0!important;text-align:center;font-size:13px;color:#93a3b5}
+.pvBell{font-style:normal!important;margin-left:5px!important;font-size:12px!important}
