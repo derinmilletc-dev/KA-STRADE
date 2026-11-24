@@ -41,4 +41,10 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm --prefix .. run build
-      - run: npm run test:e2e
+      # İlk 3 hatada durur: tüm takımı 20 dk beklemek yerine hızlı ve okunur sonuç verir (eskiden süre dolunca "iptal" görünüyordu).
+      - run: npm run test:e2e -- --max-failures=3
+      # Hata varsa sayfanın o andaki durumunu (erişilebilirlik ağacı) kayda geçirir; böylece neden log'dan okunur.
+      - name: Hata ayrıntısı
+        if: failure()
+        run: |
+          for f in $(ls test-results/*/error-context.md 2>/dev/null | head -3); do echo "=== $f"; head -c 6000 "$f"; done

@@ -3,6 +3,8 @@ import {type AccountOverview} from '../../account-settings-api'
 import {mockAssistant} from './helpers/assistant-api'
 
 const base = 'http://127.0.0.1:4176'
+// Uygulama dili tarayıcı dilinden seçilir; bu testler Türkçe metinleri bekler (CI tarayıcısı varsayılan İngilizce).
+test.use({locale: 'tr-TR'})
 const account = (): AccountOverview => ({
   user: {id: 'account-test-user', display_name: 'Ada Yılmaz', email: 'ada@example.test', role: 'CUSTOMER', active: true, email_verified: true, created_at: '2026-10-01T12:00:00Z', last_login: '2026-10-05T12:00:00Z', password_changed_at: null, auth_methods: ['password']},
   subscription: {plan: 'FREE', status: 'NONE', expires_at: null, is_premium: false, features: [{key: 'scanner', label: 'Temel Scanner', included: true}, {key: 'auto', label: 'Auto Trade', included: false}]},
@@ -67,7 +69,7 @@ for (const width of [1440, 1152, 390]) test(`Reference profile cards remain real
   await expect(page.getByRole('heading', {name: 'Profil & Ayarlar'})).toBeVisible()
   for (const title of ['Hesap özeti','Mevcut paket','Güvenlik','İşlem tercihleri','Son aktiviteler','Tehlikeli işlemler']) await expect(page.getByRole('heading', {name: title})).toBeVisible()
   await expect(page.locator('.accountIdentity')).toContainText('Ada Yılmaz')
-  await expect(page.locator('.accountPlan')).toContainText('FREE')
+  await expect(page.locator('.accountPlan')).toContainText('ÜCRETSİZ')
   await expect(page.getByText('Son değişiklik: —', {exact: true})).toBeVisible()
   await expect(page.locator('.accountActivities')).toContainText('Hesaba giriş yapıldı')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
