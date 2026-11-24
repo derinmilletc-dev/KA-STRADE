@@ -1503,3 +1503,7 @@ html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcC
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseChip[data-tone="up"]{color:#34d399;background:rgba(52,211,153,.13)}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseChip[data-tone="down"]{color:#fb7185;background:rgba(251,113,133,.14)}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseChip[data-tone="warn"]{color:#f2c46d;background:rgba(242,196,109,.14)}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseDot{display:inline-block;width:8px;height:8px;margin-left:6px;border-radius:50%;background:#8ea0b4;vertical-align:middle}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseDot[data-tone="up"]{background:#34d399}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseDot[data-tone="down"]{background:#fb7185}
+#root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvPulseDot[data-tone="warn"]{background:#f2c46d}

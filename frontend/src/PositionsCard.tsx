@@ -1,7 +1,8 @@
-import {useMemo, useState, type CSSProperties} from 'react'
+import {useEffect, useMemo, useRef, useState, type CSSProperties} from 'react'
 import DcaWatch from './DcaWatch'
 import PositionRead from './PositionRead'
 import {usePositionPulse, useReadAlarms} from './coin-read-api'
+import {clearReadLink, readLinkTarget} from './notification-link'
 import {pulseChip, pulseSummary, type Pulse} from './coin-read-view'
 import {ChevronDown, SlidersHorizontal, Target, X} from 'lucide-react'
 import {duration} from './live-guide'
@@ -182,8 +183,20 @@ export default function PositionsCard(props: Props) {
   const readAlarms = useReadAlarms('binance', live && !stale && !props.awaitingSymbol ? positions.map(item => String(item.symbol ?? '').toUpperCase()).filter(Boolean) : null)
   // Yorum nabzı: her pozisyon için yorumun yönü/uyumu + portföy özeti. Yalnız doğrulanmış canlı listede istenir; alınamazsa kartlar eskisi gibi kalır.
   const pulseItems = live && !stale && !props.awaitingSymbol ? items.map(item => ({symbol: item.metrics.symbol.toUpperCase(), side: (item.metrics.long ? 'LONG' : 'SHORT') as 'LONG' | 'SHORT'})).filter(item => /^[A-Z0-9]{2,30}$/.test(item.symbol)) : null
-  const pulse = usePositionPulse(pulseItems)
+  const {data: pulse, failed: pulseFailed} = usePositionPulse(pulseItems)
   const pulseOf = (symbol: string, long: boolean) => pulse?.items.find(item => item.symbol === symbol.toUpperCase() && item.side === (long ? 'LONG' : 'SHORT'))
+  // Yorum alarmı bildirimine basılınca (?read=SEMBOL) ilgili pozisyon kartı açılır ve ekrana getirilir; bir kez çalışır.
+  const readTarget = useRef<string | null>(readLinkTarget('binance'))
+  useEffect(() => {
+    const wanted = readTarget.current
+    if (!wanted) return
+    const hit = items.find(item => item.metrics.symbol.toUpperCase() === wanted.toUpperCase())
+    if (!hit) return
+    readTarget.current = null
+    clearReadLink()
+    setOpen(current => ({...current, [hit.key]: true}))
+    window.requestAnimationFrame(() => document.querySelector(`[data-pos-symbol="${CSS.escape(wanted.toUpperCase())}"]`)?.scrollIntoView({behavior: 'smooth', block: 'center'}))
+  }, [items])
   const sorted = useMemo(() => sortPositions(items, sort, item => readRank(pulseOf(item.metrics.symbol, item.metrics.long))), [items, sort, pulse])
   const pulseLines = pulse && pulseItems ? pulseSummary(pulse.items, pulse.events, pulseItems.map(item => item.side)) : []
   const title = `Açık pozisyonlar${live ? ` · ${positions.length}${props.maxPositions !== null ? ` / ${props.maxPositions}` : ''}` : ''}`
@@ -221,6 +234,7 @@ export default function PositionsCard(props: Props) {
           <em>{summary.protectedCount === summary.count ? 'Stop ve hedefler Binance’te' : 'Doğrulanamayan pozisyon var'}</em></div>
       </div>
 
+      {pulseFailed && <div className="pvPulse" role="status" aria-label="Akıllı özet"><b>Akıllı özet</b><p data-tone="flat">Yorum bilgisi şu an alınamadı; pozisyon bilgilerin etkilenmedi. Biraz sonra yeniden denenecek.</p></div>}
       {pulseLines.length > 0 && <div className="pvPulse" role="status" aria-label="Akıllı özet">
         <b>Akıllı özet</b>
         {pulseLines.map(line => <p key={line.text} data-tone={line.tone}>{line.text}</p>)}
@@ -340,7 +354,7 @@ export default function PositionsCard(props: Props) {
       <div className="pvTable" role="table" aria-label="Pozisyon tablosu">
         <div className="pvRow pvRowHead" role="row">{['COIN', 'YÖN', 'BÜYÜKLÜK', 'GİRİŞ', 'FİYAT', 'STOPA', 'TP1’E', 'NET K/Z', 'R'].map(label => <span key={label} role="columnheader">{label}</span>)}</div>
         {sorted.map(({key, position, metrics}) => <div className="pvRow" role="row" key={key} data-level={metrics.level}>
-          <b role="cell">{metrics.coin}</b>
+          <b role="cell">{metrics.coin}{(() => { const chip = pulseChip0(pulseOf(metrics.symbol, metrics.long)); return chip ? <i className="pvPulseDot" data-tone={chip.tone} role="img" aria-label={chip.text} title={chip.text}/> : null })()}</b>
           <span role="cell" data-tone={metrics.long ? 'up' : 'down'}>{metrics.direction}</span>
           <span role="cell">{metrics.quantity !== null ? `${metrics.quantity.toLocaleString('tr-TR', {maximumFractionDigits: 4})}${metrics.notional !== null ? ` · ${formatUsdt(metrics.notional).split(',')[0]} USDT` : ''}` : '—'}</span>
           <span role="cell">{formatPrice(num(position.entry_price))}</span>

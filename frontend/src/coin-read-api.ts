@@ -107,7 +107,10 @@ export function useReadStats(symbol: string) {
 export function useEntryWatch() {
   const [items, setItems] = useState<WatchItem[]>([])
   const [max, setMax] = useState(12)
-  const reload = useCallback(() => { void request<{items: WatchItem[]; max: number}>('/entry-watch').then(data => { setItems(Array.isArray(data.items) ? data.items : []); if (data.max) setMax(data.max) }).catch(() => undefined) }, [])
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const reload = useCallback(() => {
+    void request<{items: WatchItem[]; max: number}>('/entry-watch').then(data => { setItems(Array.isArray(data.items) ? data.items : []); if (data.max) setMax(data.max); setStatus('ready') }).catch(() => setStatus('error'))
+  }, [])
   useEffect(() => { reload() }, [reload])
   const save = useCallback(async (symbol: string, direction: WatchDirection): Promise<string | null> => {
     try {
@@ -123,7 +126,7 @@ export function useEntryWatch() {
       return null
     } catch (error) { return error instanceof Error ? error.message : 'İzleme kaldırılamadı.' }
   }, [])
-  return {items, max, save, remove}
+  return {items, max, status, reload, save, remove}
 }
 
 /** Binance işlem geçmişinden kişisel kalıplar (yalnız okuma). */
@@ -132,12 +135,13 @@ export const fetchMyInsights = () => request<Insights & {days: number; truncated
 /** Açık pozisyonların kısa yorum nabzı; 45 sn'de bir (ekran görünürken) tazelenir. items null ise çalışmaz. Alınamazsa null: kart sessiz kalır. */
 export function usePositionPulse(items: Array<{symbol: string; side: 'LONG' | 'SHORT'}> | null) {
   const [data, setData] = useState<PulseData | null>(null)
+  const [failed, setFailed] = useState(false)
   const [tick, setTick] = useState(0)
   const key = items && items.length ? items.map(item => `${item.symbol}:${item.side}`).sort().join(',') : ''
   useEffect(() => {
     if (!key) { setData(null); return }
     let alive = true
-    void request<PulseData>(`/positions-pulse?items=${encodeURIComponent(key)}`, {}, 25000).then(result => { if (alive) setData(result) }).catch(() => undefined)
+    void request<PulseData>(`/positions-pulse?items=${encodeURIComponent(key)}`, {}, 25000).then(result => { if (alive) { setData(result); setFailed(false) } }).catch(() => { if (alive) setFailed(true) })
     return () => { alive = false }
   }, [key, tick])
   useEffect(() => {
@@ -145,5 +149,5 @@ export function usePositionPulse(items: Array<{symbol: string; side: 'LONG' | 'S
     const timer = window.setInterval(() => { if (document.visibilityState !== 'hidden') setTick(value => value + 1) }, 45000)
     return () => window.clearInterval(timer)
   }, [key])
-  return key ? data : null
+  return {data: key ? data : null, failed: Boolean(key) && failed && !data}
 }
