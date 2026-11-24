@@ -286,6 +286,24 @@ export default function CoinAnalysisCenter({interval,onIntervalChange,chart,onOp
     analysisController.current?.abort()
     if (analystTimer.current !== null) window.clearTimeout(analystTimer.current)
   }, [])
+  // Telefonda detay paneli kendi içinde kayar (window değil): aşağı kaydırınca alt menü iner, yukarı kaydırınca geri gelir.
+  useEffect(() => {
+    if (!detailsOpen) return
+    const panel = document.querySelector<HTMLElement>('.coinDetailPanel.mobileOpen')
+    if (!panel) return
+    let last = panel.scrollTop
+    const setHidden = (hidden:boolean) => { if (hidden) document.body.setAttribute('data-panel-nav','hidden'); else document.body.removeAttribute('data-panel-nav') }
+    const onScroll = () => {
+      const y = panel.scrollTop
+      const delta = y - last
+      if (y <= 60) { last = y; setHidden(false); return }
+      if (Math.abs(delta) < 6) return
+      last = y
+      setHidden(delta > 0)
+    }
+    panel.addEventListener('scroll', onScroll, {passive:true})
+    return () => { panel.removeEventListener('scroll', onScroll); setHidden(false) }
+  },[detailsOpen,activeSymbol])
   useEffect(() => {
     if (!activeSymbol) return
     const controller = new AbortController()

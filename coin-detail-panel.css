@@ -45,3 +45,5 @@ html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAna
 html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter .cdp.cdp button.cdpGo{width:100%;min-height:52px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:800;background:var(--cdp-accent)!important;border-color:transparent!important;color:#06130d!important}
 .cdpGo svg{width:18px;height:18px}
 @media(min-width:651px){html body #root > main.v26App.workspaceRoute:has(> .coinAnalysisCenter) .coinAnalysisCenter.coinAnalysisCenter .cdp.cdp button.cdpClose{display:none!important}}
+/* Detay paneli aşağı kayarken alt menü iner (CoinAnalysisCenter data-panel-nav koyar), yukarı kayınca geri gelir. */
+@media(max-width:1024px){body[data-panel-nav="hidden"] .v26MobileBottomNav.v26MobileBottomNav{transform:translateY(calc(100% + 24px))!important;transition:transform 250ms ease-out!important}}
