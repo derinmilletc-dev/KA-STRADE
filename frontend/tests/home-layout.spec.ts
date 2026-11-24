@@ -18,6 +18,7 @@ async function prepare(page: Page, connected: boolean) {
   await page.addInitScript(() => { localStorage.setItem('protrebot-v25-session', 'cookie-session:home-layout'); localStorage.setItem('kt-lang', 'tr') })
   await mockAssistant(page)
   await page.route('**/api/**', route => route.fulfill({json: {}}))
+  await page.route('**/api/web/access/check', route => route.fulfill({json: {authorized: true}}))
   await page.route('**/api/v22/{session,profile}', route => route.fulfill({json: {user: {id: 'home-layout', display_name: 'Ada Yılmaz', email: 'ada@example.test', role: 'CUSTOMER', active: true, email_verified: true}, profile: {preferences: {trading_mode: 'MANUAL', timeframe: '15m', exchange: 'BINANCE', risk_per_trade: 1, symbols: ['BTCUSDT']}}, access: {isPremium: false, canAccessMasterTrade: false}}}))
   await page.route('**/api/v22/subscription', route => route.fulfill({json: {status: 'NONE', plan: 'FREE'}}))
   await page.route('**/api/analysis-universe**', route => route.fulfill({json: {results: universe}}))
