@@ -3,13 +3,13 @@ import './smart-read.css'
 import {useCoinRead, useReadStats} from './coin-read-api'
 import {
   accuracyLine, arrowOf, bookPos, confidenceTone, EVENT_LABEL, fitTitle, fitTone, gaugePos, levelBar, priceText, rrText, signedPct, TF_ORDER, topEvent, usdText,
-  type CoinRead, type ReadTf,
+  type CoinRead, type ReadPlan, type ReadTf,
 } from './coin-read-view'
 
 // Akıllı yorum kartı: tüm zaman dilimlerini tek bakışta okur (uyum/çelişki), seçili sürenin ayrıntısını, destek-direnç,
 // futures verisini ve bu kuralın coindeki geçmiş doğruluğunu gösterir. Pozisyon verilirse yorumu pozisyona bağlar.
 // Yalnız okuma: kapanmış mumlardan otomatik tarif; tahmin ya da yatırım tavsiyesi değildir.
-type Props = {symbol: string; focus?: string; side?: 'LONG' | 'SHORT' | null; entry?: number | null}
+type Props = {symbol: string; focus?: string; side?: 'LONG' | 'SHORT' | null; entry?: number | null; onApplyPlan?: (plan: ReadPlan) => string | null | void}
 
 const isTf = (value: string | undefined): value is typeof TF_ORDER[number] => !!value && (TF_ORDER as readonly string[]).includes(value)
 const toneOf = (value: string): 'up' | 'down' | 'warn' | 'flat' => value === 'up' || value === 'good' ? 'up' : value === 'down' || value === 'danger' ? 'down' : value === 'warn' ? 'warn' : 'flat'
@@ -36,8 +36,10 @@ function Levels({data}: {data: CoinRead}) {
   </div>
 }
 
-function Extras({data}: {data: CoinRead}) {
+function Extras({data, onApplyPlan}: {data: CoinRead; onApplyPlan?: Props['onApplyPlan']}) {
   const {context, plan, book, liquidations} = data
+  const [applied, setApplied] = useState<string | null>(null)
+  useEffect(() => { setApplied(null) }, [data.symbol, plan?.side])
   return <>
     {context && (context.btc || context.regime_text) && <div className="srxBlock" aria-label="Piyasa bağlamı">
       <h4>Piyasa bağlamı</h4>
@@ -53,6 +55,8 @@ function Extras({data}: {data: CoinRead}) {
       </div>
       <p className="srxPlanVerdict" data-tone={plan.tone}>{plan.verdict}</p>
       <small className="srxPlanNote">Öneri değil, hesap: giriş şu anki fiyat varsayıldı. Emir göndermez.</small>
+      {onApplyPlan && <button type="button" className="srxApply" onClick={() => setApplied(onApplyPlan(plan) ?? 'Stop ve hedef forma yazıldı. Göndermeden önce kontrol et.')}>Stop ve hedefi forma yaz</button>}
+      {applied && <p className="srxNoteLine" data-tone="flat" role="status">{applied}</p>}
     </div>}
     {book && <div className="srxBlock" aria-label="Emir defteri">
       <h4>Emir defteri (±%1)</h4>
@@ -86,7 +90,7 @@ function Detail({read, history}: {read: ReadTf; history: string | null}) {
   </div>
 }
 
-export default function SmartRead({symbol, focus, side = null, entry = null}: Props) {
+export default function SmartRead({symbol, focus, side = null, entry = null, onApplyPlan}: Props) {
   const [tf, setTf] = useState<string>(isTf(focus) ? focus : '15m')
   useEffect(() => { if (isTf(focus)) setTf(focus) }, [focus])
   const {data, error, loading, reload} = useCoinRead(symbol, {interval: tf, side, entry})
@@ -127,7 +131,7 @@ export default function SmartRead({symbol, focus, side = null, entry = null}: Pr
     {current && <Detail read={current} history={histText}/>}
 
     <Levels data={data}/>
-    <Extras data={data}/>
+    <Extras data={data} onApplyPlan={onApplyPlan}/>
 
     {futures && <div className="srxBlock" aria-label="Futures verisi">
       <h4>Futures</h4>

@@ -98,3 +98,22 @@ test('weak hour note only inside a flagged block and with enough data', () => {
   assert.equal(weakHourNote({...insights, enough: false}, at(22)), null)
   assert.equal(weakHourNote(null, at(22)), null)
 })
+
+import {planForForm, type ReadPlan} from './coin-read-view.ts'
+const mkPlan = (over: Partial<ReadPlan> = {}): ReadPlan => ({side: 'LONG', entry: 100, stop: 98, stop_pct: -2, stop_basis: 'seviye', targets: [{price: 104, rr: 2, basis: 'seviye'}], rr: 2, verdict: '', tone: 'good', confidence: 'Orta', text: '', ...over})
+test('plan to form levels', () => {
+  const ok = planForForm(mkPlan(), 100)
+  assert.equal(ok.ok, true)
+  if (ok.ok) { assert.equal(ok.stop, 98); assert.deepEqual(ok.tps, [104, 106, 108]) }
+  const two = planForForm(mkPlan({targets: [{price: 104, rr: 2, basis: 'seviye'}, {price: 110, rr: 5, basis: 'seviye'}]}), 100)
+  if (two.ok) assert.equal(two.tps[1], 110)
+  const short = planForForm(mkPlan({side: 'SHORT', stop: 102, targets: [{price: 96, rr: 2, basis: 'seviye'}]}), 100)
+  if (short.ok) { assert.equal(short.stop, 102); assert.deepEqual(short.tps, [96, 94, 92]) } else assert.fail('short should be ok')
+})
+test('plan to form rejects stale or wrong-side levels', () => {
+  assert.equal(planForForm(mkPlan(), 97).ok, false)          // fiyat stopun altına inmiş
+  assert.equal(planForForm(mkPlan(), 105).ok, false)         // hedef geçilmiş
+  assert.equal(planForForm(mkPlan({side: 'SHORT'}), 100).ok, false)   // stop yanlış tarafta
+  assert.equal(planForForm(mkPlan(), 0).ok, false)
+  assert.equal(planForForm(mkPlan({targets: []}), 100).ok, false)
+})

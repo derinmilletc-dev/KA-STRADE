@@ -5,6 +5,7 @@ import { AlertTriangle, BarChart3, CheckCircle2, ChevronDown, ChevronLeft, Chevr
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
 import CoinLiveChart from './CoinLiveChart'
+import {planForForm, type ReadPlan} from './coin-read-view'
 import CoinbaseAlerts from './CoinbaseAlerts'
 import {binanceAlertCall, usePriceAlerts} from './price-alert-api'
 import {takeAlertSymbol} from './notification-link'
@@ -1869,6 +1870,15 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const anaSig = anaRow ? signals?.[anaRow.symbol] : undefined
     const anaStep = (delta: number) => { const next = matches[anaIdx + delta]; if (next && signals?.[next.symbol]) setAnaSym(next.symbol) }
     const anaPick = () => { if (!anaRow) return; chooseCoin(anaRow.symbol); setAnaSym(null) }
+    // Akıllı yorumun stop/hedef planını forma yazar (emir göndermez). Yalnız form aynı coindeyse ve seviyeler güncel fiyata göre geçerliyse.
+    const applyReadPlan = (plan: ReadPlan): string => {
+      if (!anaRow || anaRow.symbol !== order.symbol) return 'Önce bu coini emir formuna seç ("Seç"), sonra planı yaz.'
+      const levels = planForForm(plan, entryRef)
+      if (!levels.ok) return levels.error
+      setOrder(current => ({...current, direction: levels.side, stop_loss: presetPrice(levels.stop), tp1: presetPrice(levels.tps[0]), tp2: presetPrice(levels.tps[1]), tp3: presetPrice(levels.tps[2])}))
+      setLevelsFromAnalysis(false); setStopPick(null)
+      return `Yön ${levels.side}, stop ve 3 hedef forma yazıldı. Analizi kapatıp kontrol et; emir gönderilmedi.`
+    }
     const anaLeanTitle = !anaSig ? '' : anaSig.lean === 'LONG' ? 'Yükseliş yönü ağır basıyor' : anaSig.lean === 'SHORT' ? 'Düşüş yönü ağır basıyor' : 'Belirgin yön yok'
     const anaPos = anaSig && anaSig.long !== null && anaSig.short !== null && anaSig.long + anaSig.short > 0 ? anaSig.long / (anaSig.long + anaSig.short) * 100 : 50
     const anaRead = !anaSig ? '' : anaSig.lean === 'NEUTRAL' ? 'LONG ve SHORT tarafları birbirine yakın. Net bir yön yok.'
@@ -1895,7 +1905,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
               <span><strong>%{anaSig.confidence}</strong><small>{strengthLabel(anaSig.confidence)}</small></span>
             </div>
           </section>
-          <CoinLiveChart symbol={anaRow.symbol}/>
+          <CoinLiveChart symbol={anaRow.symbol} onApplyPlan={applyReadPlan}/>
           <section className="mxsaGauge" aria-label="LONG ve SHORT dengesi">
             <div className="mxsaTrack" data-lean={anaSig.lean}><i style={{left: `${anaPos}%`}}/></div>
             <div className="mxsaEnds"><span data-side="SHORT">SHORT</span><span data-side="BEKLE">NÖTR</span><span data-side="LONG">LONG</span></div>

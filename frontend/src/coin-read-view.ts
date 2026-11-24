@@ -129,3 +129,19 @@ export function usdText(value: number): string {
   if (value >= 1_000) return `${Math.round(value / 1_000).toLocaleString('tr-TR')} bin $`
   return `${Math.round(value)} $`
 }
+
+export type FormLevels = {ok: true; side: 'LONG' | 'SHORT'; stop: number; tps: [number, number, number]} | {ok: false; error: string}
+/** Planı emir formuna yazılacak seviyelere çevirir. Form girişi plan fiyatından farklıysa (limit emir) seviyeler FORMUN giriş fiyatına göre doğrulanır:
+ *  stop yanlış tarafta ya da hedef girişin ötesinde değilse yazılmaz. Üç hedef istenirse eksikler 1,5 ve 2 katı mesafeyle tamamlanır. */
+export function planForForm(plan: ReadPlan, entry: number): FormLevels {
+  const long = plan.side === 'LONG'
+  if (!(entry > 0) || !Number.isFinite(entry)) return {ok: false, error: 'Giriş fiyatı henüz belli değil; birkaç saniye sonra tekrar dene.'}
+  if (long ? !(plan.stop < entry) : !(plan.stop > entry)) return {ok: false, error: 'Fiyat planın stop seviyesini geçmiş görünüyor; yorum yenilenince tekrar dene.'}
+  const first = plan.targets[0]?.price
+  if (!first || (long ? !(first > entry) : !(first < entry))) return {ok: false, error: 'Plan hedefi giriş fiyatının ötesinde değil; yorum yenilenince tekrar dene.'}
+  const dist = Math.abs(first - entry), sign = long ? 1 : -1
+  const beyond = (value: number | undefined, min: number) => value !== undefined && (long ? value > entry + min : value < entry - min)
+  const second = beyond(plan.targets[1]?.price, dist) ? plan.targets[1].price : entry + sign * dist * 1.5
+  const third = entry + sign * Math.max(dist * 2, Math.abs(second - entry) * 1.3)
+  return {ok: true, side: plan.side, stop: plan.stop, tps: [first, second, third]}
+}

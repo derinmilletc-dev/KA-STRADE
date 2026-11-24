@@ -8,6 +8,7 @@ import {createPortal} from 'react-dom'
 import {BarChart3, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, RefreshCw, Search, Send, ShieldAlert, TriangleAlert, X, Zap} from 'lucide-react'
 import {CoinIcon} from '../../src/components/CoinIcon'
 import CoinLiveChart from './CoinLiveChart'
+import {planForForm, type ReadPlan} from './coin-read-view'
 import {computeGrid, GRID_MAX_COUNT, GRID_MIN_COUNT, type GridFilters, type GridSide} from './gridMath'
 import {buildGridAlerts} from './gridAlerts'
 import {expiryInfo, levelsFromAnalysis, levelsFromVolatility, minOrder, type AnalysisLevels} from './coinbase-levels'
@@ -879,6 +880,17 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
   // Analiz çekmecesi: Binance'teki ile aynı (listedeki sinyalden beslenir, yeni istek atmaz).
   const anaIdx = anaSym ? matches.findIndex(row => row.symbol === anaSym) : -1
   const anaRow = anaIdx >= 0 ? matches[anaIdx] : undefined
+  // Akıllı yorumun stop/hedef planını işlem formuna yazar (emir göndermez). Yalnız form aynı coindeyse ve seviyeler güncel fiyata göre geçerliyse.
+  const applyReadPlan = (plan: ReadPlan): string => {
+    if (!ordersOn) return 'Emir formu şu an kapalı.'
+    if (!anaRow || !selectedRow || anaRow.root !== selectedRow.root) return 'Önce bu coini işlem için seç, sonra planı yaz.'
+    const levels = planForForm(plan, entryRef)
+    if (!levels.ok) return levels.error
+    const nextSide = levels.side === 'LONG' ? 'BUY' : 'SELL'
+    setTpRR(null); setLevelPick(null)
+    patch({...(nextSide !== ticket.side ? {side: nextSide} : {}), stopPrice: priceString(levels.stop), takeProfit: priceString(levels.tps[0])})
+    return `Yön ${levels.side}, stop ve hedef forma yazıldı. Kaldıraca göre stop mesafesi kontrol adımında doğrulanır; emir gönderilmedi.`
+  }
   const anaSig = anaRow ? signals?.[anaRow.symbol] : undefined
   const anaStep = (delta: number) => { const next = matches[anaIdx + delta]; if (next && signals?.[next.symbol]) setAnaSym(next.symbol) }
   const anaPick = () => { if (!anaRow) return; chooseCoin(anaRow.symbol); setAnaSym(null) }
@@ -908,7 +920,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
             <span><strong>%{anaSig.confidence}</strong><small>{strengthLabel(anaSig.confidence)}</small></span>
           </div>
         </section>
-        {coinSym(anaRow) && <CoinLiveChart symbol={coinSym(anaRow)}/>}
+        {coinSym(anaRow) && <CoinLiveChart symbol={coinSym(anaRow)} onApplyPlan={applyReadPlan}/>}
         <section className="mxsaGauge" aria-label="LONG ve SHORT dengesi">
           <div className="mxsaTrack" data-lean={anaSig.lean}><i style={{left: `${anaPos}%`}}/></div>
           <div className="mxsaEnds"><span data-side="SHORT">SHORT</span><span data-side="BEKLE">NÖTR</span><span data-side="LONG">LONG</span></div>
