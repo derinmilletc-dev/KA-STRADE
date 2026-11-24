@@ -920,7 +920,7 @@ export default function CoinbaseManualTerminal({onGoSetup}: {onGoSetup: () => vo
             <span><strong>%{anaSig.confidence}</strong><small>{strengthLabel(anaSig.confidence)}</small></span>
           </div>
         </section>
-        {coinSym(anaRow) && <CoinLiveChart symbol={coinSym(anaRow)} onApplyPlan={applyReadPlan}/>}
+        {coinSym(anaRow) && <CoinLiveChart symbol={coinSym(anaRow)} onApplyPlan={applyReadPlan} alert={{productId: anaRow.symbol, call: coinbaseAlertCall, onSet: loadAlerts}}/>}
         <section className="mxsaGauge" aria-label="LONG ve SHORT dengesi">
           <div className="mxsaTrack" data-lean={anaSig.lean}><i style={{left: `${anaPos}%`}}/></div>
           <div className="mxsaEnds"><span data-side="SHORT">SHORT</span><span data-side="BEKLE">NÖTR</span><span data-side="LONG">LONG</span></div>

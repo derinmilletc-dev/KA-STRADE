@@ -1905,7 +1905,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
               <span><strong>%{anaSig.confidence}</strong><small>{strengthLabel(anaSig.confidence)}</small></span>
             </div>
           </section>
-          <CoinLiveChart symbol={anaRow.symbol} onApplyPlan={applyReadPlan}/>
+          <CoinLiveChart symbol={anaRow.symbol} onApplyPlan={applyReadPlan} alert={{productId: anaRow.symbol, call: binanceAlertCall, onSet: reloadAlerts}}/>
           <section className="mxsaGauge" aria-label="LONG ve SHORT dengesi">
             <div className="mxsaTrack" data-lean={anaSig.lean}><i style={{left: `${anaPos}%`}}/></div>
             <div className="mxsaEnds"><span data-side="SHORT">SHORT</span><span data-side="BEKLE">NÖTR</span><span data-side="LONG">LONG</span></div>

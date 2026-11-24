@@ -4,14 +4,14 @@ import {fetchWithTimeout} from '../../master-trade-request'
 import {useLiveCandles} from '../../useLiveCandles'
 import {buildChart, changeText, clockText, INTERVAL_LABEL, nearestIndex, type ChartInterval} from './coin-live-chart'
 import {formatPrice} from './position-view'
-import SmartRead from './SmartRead'
+import SmartRead, {type AlertTarget} from './SmartRead'
 import type {ReadPlan} from './coin-read-view'
 
 // Manuel işlemde seçilen/incelenen coinin canlı hareketi: son 60 mum (REST) + Binance'ten canlı akan son mum.
 // Parmağı grafik üstünde gezdirince o andaki fiyat ve saat görünür; bırakınca canlı fiyata döner.
 // Yalnız okuma: hesap, anahtar ya da emir yok. Yayın koparsa "Gecikmeli" yazar; grafik son bilinen veriyle durur.
 type Candle = {time: number; open: number; high: number; low: number; close: number; volume: number}
-type Props = {symbol: string; compact?: boolean; paused?: boolean; onApplyPlan?: (plan: ReadPlan) => string | null | void}
+type Props = {symbol: string; compact?: boolean; paused?: boolean; onApplyPlan?: (plan: ReadPlan) => string | null | void; alert?: AlertTarget}
 
 const WIDTH = 300
 const parse = (rows: unknown): Candle[] => (Array.isArray(rows) ? rows : []).map(row => {
@@ -19,7 +19,7 @@ const parse = (rows: unknown): Candle[] => (Array.isArray(rows) ? rows : []).map
   return {time: Number(item.time), open: Number(item.open), high: Number(item.high), low: Number(item.low), close: Number(item.close), volume: Number(item.volume ?? 0)}
 }).filter(candle => [candle.time, candle.open, candle.high, candle.low, candle.close].every(Number.isFinite))
 
-export default function CoinLiveChart({symbol, compact = false, paused = false, onApplyPlan}: Props) {
+export default function CoinLiveChart({symbol, compact = false, paused = false, onApplyPlan, alert}: Props) {
   const [interval, setIntervalValue] = useState<ChartInterval>('1m')
   const [reload, setReload] = useState(0)
   const [scrub, setScrub] = useState<number | null>(null)
@@ -84,6 +84,6 @@ export default function CoinLiveChart({symbol, compact = false, paused = false, 
       <small>{shape ? `Son 60 mum · parmağınla gez` : ''}</small>
       <div className="mxlcTabs" role="group" aria-label="Grafik süresi">{(Object.keys(INTERVAL_LABEL) as ChartInterval[]).map(item => <button type="button" key={item} aria-pressed={interval === item} onClick={() => setIntervalValue(item)}>{INTERVAL_LABEL[item]}</button>)}</div>
     </div>}
-    {!compact && !paused && shape && <SmartRead symbol={symbol} focus={interval} onApplyPlan={onApplyPlan}/>}
+    {!compact && !paused && shape && <SmartRead symbol={symbol} focus={interval} onApplyPlan={onApplyPlan} alert={alert}/>}
   </div>
 }

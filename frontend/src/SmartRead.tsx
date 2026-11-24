@@ -1,15 +1,17 @@
 import {useEffect, useState} from 'react'
 import './smart-read.css'
 import {useCoinRead, useReadStats} from './coin-read-api'
+import type {AlertCall} from './price-alert-api'
 import {
-  accuracyLine, arrowOf, bookPos, confidenceTone, EVENT_LABEL, fitTitle, fitTone, gaugePos, levelBar, priceText, rrText, signedPct, TF_ORDER, topEvent, usdText,
+  accuracyLine, alertCandidates, arrowOf, bookPos, confidenceTone, EVENT_LABEL, fitTitle, fitTone, gaugePos, levelBar, priceText, rrText, signedPct, TF_ORDER, topEvent, usdText,
   type CoinRead, type ReadPlan, type ReadTf,
 } from './coin-read-view'
 
 // Akıllı yorum kartı: tüm zaman dilimlerini tek bakışta okur (uyum/çelişki), seçili sürenin ayrıntısını, destek-direnç,
 // futures verisini ve bu kuralın coindeki geçmiş doğruluğunu gösterir. Pozisyon verilirse yorumu pozisyona bağlar.
 // Yalnız okuma: kapanmış mumlardan otomatik tarif; tahmin ya da yatırım tavsiyesi değildir.
-type Props = {symbol: string; focus?: string; side?: 'LONG' | 'SHORT' | null; entry?: number | null; onApplyPlan?: (plan: ReadPlan) => string | null | void}
+export type AlertTarget = {productId: string; call: AlertCall; onSet?: () => void}
+type Props = {symbol: string; focus?: string; side?: 'LONG' | 'SHORT' | null; entry?: number | null; onApplyPlan?: (plan: ReadPlan) => string | null | void; alert?: AlertTarget}
 
 const isTf = (value: string | undefined): value is typeof TF_ORDER[number] => !!value && (TF_ORDER as readonly string[]).includes(value)
 const toneOf = (value: string): 'up' | 'down' | 'warn' | 'flat' => value === 'up' || value === 'good' ? 'up' : value === 'down' || value === 'danger' ? 'down' : value === 'warn' ? 'warn' : 'flat'
@@ -33,6 +35,27 @@ function Levels({data}: {data: CoinRead}) {
       {res && <span data-kind="resistance"><small>Direnç</small><b>{priceText(res.price)}</b><em>{signedPct(res.dist_pct)}</em></span>}
       {sup && <span data-kind="support"><small>Destek</small><b>{priceText(sup.price)}</b><em>{signedPct(sup.dist_pct)}</em></span>}
     </div>
+  </div>
+}
+
+function QuickAlerts({data, alert}: {data: CoinRead; alert: AlertTarget}) {
+  const [note, setNote] = useState<{tone: 'ok' | 'warn'; text: string} | null>(null)
+  const [busy, setBusy] = useState('')
+  const items = alertCandidates(data)
+  if (!items.length) return null
+  const set = async (item: ReturnType<typeof alertCandidates>[number]) => {
+    if (busy) return
+    setBusy(item.key); setNote(null)
+    try {
+      await alert.call('/alerts', {method: 'POST', body: JSON.stringify({product_id: alert.productId, level: String(item.price)})})
+      setNote({tone: 'ok', text: `${item.label} (${priceText(item.price)}) için alarm kuruldu. Fiyat oraya gelince bildirim gelir.`}); alert.onSet?.()
+    } catch (error) { setNote({tone: 'warn', text: error instanceof Error ? error.message : 'Alarm kurulamadı.'}) }
+    setBusy('')
+  }
+  return <div className="srxBlock" aria-label="Seviyeye alarm">
+    <h4>Bu seviyeye gelince haber ver</h4>
+    <div className="srxQa">{items.map(item => <button type="button" key={item.key} data-tone={item.tone} disabled={!!busy} onClick={() => void set(item)}><small>🔔 {item.label}</small><b>{priceText(item.price)}</b></button>)}</div>
+    {note && <p className="srxNoteLine" data-tone={note.tone === 'ok' ? 'up' : 'warn'} role="status">{note.text}</p>}
   </div>
 }
 
@@ -90,7 +113,7 @@ function Detail({read, history}: {read: ReadTf; history: string | null}) {
   </div>
 }
 
-export default function SmartRead({symbol, focus, side = null, entry = null, onApplyPlan}: Props) {
+export default function SmartRead({symbol, focus, side = null, entry = null, onApplyPlan, alert}: Props) {
   const [tf, setTf] = useState<string>(isTf(focus) ? focus : '15m')
   useEffect(() => { if (isTf(focus)) setTf(focus) }, [focus])
   const {data, error, loading, reload} = useCoinRead(symbol, {interval: tf, side, entry})
@@ -132,6 +155,7 @@ export default function SmartRead({symbol, focus, side = null, entry = null, onA
 
     <Levels data={data}/>
     <Extras data={data} onApplyPlan={onApplyPlan}/>
+    {alert && <QuickAlerts data={data} alert={alert}/>}
 
     {futures && <div className="srxBlock" aria-label="Futures verisi">
       <h4>Futures</h4>

@@ -117,3 +117,13 @@ test('plan to form rejects stale or wrong-side levels', () => {
   assert.equal(planForForm(mkPlan(), 0).ok, false)
   assert.equal(planForForm(mkPlan({targets: []}), 100).ok, false)
 })
+
+import {alertCandidates} from './coin-read-view.ts'
+test('alert candidates dedupe near levels and skip the current price', () => {
+  const lv = (price: number) => ({price, dist_pct: 0, strength: 3, touches: 2})
+  const out = alertCandidates({price: 100, plan: mkPlan(), levels: {support: [lv(98.05), lv(90)], resistance: [lv(104.05)]}})
+  assert.deepEqual(out.map(i => i.label), ['Hedef 1', 'Stop'])        // destek stopa, direnç hedefe %0,15'ten yakın → elendi
+  const far = alertCandidates({price: 100, plan: null, levels: {support: [lv(95)], resistance: [lv(100.05), lv(110)]}})
+  assert.deepEqual(far.map(i => i.label), ['Destek'])               // ilk direnç fiyata çok yakın; listede yalnız en yakın direnç aranır
+  assert.deepEqual(alertCandidates({price: 0, plan: null, levels: {support: [], resistance: []}}), [])
+})
