@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from . import coin_read, coin_read_service, read_alarms
+from . import coin_read, coin_read_service, entry_watch, read_alarms, read_log
 from .v22_commercial import authenticated_user_async
 
 logger = logging.getLogger(__name__)
@@ -101,3 +101,51 @@ async def alarms_keep(payload: KeepInput, request: Request) -> Any:
             await read_alarms.delete(pool, user_id, payload.exchange, alarm["product_id"])
     await read_alarms.keep_alive(pool, user_id, payload.exchange, open_ids)
     return {"ok": True}
+
+
+class WatchInput(BaseModel):
+    symbol: str = Field(min_length=2, max_length=30)
+    direction: str = "both"
+
+
+@router.get("/entry-watch")
+async def watch_list(request: Request) -> Any:
+    user = await authenticated_user_async(request)
+    items = await entry_watch.list_watch(_pool(request), str(user["id"]))
+    return {"items": [{"symbol": i["symbol"], "direction": i["direction"]} for i in items], "max": entry_watch.MAX_PER_USER}
+
+
+@router.post("/entry-watch")
+async def watch_set(payload: WatchInput, request: Request) -> Any:
+    user = await authenticated_user_async(request)
+    data = entry_watch.normalize(payload.symbol, payload.direction)
+    if data is None:
+        raise HTTPException(422, "Sembol geçersiz.")
+    try:
+        saved = await entry_watch.upsert(_pool(request), str(user["id"]), data)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return {"item": {"symbol": saved["symbol"], "direction": saved["direction"]}}
+
+
+@router.delete("/entry-watch")
+async def watch_delete(request: Request, symbol: str = Query(..., min_length=2, max_length=30)) -> Any:
+    user = await authenticated_user_async(request)
+    clean_symbol = coin_read_service.valid_symbol(symbol)
+    if clean_symbol is None:
+        raise HTTPException(422, "Sembol geçersiz.")
+    return {"deleted": await entry_watch.delete(_pool(request), str(user["id"]), clean_symbol)}
+
+
+@router.get("/read-stats")
+async def read_stats(request: Request, symbol: str | None = Query(None)) -> Any:
+    """Son 7 günde kaydedilen yorumların 1 saat sonraki yön isabeti (genel, güven düzeyine göre, coin)."""
+    await authenticated_user_async(request)
+    clean_symbol = coin_read_service.valid_symbol(symbol) if symbol else None
+    try:
+        return await read_log.stats(_pool(request), clean_symbol)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Yorum doğruluğu okunamadı (%s)", type(exc).__name__)
+        raise HTTPException(502, "Doğruluk bilgisi şu an alınamadı.") from exc

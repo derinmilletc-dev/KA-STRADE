@@ -723,3 +723,4 @@ html body #root .cbTerminal .mxtAutoNote:not(#a){margin:0 0 10px!important;paddi
 .cbTerminal .cbPos2Head[data-open]::after{transform:rotate(180deg)}
 .cbPos2Bell{font-style:normal!important;margin-left:5px!important;font-size:12px!important}
 @media (prefers-reduced-motion:reduce){.cbTerminal .cbPos2Head::after{transition:none!important}}
+html body #root .cbTerminal .cbStatsWeak:not(#a){padding:8px 12px!important;border-radius:12px!important;color:#f2c46d!important;background:rgba(242,196,109,.1)!important;border:1px solid rgba(242,196,109,.28)!important}

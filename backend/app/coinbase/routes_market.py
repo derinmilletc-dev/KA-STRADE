@@ -137,7 +137,13 @@ async def coinbase_stats(request: Request) -> Any:
     feed = activity.build_feed(activity.group_fills(fills), roles, sizes)
     trades, unknown = stats.build_trades(feed)
     stats.attach_sources(trades, entries)
-    return stats.summarize(trades, unknown)
+    summary = stats.summarize(trades, unknown)
+    try:
+        from .. import personal_stats
+        summary["insights"] = personal_stats.analyze([{**t, "net": float(t["net"])} for t in trades])
+    except Exception:  # noqa: BLE001 - çıkarım düşerse istatistik yine döner
+        summary["insights"] = None
+    return summary
 
 
 @router.get("/net-balance")

@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {API_BASE} from './api'
 import {fetchWithTimeout} from '../../master-trade-request'
-import type {AlarmMode, AlarmTf, CoinRead, ReadAlarm} from './coin-read-view'
+import type {AlarmMode, AlarmTf, CoinRead, ReadAlarm, ReadStats, WatchDirection, WatchItem} from './coin-read-view'
 
 // Akıllı yorum ve pozisyon yorum alarmı için istemci. Hatalar okunur Türkçe metinle fırlatılır; hiçbiri emir göndermez.
 async function request<T>(path: string, init: RequestInit = {}, timeoutMs = 20000): Promise<T> {
@@ -87,4 +87,40 @@ export function useReadAlarms(exchange: 'binance' | 'coinbase', openIds: string[
   }, [exchange])
   const byProduct = useMemo(() => new Map(alarms.map(item => [item.product_id, item])), [alarms])
   return {alarms, byProduct, save, remove, reload}
+}
+
+
+/** Yorumun son 7 gündeki yön isabeti (coin ve genel). Alınamazsa null: satır gizlenir. */
+export function useReadStats(symbol: string) {
+  const [state, setState] = useState<{symbol: string; stats: ReadStats | null}>({symbol: '', stats: null})
+  useEffect(() => {
+    if (!symbol) return
+    let alive = true
+    void request<ReadStats>(`/read-stats?symbol=${encodeURIComponent(symbol)}`).then(stats => { if (alive) setState({symbol, stats}) }).catch(() => { if (alive) setState({symbol, stats: null}) })
+    return () => { alive = false }
+  }, [symbol])
+  return state.symbol === symbol ? state.stats : null
+}
+
+/** Giriş fırsatı izleme listesi (yalnız bildirim; emir göndermez). */
+export function useEntryWatch() {
+  const [items, setItems] = useState<WatchItem[]>([])
+  const [max, setMax] = useState(12)
+  const reload = useCallback(() => { void request<{items: WatchItem[]; max: number}>('/entry-watch').then(data => { setItems(Array.isArray(data.items) ? data.items : []); if (data.max) setMax(data.max) }).catch(() => undefined) }, [])
+  useEffect(() => { reload() }, [reload])
+  const save = useCallback(async (symbol: string, direction: WatchDirection): Promise<string | null> => {
+    try {
+      const data = await request<{item: WatchItem}>('/entry-watch', {method: 'POST', body: JSON.stringify({symbol, direction})})
+      setItems(current => [...current.filter(item => item.symbol !== data.item.symbol), data.item])
+      return null
+    } catch (error) { return error instanceof Error ? error.message : 'İzleme eklenemedi.' }
+  }, [])
+  const remove = useCallback(async (symbol: string): Promise<string | null> => {
+    try {
+      await request(`/entry-watch?symbol=${encodeURIComponent(symbol)}`, {method: 'DELETE'})
+      setItems(current => current.filter(item => item.symbol !== symbol))
+      return null
+    } catch (error) { return error instanceof Error ? error.message : 'İzleme kaldırılamadı.' }
+  }, [])
+  return {items, max, save, remove}
 }

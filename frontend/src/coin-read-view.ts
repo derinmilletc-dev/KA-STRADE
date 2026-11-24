@@ -12,7 +12,20 @@ export type ReadFutures = {funding_pct: number | null; oi_change_pct: number | n
 export type ReadSummary = {bias: number; lean: 'LONG' | 'SHORT' | 'NEUTRAL'; confidence: 'Yüksek' | 'Orta' | 'Düşük'; title: string; text: string; flags: ReadNote[]; conflict: string | null; alignment: {up: number; down: number; flat: number; total: number}}
 export type ReadPosition = {side: 'LONG' | 'SHORT'; fit: 'uyumlu' | 'ters' | 'kararsiz'; text: string; pnl_pct: number | null; guard: {price: number; dist_pct: number; label: string} | null; target: {price: number; dist_pct: number; label: string} | null; events: Record<string, {tone: string; text: string}>}
 export type ReadHistory = {tf: string; text: string | null; event: string | null; candles: number; horizon: number}
-export type CoinRead = {symbol: string; price: number; timeframes: ReadTf[]; levels: {support: ReadLevel[]; resistance: ReadLevel[]}; futures: ReadFutures | null; summary: ReadSummary; history: ReadHistory | null; position?: ReadPosition}
+export type ReadContext = {regime: 'trend' | 'yatay' | 'karisik' | null; regime_text: string | null; btc: {lean: 'LONG' | 'SHORT' | 'NEUTRAL'; bias: number; text: string} | null; corr: number | null; relation: 'bagli' | 'orta' | 'bagimsiz' | null; notes: string[]}
+export type ReadPlanTarget = {price: number; rr: number; basis: 'seviye' | '2R'}
+export type ReadPlan = {side: 'LONG' | 'SHORT'; entry: number; stop: number; stop_pct: number; stop_basis: 'seviye' | 'atr'; targets: ReadPlanTarget[]; rr: number; verdict: string; tone: 'good' | 'flat' | 'warn'; confidence: string; text: string}
+export type ReadWall = {price: number; value: number; dist_pct: number}
+export type ReadBook = {imbalance: number; bid_value: number; ask_value: number; bid_walls: ReadWall[]; ask_walls: ReadWall[]; notes: string[]; caveat: string}
+export type ReadLiquidations = {long_usd: number; short_usd: number; zones: {price: number; usd: number; dist_pct: number}[]; text: string}
+export type ReadEventItem = {kind: 'fomc' | 'cpi' | 'jobs' | 'funding'; at: string; minutes: number; level: 'danger' | 'warn' | 'info'; text: string}
+export type ReadEvents = {covered: boolean; items: ReadEventItem[]; next_funding: string}
+export type CoinRead = {symbol: string; price: number; timeframes: ReadTf[]; levels: {support: ReadLevel[]; resistance: ReadLevel[]}; futures: ReadFutures | null; summary: ReadSummary; history: ReadHistory | null; position?: ReadPosition
+  context?: ReadContext | null; plan?: ReadPlan | null; book?: ReadBook | null; liquidations?: ReadLiquidations | null; events?: ReadEvents | null}
+export type Tally = {n: number; hit: number; miss: number; flat: number; rate: number | null}
+export type ReadStats = {days: number; overall: Tally; by_confidence: Record<string, Tally>; symbol: (Tally & {symbol: string}) | null}
+export type WatchDirection = 'both' | 'long' | 'short'
+export type WatchItem = {symbol: string; direction: WatchDirection}
 
 export const EVENT_LABEL: Record<string, string> = {breakout_up: 'Yukarı kırılım', breakout_down: 'Aşağı kırılım', bull_trap: 'Boğa tuzağı', bear_trap: 'Ayı tuzağı'}
 export const TF_ORDER = ['1m', '5m', '15m', '1h', '4h', '1d'] as const
@@ -72,3 +85,47 @@ export const alarmSummary = (alarm: Pick<ReadAlarm, 'mode' | 'min_tf'>): string 
 
 /** Binance: planın yönü; Coinbase: dayanak varlıktan Binance analiz anahtarı. */
 export const analysisKey = (root: string | null | undefined): string | null => root && /^[A-Z0-9]{2,10}$/.test(root) ? `${root}USDT` : null
+
+
+// ---- Ek katmanlar (piyasa bağlamı, plan, emir defteri, önemli saatler, doğruluk)
+/** Emir defteri dengesi (-1..1) → 5..95 çubuk konumu. */
+export const bookPos = (imbalance: number): number => Number.isFinite(imbalance) ? Math.round(Math.min(95, Math.max(5, 50 + imbalance * 50))) : 50
+
+/** Gösterilecek en önemli takvim uyarısı: danger > warn > info, aynı seviyede en yakın olan. Takvim kapsamı bittiyse null. */
+export function topEvent(events: ReadEvents | null | undefined): ReadEventItem | null {
+  if (!events || !events.items.length) return null
+  const rank = {danger: 0, warn: 1, info: 2} as const
+  return [...events.items].sort((a, b) => rank[a.level] - rank[b.level] || a.minutes - b.minutes)[0]
+}
+
+/** Süre metni: 45 → "45 dk", 150 → "2 sa 30 dk", 3000 → "2 gün". */
+export function minutesText(minutes: number): string {
+  const total = Math.max(0, Math.round(minutes))
+  if (total < 60) return `${total} dk`
+  const hours = Math.floor(total / 60), rest = total % 60
+  if (hours < 24) return rest ? `${hours} sa ${rest} dk` : `${hours} sa`
+  return `${Math.floor(hours / 24)} gün`
+}
+
+/** Doğruluk satırı: coinin kendi örneği yeterliyse onu, değilse genel oranı yazar; ikisi de yetersizse null (az veriden yargı çıkarılmaz). */
+export function accuracyLine(stats: ReadStats | null | undefined): string | null {
+  if (!stats) return null
+  const own = stats.symbol
+  if (own && own.rate !== null) return `Son ${stats.days} günde bu coin için ${own.n} yorumun %${own.rate}'i 1 saat sonra yönünde gitti.`
+  if (stats.overall.rate !== null) return `Son ${stats.days} günde tüm coinlerde ${stats.overall.n} yorumun %${stats.overall.rate}'i 1 saat sonra yönünde gitti.`
+  return null
+}
+
+/** Plan hedefinin risk/ödül etiketi: 1:2,3 */
+export const rrText = (rr: number): string => `1:${rr.toLocaleString('tr-TR', {minimumFractionDigits: 1, maximumFractionDigits: 1})}`
+
+export const WATCH_LABEL: Record<WatchDirection, string> = {both: 'İki yön', long: 'Yalnız LONG', short: 'Yalnız SHORT'}
+export const nextDirection = (value: WatchDirection): WatchDirection => value === 'both' ? 'long' : value === 'long' ? 'short' : 'both'
+
+/** Büyük para değerleri: 1.250.000 → "1,3 mn $", 48.000 → "48 bin $". */
+export function usdText(value: number): string {
+  if (!Number.isFinite(value)) return '—'
+  if (value >= 1_000_000) return `${(value / 1_000_000).toLocaleString('tr-TR', {maximumFractionDigits: 1})} mn $`
+  if (value >= 1_000) return `${Math.round(value / 1_000).toLocaleString('tr-TR')} bin $`
+  return `${Math.round(value)} $`
+}

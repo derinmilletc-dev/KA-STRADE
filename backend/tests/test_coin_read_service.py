@@ -69,6 +69,27 @@ class ServiceTests(unittest.TestCase):
         svc.reset()
         self.assertIsNone(asyncio.run(svc.read(None, "SOLUSDT", fetch=fetch, get=none_get))["futures"])
 
+    def test_extras_attach_and_degrade(self):
+        async def fetch(symbol, tf, limit): return candles(0.3, n=max(80, min(limit, 200)))
+        async def get(path, params):
+            if path.endswith("depth"):
+                return {"bids": [[str(159.7 - 0.05 * i), "20"] for i in range(1, 30)], "asks": [[str(159.7 + 0.05 * i), "10"] for i in range(1, 30)]}
+            raise RuntimeError("no futures")
+        data = asyncio.run(svc.read(None, "SOLUSDT", fetch=fetch, get=get))
+        self.assertEqual(set(data) >= {"context", "plan", "book", "liquidations", "events", "atr"}, True)
+        self.assertIsNotNone(data["book"])
+        self.assertIsNotNone(data["context"])          # BTC bağlamı alınabildi
+        self.assertIsNone(data["liquidations"])        # akış çalışmıyor → bölüm yok (yanlış "sakin" demez)
+        self.assertIn("items", data["events"])
+        svc.reset()
+        async def no_depth(path, params): raise RuntimeError("down")
+        data2 = asyncio.run(svc.read(None, "SOLUSDT", fetch=fetch, get=no_depth))
+        self.assertIsNone(data2["book"])
+        self.assertIsNotNone(data2["summary"])
+        svc.reset()
+        alarm = asyncio.run(svc.read(None, "SOLUSDT", with_futures=False, fetch=fetch))
+        self.assertNotIn("book", alarm)                # alarm turu ek veri çekmez
+
     def test_history_attached_and_failure_tolerated(self):
         async def fetch(symbol, tf, limit): return candles(0.3, n=limit if limit > 200 else 80)
         data = asyncio.run(svc.read(None, "BNBUSDT", with_futures=False, history_tf="15m", fetch=fetch))

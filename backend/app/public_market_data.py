@@ -26,7 +26,7 @@ PUBLIC_PATHS = frozenset({
     "/fapi/v1/ticker/24hr", "/fapi/v1/klines",
     "/api/v3/depth", "/api/v3/ticker/price",
     # Yorum motoru (yalnız okuma): fonlama oranı, açık pozisyon geçmişi, alıcı/satıcı hacmi. Kendi önbelleği var (60 sn).
-    "/fapi/v1/premiumIndex", "/futures/data/openInterestHist", "/futures/data/takerlongshortRatio",
+    "/fapi/v1/premiumIndex", "/futures/data/openInterestHist", "/futures/data/takerlongshortRatio", "/fapi/v1/depth",
 })
 
 
