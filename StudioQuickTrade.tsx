@@ -550,6 +550,15 @@ function InsightsChip({symbol, interval, candles, price, analysis, decision, pos
   const [result, setResult] = useState<InsightResult | null>(null)
   const [mtf, setMtf] = useState<Array<{tf: string; candles: Kline[]}>>([])
   const key = `${symbol}:${interval}`
+  const box = useRef<HTMLDivElement>(null)
+  // Kartın dışında herhangi bir yere (grafik, boşluk) basınca ya da Esc ile kapanır.
+  useEffect(() => {
+    if (!openCard) return
+    const onDown = (event: PointerEvent) => { if (!box.current?.contains(event.target as Node)) setOpenCard(false) }
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.stopPropagation(); setOpenCard(false) } }
+    document.addEventListener('pointerdown', onDown, true); window.addEventListener('keydown', onKey, true)
+    return () => { document.removeEventListener('pointerdown', onDown, true); window.removeEventListener('keydown', onKey, true) }
+  }, [openCard])
   const aiNote = useSyncExternalStore(subscribeAiNote, () => readAiNote(key), () => null)
   const posInput = position && positive(position.entry_price) ? {side: sideOf(position), entry: positive(position.entry_price) as number, stop: positive(position.stop_loss), tp1: positive(position.tp1)} : null
   const latest = useRef({candles, price, analysis, decision, mtf, posInput})
@@ -590,7 +599,7 @@ function InsightsChip({symbol, interval, candles, price, analysis, decision, pos
   const dirWord = conf.dir === 'up' ? tx('yükseliş', 'bullish') : conf.dir === 'down' ? tx('düşüş', 'bearish') : tx('net yön yok', 'no clear direction')
   const headline = conf.dir === 'up' ? conf.up : conf.dir === 'down' ? conf.down : conf.neutral
   const alerts = result.advice.filter(item => item.tone === 'warn' || item.tone === 'down').length
-  return <div className="sqtInsight" data-open={openCard || undefined}>
+  return <div className="sqtInsight" ref={box} data-open={openCard || undefined}>
     <button type="button" className="sqtInsightBtn" data-tone={result.verdict.tone} aria-expanded={openCard} onClick={() => setOpenCard(value => !value)}>
       <Sparkles aria-hidden="true"/><span>{tx('Akıllı yorum', 'Smart read')}</span><b>{result.verdict.text}</b>
       {conf.dir !== 'flat' && <em className="sqtInsightPct" data-tone={result.verdict.tone}>%{conf.pct}</em>}
