@@ -31,6 +31,13 @@ export function DrawingShape({drawing, ctx, draft = false}: {drawing: ProDrawing
       const ax = tx(drawing.a.time), bx = tx(drawing.b.time)
       const left = Math.min(ax, bx), right = plotWidth
       const labelX = Math.min(left + 4, plotWidth - 150)
+      // Seviyeler birbirine çok yakınsa (küçük hareket) yazılar üst üste biniyordu: 13px'ten yakın olanın yazısı gizlenir.
+      const shown = new Set<number>()
+      let lastY = -Infinity
+      for (const level of [...levels].sort((p, q) => y(p.price) - y(q.price))) {
+        const py = y(level.price)
+        if (py - lastY >= 13) { shown.add(level.ratio); lastY = py }
+      }
       const find = (ratio: number) => levels.find(level => level.ratio === ratio)!
       const zoneTop = y(find(0.5).price), zoneBottom = y(find(0.618).price)
       return <g className={cls} data-up={drawing.b.price >= drawing.a.price}>
@@ -38,7 +45,7 @@ export function DrawingShape({drawing, ctx, draft = false}: {drawing: ProDrawing
         <line className="refFibDiag" x1={ax} y1={y(drawing.a.price)} x2={bx} y2={y(drawing.b.price)}/>
         {levels.map(level => <g key={level.ratio} className="refFibLevel" data-tone={FIB_TONE[String(level.ratio)] ?? 'soft'}>
           <line x1={left} x2={right} y1={y(level.price)} y2={y(level.price)}/>
-          <text x={labelX} y={y(level.price) - 3}>{fibLabel(level.ratio)} · {price(level.price)}</text>
+          {shown.has(level.ratio) && <text x={labelX} y={y(level.price) - 3}>{fibLabel(level.ratio)} · {price(level.price)}</text>}
         </g>)}
         {hitLine(ax, y(drawing.a.price), bx, y(drawing.b.price))}
         {levels.map(level => hitLine(left, y(level.price), right, y(level.price), `h${level.ratio}`))}
