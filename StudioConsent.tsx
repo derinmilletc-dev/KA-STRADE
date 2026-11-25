@@ -1,5 +1,5 @@
 // Analiz Stüdyosu · canlı risk izni yenileme: izin bittiğinde uyarının yanında "İzni yenile" düğmesi, tıklayınca süre seçtiren onay paneli.
-// Sunucudaki /v25/consent ucu kullanılır; süre en fazla 24 saattir (1/4/8/12/24). Yenileme ARM ve otomasyonu sıfırlar (sunucu kuralı).
+// Sunucudaki /v25/consent ucu kullanılır; süre en fazla 24 saattir (1/4/8/12/24). Yenileme sunucuda ARM'ı sıfırlar; bu yüzden izin verilince ARM aynı onayla otomatik açılır.
 import {useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {Check, ShieldCheck, X} from 'lucide-react'
@@ -10,7 +10,7 @@ import './studio-consent.css'
 
 const V25 = `${API_BASE}/v25`
 
-export function ConsentRenew({blocker, onDone}: {blocker: string; onDone?: (hours: number) => void}) {
+export function ConsentRenew({blocker, onDone}: {blocker: string; onDone?: (hours: number, armed: boolean, note: string) => void}) {
   const [open, setOpen] = useState(false)
   const [hours, setHours] = useState<number>(24)
   const [understood, setUnderstood] = useState(false)
@@ -32,11 +32,13 @@ export function ConsentRenew({blocker, onDone}: {blocker: string; onDone?: (hour
     if (busy || !understood) return
     setBusy(true); setError('')
     const result = await postJson<unknown>(`${V25}/consent`, {understood: true, hours})
+    if (!result.ok) { setBusy(false); setError(result.message || tx('İzin yenilenemedi.', 'Could not renew the permission.')); return }
+    // "Anladım" onayı ARM'ı da kapsar: izin verilince ayrıca ARM istemeden aynı onayla açılır (sunucunun hazırlık kapıları yine geçerli).
+    const arm = await postJson<unknown>(`${V25}/arm`, {confirmation: 'ANLADIM', understood: true})
     setBusy(false)
-    if (!result.ok) { setError(result.message || tx('İzin yenilenemedi.', 'Could not renew the permission.')); return }
     setOpen(false); setUnderstood(false)
     requestPositionsRefresh()
-    onDone?.(hours)
+    onDone?.(hours, arm.ok, arm.ok ? '' : arm.message)
   }
   const panel = open && <>
     <div className="sqcScrim" onClick={close} aria-hidden="true"/>
@@ -53,7 +55,7 @@ export function ConsentRenew({blocker, onDone}: {blocker: string; onDone?: (hour
             {CONSENT_HOURS.map(value => <button key={value} type="button" role="radio" aria-checked={hours === value} data-on={hours === value || undefined} disabled={busy} onClick={() => setHours(value)}>{value}<em>{tx('saat', 'h')}</em></button>)}
           </div>
           <p className="sqcNote">{hours === 24 ? tx('24 saat: en uzun süre. Süre bitince yeniden onay istenir.', '24 hours: the longest. You will be asked again when it ends.') : tx(`${hours} saat sonra izin kendiliğinden biter; daha güvenli.`, `The permission ends by itself after ${hours} h; safer.`)}</p>
-          <p className="sqcWarn">{tx('Yenileme canlı ARM’ı ve otomasyonu sıfırlar; açık pozisyonların stopları yerinde kalır.', 'Renewing resets live ARM and automation; stops on open positions stay in place.')}</p>
+          <p className="sqcWarn">{tx('Otomasyon sıfırlanır, ARM bu onayla yeniden açılır; açık pozisyonların stopları yerinde kalır.', 'Automation is reset and ARM is re-armed by this confirmation; stops on open positions stay in place.')}</p>
         </div>
         <div className="sqcCol">
           <label className="sqcCheck"><input type="checkbox" checked={understood} disabled={busy} onChange={event => setUnderstood(event.target.checked)}/><span aria-hidden="true">{understood && <Check/>}</span>
