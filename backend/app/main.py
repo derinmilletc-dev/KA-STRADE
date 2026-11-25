@@ -1727,6 +1727,8 @@ from .web_push import router as web_push_router
 app.include_router(web_push_router)
 from .price_alerts_routes import router as price_alerts_router
 app.include_router(price_alerts_router)
+from .studio_drawings import router as studio_drawings_router
+app.include_router(studio_drawings_router)
 from .coin_read_routes import router as coin_read_router
 app.include_router(coin_read_router)
 app.include_router(chart_ai_router)
