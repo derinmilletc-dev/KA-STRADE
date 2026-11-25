@@ -23,7 +23,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from . import daily_ledger
-from .execution_core import HARD_MAX_LEVERAGE, HARD_MAX_MARGIN_USDT, manual_stop_cap_pct
+from .execution_core import HARD_MAX_LEVERAGE, AUTO_MAX_MARGIN_USDT, manual_stop_cap_pct
 from .grid_engine.engine import (BLOCKED, COMPLETED, EMERGENCY_CLOSED, INTERVENTION_REQUIRED, PAUSED, RUNNING, STOPPED, GridEngine,
                                  GridLevelSpec, GridSpec, grid_stats)
 from .grid_engine.live_adapter import BinanceLiveGridAdapter
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 ENV_FLAG = "KAISTRADE_GRID_LIVE"
 LIVE_MAX_LEVELS = 20
-LIVE_MAX_MARGIN_USDT = HARD_MAX_MARGIN_USDT   # sistem genel tavanı (300)
+LIVE_MAX_MARGIN_USDT = AUTO_MAX_MARGIN_USDT   # sistem genel tavanı (300)
 LIVE_MAX_LEVERAGE = HARD_MAX_LEVERAGE        # sistem genel tavanı (50); kullanıcının risk ayarındaki max_leverage yine bunun altında tutar
 LIVE_DEFAULT_POLICY_LEVERAGE = 20            # risk ayarında değer yoksa varsayılan
 CONFIRM_START = "CANLI GRID BAŞLAT"
