@@ -918,6 +918,19 @@ async def infrastructure_loop(application: FastAPI) -> None:
         await asyncio.sleep(15)
 
 
+async def health_check_loop(application: FastAPI) -> None:
+    """Admin'de "Veri yok" kalmasın: sağlık kontrolünü düzenli çalıştırır (yalnız okuma; emir/e-posta göndermez)."""
+    await asyncio.sleep(60)
+    while True:
+        try:
+            await run_health_checks(application)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logging.getLogger(__name__).warning("Zamanlanmış sağlık kontrolü başarısız", exc_info=True)
+        await asyncio.sleep(HEALTH_CHECK_INTERVAL_SECONDS)
+
+
 def health_item(name: str, status: str, message: str, started: float) -> dict:
     return {
         "name": name,
@@ -1306,6 +1319,8 @@ async def lifespan(app: FastAPI):
     await restore_health_snapshot(app)
     app.state.infrastructure_task = asyncio.create_task(infrastructure_loop(app))
     app.state.runtime_tasks = [app.state.infrastructure_task]
+    if os.getenv("HEALTH_CHECK_LOOP_ENABLED", "true").strip().lower() not in {"false", "0", "no"}:
+        app.state.runtime_tasks.append(asyncio.create_task(health_check_loop(app)))
     from .notification_worker import schedule_sweep, shutdown_notifications
     from .customer_event_writer import schedule_cleanup, shutdown_events
     schedule_cleanup(app)
