@@ -2986,6 +2986,139 @@ async def cancel_pending_owned_limit_entries(client: BinanceLiveClient, state: d
     return cancelled, unresolved
 
 
+PENDING_ENTRY_STATUS = "DOLUM BEKLİYOR"
+
+
+def _pending_entry_guard(state: dict[str, Any], plan: dict[str, Any] | None) -> dict[str, Any]:
+    """Henüz dolmamış MANUEL LIMIT giriş planı üzerinde işlem yapılabilir mi?"""
+    if not isinstance(plan, dict):
+        raise ManualPlanActionError("Bekleyen emir planı bulunamadı.", http_status=404)
+    if plan.get("source") != "MANUAL":
+        raise ManualPlanActionError("Bu işlem yalnız manuel açılan emirlerde yapılabilir.", http_status=422)
+    if str(plan.get("order_type") or "").upper() != "LIMIT":
+        raise ManualPlanActionError("Yalnız bekleyen LIMIT giriş emirleri düzenlenebilir.", http_status=422)
+    if str(plan.get("status") or "").upper() != PENDING_ENTRY_STATUS:
+        raise ManualPlanActionError("Bu emir artık dolum beklemiyor (doldu, iptal oldu ya da süresi bitti).", http_status=409)
+    if plan.get("mutation_policy") == "READ_ONLY_EXTERNAL" or plan.get("provenance_state") not in {"PROVISIONAL", "CONFIRMED"}:
+        raise ManualPlanActionError("Plan sahipliği doğrulanmadı; emre dokunulmadı.", http_status=423)
+    if live_execution_blocked(state):
+        raise ManualPlanActionError("Canlı yürütme kilitli (acil durum veya uzlaştırma); önce kilidi çöz.", http_status=423)
+    return plan
+
+
+async def update_pending_entry(
+    client: BinanceLiveClient,
+    state: dict[str, Any],
+    plan: dict[str, Any],
+    *,
+    stop_loss: float | None,
+    targets: dict[int, float],
+    profit_usdt: float | None,
+) -> dict[str, Any]:
+    """Dolum beklerken Stop/hedefleri günceller. Borsada henüz koruma emri yoktur; değişiklik plana yazılır ve
+    emir dolunca koruma kurulumu bu değerlerle çalışır. `profit_usdt`: tüm pozisyon bu kâra ulaşınca çıkış
+    (üç hedef aynı fiyata konur)."""
+    _pending_entry_guard(state, plan)
+    symbol, direction = plan["symbol"], plan["direction"]
+    position = await live_plan_position(client, symbol)
+    if position is not None:
+        raise ManualPlanActionError("Emir doldu; artık açık pozisyonun korumasını düzenle.", http_status=409)
+    if profit_usdt is not None and targets:
+        raise ManualPlanActionError("Kâr tutarı ile hedef fiyatı birlikte verilemez.", http_status=422)
+    try:
+        entry = Decimal(str(plan["entry_price"]))
+        quantity = Decimal(str(plan["quantity"]))
+    except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
+        raise ManualPlanActionError("Plan fiyatı okunamadı; değişiklik yapılmadı.", http_status=503) from exc
+    if not all(value.is_finite() and value > 0 for value in (entry, quantity)):
+        raise ManualPlanActionError("Plan fiyatı geçersiz; değişiklik yapılmadı.", http_status=503)
+    rules = await live_symbol_rules(client, symbol, "MARKET")
+    long_side = direction == "LONG"
+
+    new_stop = round_tick(Decimal(str(stop_loss)), rules["tick"]) if stop_loss is not None else None
+    if new_stop is not None:
+        if (long_side and new_stop >= entry) or (not long_side and new_stop <= entry):
+            raise ManualPlanActionError("Stop, giriş fiyatının zarar tarafında olmalı.", http_status=422)
+        loss_at_stop = quantity * abs(entry - new_stop)
+        limit = Decimal(str(sanitize_execution_policy(state.get("policy") or {})["max_loss_per_trade"]))
+        if loss_at_stop > limit and not plan_is_user_no_stop(plan):
+            raise ManualPlanActionError(
+                f"Yeni stopta zarar yaklaşık {decimal_text(loss_at_stop.quantize(Decimal('0.01')))} USDT olur; "
+                f"işlem başı risk sınırın {decimal_text(limit)} USDT.", http_status=422)
+
+    try:
+        final_targets = [Decimal(str(value)) for value in plan.get("targets") or []]
+    except (TypeError, ValueError, ArithmeticError) as exc:
+        raise ManualPlanActionError("Plan hedefleri okunamadı; değişiklik yapılmadı.", http_status=409) from exc
+    if len(final_targets) != 3:
+        raise ManualPlanActionError("Plan hedefleri okunamadı; değişiklik yapılmadı.", http_status=409)
+    if profit_usdt is not None:
+        move = Decimal(str(profit_usdt)) / quantity
+        goal = round_tick(entry + move if long_side else entry - move, rules["tick"])
+        targets = {1: float(goal), 2: float(goal), 3: float(goal)}
+    for index, price in targets.items():
+        if index not in (1, 2, 3):
+            raise ManualPlanActionError("Geçersiz hedef.", http_status=422)
+        value = round_tick(Decimal(str(price)), rules["tick"])
+        if (long_side and value <= entry) or (not long_side and value >= entry):
+            raise ManualPlanActionError(f"TP{index}, giriş fiyatının kâr tarafında olmalı.", http_status=422)
+        final_targets[index - 1] = value
+    ordered = final_targets[0] <= final_targets[1] <= final_targets[2] if long_side else final_targets[0] >= final_targets[1] >= final_targets[2]
+    if not ordered:
+        raise ManualPlanActionError("Hedefler sırayla olmalı (TP1, TP2, TP3).", http_status=422)
+    effective_stop = new_stop if new_stop is not None else Decimal(str(plan.get("stop_loss") or 0))
+    if effective_stop > 0 and any((long_side and t <= effective_stop) or (not long_side and t >= effective_stop) for t in final_targets):
+        raise ManualPlanActionError("Hedefler stopun kâr tarafında olmalı.", http_status=422)
+
+    if new_stop is not None:
+        plan["stop_loss"] = decimal_text(new_stop)
+    if targets:
+        plan["targets"] = [decimal_text(value) for value in final_targets]
+        if profit_usdt is not None:
+            plan["profit_target_usdt"] = decimal_text(Decimal(str(profit_usdt)))
+        else:
+            plan.pop("profit_target_usdt", None)
+    plan["pending_edited_at"] = now_iso()
+    return {"stop_loss": plan.get("stop_loss"), "targets": plan.get("targets"), "profit_target_usdt": plan.get("profit_target_usdt")}
+
+
+async def cancel_pending_entry(client: BinanceLiveClient, state: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+    """Tek bir bekleyen manuel LIMIT girişini iptal eder; yalnız kesin doğrulanırsa plan İPTAL olur."""
+    _pending_entry_guard(state, plan)
+    symbol = normalize_symbol(str(plan.get("symbol") or ""))
+    client_id = str(plan.get("entry_client_order_id") or "")
+    if not client_id.startswith(LIVE_CLIENT_PREFIX):
+        raise ManualPlanActionError("Emir kimliği doğrulanamadı; iptal edilmedi.", http_status=423)
+    terminal = {"CANCELED", "EXPIRED", "REJECTED", "EXPIRED_IN_MATCH"}
+    order = await find_order(client, symbol, client_id)
+    if order is None:
+        plan.update({"status": "İPTAL", "closed_at": now_iso(), "entry_cancellation_state": "NOT_FOUND"})
+        return {"cancelled": True, "state": "NOT_FOUND"}
+    status = str(order.get("status") or "").upper()
+    if status in terminal:
+        plan.update({"status": "İPTAL", "closed_at": now_iso(), "entry_cancellation_state": status})
+        return {"cancelled": True, "state": status}
+    if status != "NEW":
+        raise ManualPlanActionError("Emir kısmen ya da tamamen doldu; iptal edilmedi. Pozisyonu yönet.", http_status=409)
+    spec = {
+        "symbol": symbol,
+        "side": "BUY" if str(plan.get("direction") or "").upper() == "LONG" else "SELL",
+        "order_type": "LIMIT",
+        "quantity": str(plan.get("requested_quantity", plan.get("quantity")) or ""),
+        **({"good_till_ms": plan["good_till_ms"]} if plan.get("good_till_ms") else {}),
+    }
+    if not order_matches_spec(order, spec, client_id):
+        raise ManualPlanActionError("Borsadaki emir bu planla eşleşmedi; iptal edilmedi.", http_status=409)
+    await client.signed("DELETE", "/fapi/v1/order", {"symbol": symbol, "orderId": order.get("orderId")})
+    verification = await find_order(client, symbol, client_id)
+    verified_status = str((verification or {}).get("status") or "").upper()
+    if verification is not None and verified_status not in terminal:
+        raise ManualPlanActionError("İptal borsadan doğrulanamadı; birkaç saniye sonra tekrar dene.", http_status=503)
+    plan.update({"status": "İPTAL", "closed_at": now_iso(), "entry_cancellation_state": "CANCELLED", "entry_cancelled_at": now_iso()})
+    return {"cancelled": True, "state": "CANCELLED"}
+
+
+
 async def submit_entry(
     client: BinanceLiveClient,
     spec: dict[str, Any],
@@ -10495,6 +10628,67 @@ async def v25_manual_protection(request: Request, body: ManualProtectionRequest)
             persist_state(state)
             raise safe_exchange_error(exc) from exc
         add_event(state, "MANUAL_PROTECTION_REQUEST", "Manuel koruma değişikliği uygulandı.", actor=user["id"], plan_id=body.plan_id)
+        persist_state(state)
+    return {"ok": True, **result, "plan": plan}
+
+
+class PendingEntryUpdateRequest(BaseModel):
+    plan_id: str = Field(min_length=6, max_length=64)
+    stop_loss: float | None = Field(default=None, gt=0)
+    tp1: float | None = Field(default=None, gt=0)
+    tp2: float | None = Field(default=None, gt=0)
+    tp3: float | None = Field(default=None, gt=0)
+    profit_usdt: float | None = Field(default=None, gt=0, le=1_000_000)
+    confirmation: str = Field(min_length=1, max_length=64)
+
+
+class PendingEntryCancelRequest(BaseModel):
+    plan_id: str = Field(min_length=6, max_length=64)
+    confirmation: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/pending/update")
+async def v25_pending_update(request: Request, body: PendingEntryUpdateRequest) -> dict[str, Any]:
+    """Dolum bekleyen manuel LIMIT girişinin stop/hedef/kâr hedefini değiştir."""
+    user = execution_owner(request)
+    if body.confirmation.strip().upper() != "KORUMAYI GÜNCELLE":
+        raise HTTPException(422, "Değiştirmek için KORUMAYI GÜNCELLE yazın.")
+    targets = {index: value for index, value in ((1, body.tp1), (2, body.tp2), (3, body.tp3)) if value is not None}
+    if body.stop_loss is None and not targets and body.profit_usdt is None:
+        raise HTTPException(422, "Değiştirilecek stop, hedef veya kâr tutarı yok.")
+    state = request.app.state.v25_execution
+    async with position_guard(state, _plan_symbol(state, body.plan_id)):
+        plan = state.get("plans", {}).get(body.plan_id)
+        try:
+            result = await update_pending_entry(client_for(request.app, request), state, plan,
+                                                stop_loss=body.stop_loss, targets=targets, profit_usdt=body.profit_usdt)
+        except ManualPlanActionError as exc:
+            raise HTTPException(exc.http_status, str(exc)) from exc
+        except LiveExchangeError as exc:
+            raise safe_exchange_error(exc) from exc
+        add_event(state, "PENDING_ENTRY_UPDATE", "Bekleyen giriş emrinin stop/hedefi güncellendi.", actor=user["id"], plan_id=body.plan_id)
+        persist_state(state)
+    return {"ok": True, **result, "plan": plan}
+
+
+@router.post("/pending/cancel")
+async def v25_pending_cancel(request: Request, body: PendingEntryCancelRequest) -> dict[str, Any]:
+    """Dolum bekleyen manuel LIMIT giriş emrini iptal et."""
+    user = execution_owner(request)
+    if body.confirmation.strip().upper() != "EMRİ İPTAL ET":
+        raise HTTPException(422, "İptal için EMRİ İPTAL ET yazın.")
+    state = request.app.state.v25_execution
+    async with position_guard(state, _plan_symbol(state, body.plan_id)):
+        plan = state.get("plans", {}).get(body.plan_id)
+        try:
+            result = await cancel_pending_entry(client_for(request.app, request), state, plan)
+        except ManualPlanActionError as exc:
+            persist_state(state)
+            raise HTTPException(exc.http_status, str(exc)) from exc
+        except LiveExchangeError as exc:
+            persist_state(state)
+            raise safe_exchange_error(exc) from exc
+        add_event(state, "LIVE_ENTRY_CANCELLED", f"{plan.get('symbol')} bekleyen giriş emri kullanıcı isteğiyle iptal edildi.", actor=user["id"], symbol=plan.get("symbol"), plan_id=body.plan_id)
         persist_state(state)
     return {"ok": True, **result, "plan": plan}
 

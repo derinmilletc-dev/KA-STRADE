@@ -17,6 +17,7 @@ import FarmerPanel from './FarmerPanel'
 import {MasterOnlyGate} from '../../premium-access'
 import DemoDcaSheet from './DemoDcaSheet'
 import PositionsCard, {type SmartPositionItem} from './PositionsCard'
+import PendingEntries, {isPendingEntry, type PendingUpdate} from './PendingEntries'
 import BinanceInsights from './BinanceInsights'
 import {closeEstimate, TAKER_FEE_RATE} from './live-quote'
 import {netAtPrice} from './close-target'
@@ -164,7 +165,7 @@ const riskTier = (risk: number) => risk > 5 ? 'red' : risk > 2 ? 'orange' : risk
 
 const STALE_LIMIT_MS = 30 * 60 * 1000
 // Bu işlemler bittiğinde ekran tam durum yenilemesini beklemez (kapatma sonrası pozisyon ~1 dk listede kalmasın).
-const QUICK_RELEASE_KEYS = new Set(['close-position', 'edit-protection', 'reduce-position', 'close-target', 'remove-target'])
+const QUICK_RELEASE_KEYS = new Set(['close-position', 'edit-protection', 'reduce-position', 'close-target', 'remove-target', 'pending-update', 'pending-cancel'])
 const OPTIMISTIC_HIDE_MS = 12_000
 
 let lastLedgerPnl: {day: string; value: number} | null = null
@@ -702,6 +703,13 @@ export default function LiveCockpit(props: Props) {
       setSheet(null); setManualTarget(null)
     }, `${target.symbol.replace('USDT', '')} pozisyonun %${percent}'i kapatıldı; kalan kısım stopla korunuyor.`, setSheetError)
   }
+  // ---- Bekleyen (dolmamış) manuel limit girişler: stop/kâr hedefi güncelle ya da emri iptal et. Sunucu doğrular.
+  const updatePending = (planId: string, symbol: string, body: PendingUpdate) => perform('pending-update', async () => {
+    await request('/pending/update', {plan_id: planId, confirmation: PROTECTION_PHRASE, ...body})
+  }, `${symbol.replace('USDT', '')} bekleyen emir güncellendi; emir dolunca bu seviyelerle korunacak.`)
+  const cancelPending = (planId: string, symbol: string) => perform('pending-cancel', async () => {
+    await request('/pending/cancel', {plan_id: planId, confirmation: 'EMRİ İPTAL ET'})
+  }, `${symbol.replace('USDT', '')} bekleyen emir iptal edildi (Binance'ten doğrulandı).`)
   // Kapanış hedefi: "net X USDT kârda" ya da "fiyat Y olunca" otomatik kapat. Emri sunucu verir (~10 sn kontrol).
   const saveCloseTarget = (planId: string, mode: 'profit' | 'price' | 'off', value: number | null) => {
     const plan = (status?.plans ?? []).find(item => item.id === planId)
@@ -905,6 +913,7 @@ export default function LiveCockpit(props: Props) {
   // Binance'ten canlı alış/satış fiyatı: sunucu özeti 10–30 sn geriden gelir, K/Z bununla anlık hesaplanır.
   const positionSymbols = useMemo(() => (positions as Array<{symbol?: unknown}>).map(position => position.symbol), [positions])
   const liveQuotes = useLiveQuotes(positionSymbols, live && !demo && positions.length > 0)
+  const pendingPlans = useMemo(() => (live && !demo ? ((status?.plans ?? []) as unknown as RawRecord[]).filter(isPendingEntry) : []), [live, demo, status?.plans])
   // Kapatma onayı açıkken sonuç her 250 ms canlı fiyattan yenilenir; fiyat tazeyse gösterilir, değilse açık uyarı.
   const closeLive = closeTarget && closeTarget.long !== undefined
     ? closeEstimate({long: closeTarget.long, entry: closeTarget.entryPrice ?? null, quantity: closeTarget.quantity ?? null, quote: liveQuotes.quotes[closeTarget.symbol.toUpperCase()], nowMs: liveQuotes.now})
@@ -2225,6 +2234,7 @@ export default function LiveCockpit(props: Props) {
         </section>}
 
         <BinanceInsights/>
+        <PendingEntries plans={pendingPlans} busy={Boolean(working) || stale} now={now} onUpdate={updatePending} onCancel={cancelPending}/>
         <PositionsCard dcaBots={dcaBots} farmerBots={farmerBots} live={live} stale={stale} staleAge={staleAge} running={running} busy={Boolean(working) || stale} closeBusy={Boolean(working)} now={now} positions={positions as unknown as RawRecord[]}
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
           wallet={wallet} dailyLoss={dailyLoss} dailyLimit={dailyLimit} smartItems={(smart?.positions ?? []) as SmartPositionItem[]} smartEnabled={Boolean(smart)} tp1Share={tp1Percent} tp2Share={tp2Percent}
