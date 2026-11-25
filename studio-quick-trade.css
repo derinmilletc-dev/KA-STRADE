@@ -454,3 +454,8 @@ html body .masterReferenceAnalysis .sqtSlideFoot button[data-on="true"] { color:
   html body .masterReferenceAnalysis .sqtSlide { grid-template-columns: auto minmax(40px, 1fr) auto; }
   html body .masterReferenceAnalysis .sqtSlide .sqtNum input { font-size: 16px; width: 6ch !important; }
 }
+
+/* Büyük rakamlarda etiket ve değer üst üste binmesin: etiket sarar, değer sığdığı kadar yer alır. */
+.masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtStats > div { min-width: 0; overflow: hidden; }
+.masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtStats small { white-space: normal; min-width: 0; flex: 1 1 auto; line-height: 1.15; overflow-wrap: anywhere; }
+.masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtStats b { flex: none; max-width: 100%; font-variant-numeric: tabular-nums; }
