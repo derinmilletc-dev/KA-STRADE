@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState, type CSSProperties} from 'react'
-import {ChevronDown, ChevronUp, Check, TriangleAlert, X} from 'lucide-react'
+import {ChevronDown, ChevronUp, Check, Layers, TriangleAlert, X} from 'lucide-react'
 import {API_BASE} from './api'
 import {currentLang} from './i18n'
 import {analysisPrice} from './master-trade-presentation'
@@ -292,16 +292,18 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   // ---- Açık pozisyon: yarısını kapat / tamamen kapat ----
   const plan = !demo && current ? activePlan(live?.plans as Array<Record<string, unknown>> | undefined, current.symbol) : undefined
   const rights = demo ? {id: '', close: true, reduce: true} : planRights(plan)
-  const runAction = async (kind: 'half' | 'close') => {
-    if (!current || busyRef.current) return
+  const runAction = async (kind: 'half' | 'close', target: StudioPosition | null = current) => {
+    if (!target || busyRef.current) return
+    const rights = demo ? {id: '', close: true, reduce: true} : planRights(activePlan(live?.plans as Array<Record<string, unknown>> | undefined, target.symbol))
+    if (!(kind === 'close' ? rights.close : rights.reduce)) { setToast({kind: 'warn', title: tx('Bu pozisyon buradan kapatılamaz', 'This position cannot be closed here'), detail: tx('Yalnız Kais ile açılan, doğrulanmış pozisyonlar kapatılır.', 'Only confirmed positions opened through Kais can be closed.')}); return }
     busyRef.current = true
     setBusy(kind === 'half' ? tx('Yarısı kapatılıyor…', 'Closing half…') : tx('Pozisyon kapatılıyor…', 'Closing position…')); setActionError('')
     try {
       let result
       if (demo) {
         const body = kind === 'half'
-          ? {symbol: current.symbol, quantity: Math.abs(Number(current.quantity)) / 2, position_side: current.position_side || 'BOTH', confirmation: DEMO_REDUCE_PHRASE}
-          : {symbol: current.symbol, position_side: current.position_side || 'BOTH', confirmation: DEMO_CLOSE_PHRASE}
+          ? {symbol: target.symbol, quantity: Math.abs(Number(target.quantity)) / 2, position_side: target.position_side || 'BOTH', confirmation: DEMO_REDUCE_PHRASE}
+          : {symbol: target.symbol, position_side: target.position_side || 'BOTH', confirmation: DEMO_CLOSE_PHRASE}
         result = await postJson<unknown>(`${DEMO}/position/${kind === 'half' ? 'reduce' : 'close'}`, body, 60000)
       } else {
         const body = kind === 'half' ? {plan_id: rights.id, percent: 50, confirmation: LIVE_REDUCE_PHRASE} : {plan_id: rights.id, confirmation: LIVE_CLOSE_PHRASE}
@@ -309,7 +311,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
       }
       if (result.ok) {
         setAction(null)
-        setToast({kind: 'ok', title: kind === 'half' ? tx(`${current.symbol} pozisyonunun yarısı kapatıldı`, `Half of the ${current.symbol} position was closed`) : tx(`${current.symbol} kapatma emri gönderildi`, `${current.symbol} close order sent`), detail: kind === 'close' ? tx('Pozisyon kapanınca stop ve hedef emirleri otomatik temizlenir.', 'Stop and target orders are cleared automatically once the position is closed.') : undefined})
+        setToast({kind: 'ok', title: kind === 'half' ? tx(`${target.symbol} pozisyonunun yarısı kapatıldı`, `Half of the ${target.symbol} position was closed`) : tx(`${target.symbol} kapatma emri gönderildi`, `${target.symbol} close order sent`), detail: kind === 'close' ? tx('Pozisyon kapanınca stop ve hedef emirleri otomatik temizlenir.', 'Stop and target orders are cleared automatically once the position is closed.') : undefined})
         requestPositionsRefresh()
       } else if (result.uncertain) {
         setAction(null)
@@ -407,6 +409,9 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   useEffect(() => { onGridLines?.([...gridLocal, ...tradeLines]) }, [gridLocal, tradeLines, onGridLines])
   useEffect(() => () => onGridLines?.([]), [onGridLines])
 
+  const rightsFor = (position: StudioPosition) => demo ? true : planRights(activePlan(live?.plans as Array<Record<string, unknown>> | undefined, position.symbol)).close
+  const posDock = <PositionsDock positions={open} symbol={symbol} demo={demo} pnlOf={position => { const value = positionPnl(position, closeNow(position)); return {pnl: value.pnl, pct: value.pct} }} canClose={rightsFor} busy={Boolean(busy) || lockLeft > 0}
+    onGo={onSelect} onClose={position => void runAction('close', position)}/>
   return <div className="sqtLayer" data-drawer={drawerOpen || undefined} data-grid={gridOpen || journalOpen || undefined}>
     {toast && <div className="sqtToast" role="status" data-kind={toast.kind}><span aria-hidden="true">{toast.kind === 'ok' ? <Check/> : <TriangleAlert/>}</span><div><b>{toast.title}</b>{toast.detail && <small>{toast.detail}</small>}</div><button type="button" aria-label={tx('Kapat', 'Close')} onClick={() => setToast(null)}><X/></button></div>}
 
@@ -421,6 +426,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
         <b>{margin} USDT <em>· {leverage}x</em></b>
       </button>
       <button type="button" className="sqtSide" data-side={dockSide === 'LONG' ? 'buy' : 'sell'} disabled={dockDisabled} onClick={() => startOrder(dockSide)} aria-label={`${symbol} ${tx('AL', 'BUY')} (${dockSide})`}><span className="sqtTx"><b>{tx('AL', 'BUY')}</b><small>{dockSide}{price0 ? ` · ${analysisPrice(price0)}` : ''}</small></span><span className="sqtIc" aria-hidden="true">{dockSide === 'LONG' ? '▲' : '▼'}</span></button>
+      {posDock}
       {settings && <div className="sqtPop" role="dialog" aria-label={tx('Teminat ve kaldıraç', 'Margin and leverage')}>
         <ParamSlider label={tx('Teminat', 'Margin')} unit="USDT" value={margin} min={MARGIN_MIN} max={MARGIN_UI_MAX} cap={mCap} presets={margins} toPos={marginToSlider} fromPos={marginFromSlider} clamp={clampMargin} onPick={value => update({margin: value})}/>
         <ParamSlider label={tx('Kaldıraç', 'Leverage')} unit="x" value={leverage} min={1} max={LEVERAGE_UI_MAX} cap={lCap} presets={leverages} toPos={value => Math.round((value - 1) / (LEVERAGE_UI_MAX - 1) * SLIDER_STEPS)} fromPos={position => clampLeverage(1 + position / SLIDER_STEPS * (LEVERAGE_UI_MAX - 1))} clamp={clampLeverage} onPick={value => update({leverage: value})}/>
@@ -438,6 +444,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
         : <PositionCard position={current} price={currentClose} pnl={pnl} live={liveState ? {state: liveState, age: liveAge} : undefined} rights={rights} demo={demo} busy={busy} action={action} actionError={actionError} onCollapse={() => { setCard(false); setAction(null); setActionError('') }}
             onAsk={kind => { setActionError(''); setAction(kind) }} onCancelAsk={() => { setActionError(''); setAction(null) }} onRun={runAction} onTray={open.length > 1 ? () => setTray(value => !value) : undefined}
             manage={canManage ? {mark: positive(currentClose) ?? positive(current.mark_price), ask: stopAsk, error: stopError, onAsk: (stop, label) => { setStopError(''); setStopAsk({stop, label}) }, onCancel: () => { setStopAsk(null); setStopError('') }, onApply: stop => void applyStop(stop), trail: {pct: activeTrail, error: trailError, onSet: pct => void setTrail(pct)}} : undefined} demoManageNote={demo && !canManage}/>}
+      {!card && !tray && !side && posDock}
       {rights.close && !card && !tray && !side && <CloseDock position={current} demo={demo} disabled={sending || lockLeft > 0} onDone={() => void runAction('close')}/>}
       {tray && <div className="sqtTray" role="dialog" aria-label={tx('Açık pozisyonlar', 'Open positions')}>
         <header><b>{tx('Açık pozisyonlar', 'Open positions')}</b><button type="button" className="sqtRound" aria-label={tx('Listeyi kapat', 'Close list')} onClick={() => setTray(false)}><X aria-hidden="true"/></button><span>{tx(`${open.length} · toplam`, `${open.length} · total`)} <strong data-tone={open.reduce((sum, item) => sum + (positionPnl(item, closeNow(item)).pnl ?? 0), 0) >= 0 ? 'up' : 'down'}>{signed(open.reduce((sum, item) => sum + (positionPnl(item, closeNow(item)).pnl ?? 0), 0))} USDT</strong></span></header>
@@ -528,6 +535,46 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
         <p className="sqtFine">{demo ? tx('Yalnız Demo hesaba gider · gerçek para yok.', 'Goes to the Demo account only · no real money.') : tx('Gerçek para kullanılır.', 'Real money is used.')} {tx('Analiz kazanç garantisi değildir.', 'The analysis is not a guarantee of profit.')}</p>
       </div>
     </>}
+  </div>
+}
+
+/** Dock'ta "Açık pozisyonlarım": tüm işlemler tek panelde; satıra basınca o coine geçer, "Kapat" iki adımlı (yanlışlıkla kapanmasın) hızlı kapatır. */
+function PositionsDock({positions, symbol, demo, pnlOf, canClose, busy, onGo, onClose}: {positions: readonly StudioPosition[]; symbol: string; demo: boolean; pnlOf: (position: StudioPosition) => {pnl: number | null; pct: number | null}; canClose: (position: StudioPosition) => boolean; busy: boolean; onGo: (symbol: string) => void; onClose: (position: StudioPosition) => void}) {
+  const [openPanel, setOpenPanel] = useState(false)
+  const [armed, setArmed] = useState<string | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (!armed) return; const id = window.setTimeout(() => setArmed(null), 4000); return () => window.clearTimeout(id) }, [armed])
+  useEffect(() => {
+    if (!openPanel) return
+    const onDown = (event: PointerEvent) => { if (!ref.current?.contains(event.target as Node)) { setOpenPanel(false); setArmed(null) } }
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { setOpenPanel(false); setArmed(null) } }
+    document.addEventListener('pointerdown', onDown); window.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('pointerdown', onDown); window.removeEventListener('keydown', onKey) }
+  }, [openPanel])
+  const rows = positions.map(position => ({position, ...pnlOf(position)}))
+  const total = rows.reduce((sum, row) => sum + (row.pnl ?? 0), 0)
+  const tone = total >= 0 ? 'up' : 'down'
+  return <div className="sqtPosDock" ref={ref}>
+    <button type="button" className="sqtPosBtn" data-has={rows.length > 0 || undefined} aria-expanded={openPanel} aria-haspopup="dialog" onClick={() => { setOpenPanel(value => !value); setArmed(null) }}>
+      <span className="sqtPosIc" aria-hidden="true"><Layers/></span>
+      <span className="sqtPosTx"><b>{tx('Açık pozisyonlarım', 'My positions')}</b><small>{rows.length ? <><em>{rows.length}</em> · <strong data-tone={tone}>{signed(total)} USDT</strong></> : tx('Açık işlem yok', 'No open trades')}</small></span>
+      <ChevronUp aria-hidden="true" data-open={openPanel || undefined}/>
+    </button>
+    {openPanel && <div className="sqtPosPanel" role="dialog" aria-label={tx('Açık pozisyonlarım', 'My open positions')}>
+      <header><b>{tx('Açık pozisyonlarım', 'My open positions')}</b><span data-demo={demo || undefined}>{demo ? 'DEMO' : tx('CANLI', 'LIVE')}</span><button type="button" className="sqtRound" aria-label={tx('Kapat', 'Close')} onClick={() => { setOpenPanel(false); setArmed(null) }}><X aria-hidden="true"/></button></header>
+      {rows.length === 0 ? <p className="sqtPosEmpty">{tx('Şu an açık işlemin yok. Bir coin seçip AL ile başlayabilirsin.', 'You have no open trades. Pick a coin and press BUY to start.')}</p> : <ul>
+        {rows.map(({position, pnl, pct}) => { const long = sideOf(position) === 'LONG', lev = positive(position.leverage ?? undefined), ok = canClose(position), sure = armed === position.symbol
+          return <li key={position.symbol} data-on={position.symbol === symbol}>
+            <button type="button" className="sqtPosGo" onClick={() => { onGo(position.symbol); setOpenPanel(false); setArmed(null) }} aria-label={tx(`${position.symbol} grafiğine git`, `Go to the ${position.symbol} chart`)}>
+              <i data-tone={(pnl ?? 0) >= 0 ? 'up' : 'down'} aria-hidden="true"/><span className="sqtPosName"><b>{short(position.symbol)}</b><em data-side={sideOf(position)}>{sideOf(position)}{lev ? ` ${lev}x` : ''}</em></span>
+              <span className="sqtPosPnl" data-tone={(pnl ?? 0) >= 0 ? 'up' : 'down'}><strong>{pnl === null ? '—' : `${signed(pnl, Math.abs(pnl) < 1 ? 4 : 2)} USDT`}</strong><small>{pct === null ? '' : `${signed(pct)}%`}</small></span>
+            </button>
+            <button type="button" className="sqtPosClose" data-sure={sure || undefined} disabled={!ok || busy} title={ok ? undefined : tx('Yalnız okunabilir; buradan kapatılamaz', 'Read-only; cannot be closed here')}
+              onClick={() => { if (sure) { setArmed(null); onClose(position) } else setArmed(position.symbol) }}>{sure ? (long ? tx('SAT · onayla', 'SELL · confirm') : tx('AL · onayla', 'BUY · confirm')) : tx('Kapat', 'Close')}</button>
+          </li> })}
+      </ul>}
+      <footer>{tx('Satıra bas: o coinin grafiğine geç · Kapat: iki dokunuşla kapatır', 'Tap a row to open its chart · Close takes two taps')}</footer>
+    </div>}
   </div>
 }
 
