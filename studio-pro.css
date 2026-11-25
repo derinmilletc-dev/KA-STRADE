@@ -107,3 +107,55 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
 .masterReferenceAnalysis .refReplayBar button, .masterReferenceAnalysis .refReplayBar select { min-width: 40px; min-height: 40px; border-radius: 10px; }
 .masterReferenceAnalysis .refReplayBar input[type="range"] { flex: 1; min-width: 60px; accent-color: #00e4a4; }
 .masterReferenceAnalysis .refReplayPlay[aria-pressed="true"] { background: rgba(0,228,164,.18); }
+
+/* Hacim profili */
+.masterReferenceAnalysis .refVolBin { fill: rgba(140,166,168,.28); stroke: none; }
+.masterReferenceAnalysis .refVolBin--value { fill: rgba(76,154,255,.38); }
+.masterReferenceAnalysis .refVolValueArea { fill: rgba(76,154,255,.07); stroke: none; }
+.masterReferenceAnalysis .refVolPoc { stroke: #f5b301; stroke-width: 1.2; stroke-dasharray: 3 3; }
+.masterReferenceAnalysis .refLabToggles { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.1); min-width: 220px; }
+.masterReferenceAnalysis .refLabToggles > small { color: #8ca6a8; font-size: 10px; letter-spacing: .08em; }
+.masterReferenceAnalysis .refLabToggles button { min-height: 40px; padding: 8px 12px; border-radius: 10px; text-align: left; }
+.masterReferenceAnalysis .refLabToggles button[aria-pressed="true"] { background: rgba(0,228,164,.16); border-color: rgba(0,228,164,.5); color: #00e4a4; }
+
+/* Strateji laboratuvarı (alt sayfa / pencere) */
+.labBackdrop { position: fixed; inset: 0; z-index: 9000; display: grid; align-items: end; justify-items: center; background: rgba(2,8,10,.66); backdrop-filter: blur(3px); }
+.labSheet { width: min(720px, 100%); max-height: min(92dvh, 760px); display: flex; flex-direction: column; border-radius: 18px 18px 0 0; background: #0b1618; border: 1px solid rgba(0,228,164,.28); color: #e6f2f0; box-shadow: 0 -12px 40px rgba(0,0,0,.5); }
+.labSheet > header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.labSheet > header span { flex: 1; color: #8ca6a8; font-size: 12px; }
+.labSheet > header button { min-width: 40px; min-height: 40px; border-radius: 10px; font-size: 22px; }
+.labTabs { display: flex; gap: 6px; padding: 8px 14px 0; }
+.labTabs button { flex: 1; min-height: 40px; border-radius: 10px; }
+.labTabs button[aria-selected="true"] { background: rgba(0,228,164,.16); border-color: rgba(0,228,164,.5); color: #00e4a4; }
+.labBody { overflow: auto; padding: 12px 14px 18px; display: grid; gap: 12px; overscroll-behavior: contain; }
+.labPresets { display: flex; flex-wrap: wrap; gap: 6px; }
+.labPresets button, .labAdd, .labRun { min-height: 40px; padding: 8px 12px; border-radius: 10px; }
+.labRun { background: rgba(0,228,164,.18); border-color: rgba(0,228,164,.5); color: #00e4a4; font-weight: 700; }
+.labRun:disabled { opacity: .55; }
+.labRules { border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 8px 10px 10px; display: grid; gap: 8px; margin: 0; min-width: 0; }
+.labRules legend { padding: 0 6px; color: #8ca6a8; font-size: 11px; letter-spacing: .06em; }
+.labRule { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.labOperand { display: inline-flex; gap: 4px; }
+.labRule select, .labRule input, .labParams select, .labParams input { min-height: 40px; border-radius: 10px; min-width: 0; }
+.labOperand input { width: 72px; }
+.labRemove { min-width: 40px; min-height: 40px; border-radius: 10px; font-size: 20px; }
+.labParams { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.labParams label { display: grid; gap: 4px; font-size: 11px; color: #8ca6a8; }
+.labStats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.labStats > div { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.05); }
+.labStats dt { font-size: 10px; color: #8ca6a8; }
+.labStats dd { margin: 2px 0 0; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.labStats [data-tone="up"] dd { color: #00e4a4; } .labStats [data-tone="down"] dd { color: #ff6474; }
+.labEquity { width: 100%; height: 56px; }
+.labEquity polyline { stroke: #00e4a4; stroke-width: 1.6; }
+.labTrades { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.labTrades li { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.04); font-size: 12px; }
+.labTrades [data-tone="up"] b, .labMatches [data-tone="up"] { color: #00e4a4; } .labTrades [data-tone="down"] b, .labMatches [data-tone="down"] { color: #ff6474; }
+.labNote { margin: 0; padding: 8px 10px; border-radius: 10px; background: rgba(245,179,1,.12); color: #f5d37a; font-size: 12px; }
+.labFine { color: #8ca6a8; font-size: 11px; margin: 0; }
+.labMatches { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.labMatches button { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; }
+.labMatches button span { flex: 1; text-align: right; color: #b6c6c4; }
+.labMatches button em { font-style: normal; min-width: 56px; text-align: right; }
+@media (min-width: 761px) { .labBackdrop { align-items: center; } .labSheet { border-radius: 18px; } }
+@media (max-width: 480px) { .labParams, .labStats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

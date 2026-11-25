@@ -6,16 +6,16 @@ import {REPLAY_SPEEDS, canReplay, type ReplayState} from './studio-replay'
 
 // İkinci grafik (yan yana) ve bar replay kontrolleri. Yalnız okunur piyasa verisi; emir yok.
 const SAFE = /^[A-Z0-9]{2,30}$/
-export function useKlines(symbol: string, interval: string, enabled: boolean) {
+export function useKlines(symbol: string, interval: string, enabled: boolean, limit = 160, refreshMs = 30000) {
   const [state, setState] = useState<{key: string; candles: Kline[]; error: string}>({key: '', candles: [], error: ''})
-  const key = `${symbol}|${interval}`
+  const key = `${symbol}|${interval}|${limit}`
   useEffect(() => {
     if (!enabled || !SAFE.test(symbol)) return
     const controller = new AbortController()
     let timer: number | undefined
     const load = async () => {
       try {
-        const response = await fetchPublicMarketData(`${API_BASE}/klines/${symbol}?interval=${encodeURIComponent(interval)}&limit=160`, {signal: controller.signal}, 20000)
+        const response = await fetchPublicMarketData(`${API_BASE}/klines/${symbol}?interval=${encodeURIComponent(interval)}&limit=${limit}`, {signal: controller.signal}, 20000)
         if (!response.ok) throw new Error('Veri alınamadı')
         const candles = parseKlines(await response.json())
         if (!candles) throw new Error('Geçersiz veri')
@@ -25,9 +25,9 @@ export function useKlines(symbol: string, interval: string, enabled: boolean) {
       }
     }
     void load()
-    timer = window.setInterval(() => void load(), 30000)
+    if (refreshMs > 0) timer = window.setInterval(() => void load(), refreshMs)
     return () => { controller.abort(); window.clearInterval(timer) }
-  }, [symbol, interval, enabled, key])
+  }, [symbol, interval, enabled, key, limit, refreshMs])
   return state.key === key ? state : {key, candles: [] as Kline[], error: ''}
 }
 

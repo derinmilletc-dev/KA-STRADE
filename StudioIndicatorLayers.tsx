@@ -1,6 +1,7 @@
 import {useId} from 'react'
 import {INDICATORS, MAX_ACTIVE_INDICATORS, type IndicatorId, type IndicatorSet, type Series} from './studio-indicators'
 import {CHART_TYPES, type ChartCandle, type ChartType} from './studio-chart-types'
+import {volumeProfile} from './studio-volume-profile'
 import {bandPaths, segmentPaths, symmetricExtent, valueText} from './studio-overlay-paths'
 
 // Grafik üstü ve alt panel gösterge katmanları. Yalnız görünüm: emir, analiz ya da veri akışına dokunmaz.
@@ -126,5 +127,29 @@ export function ChartTypePicker({value, onPick}: {value: ChartType; onPick: (typ
     <small>GRAFİK TÜRÜ</small>
     <div>{CHART_TYPES.map(item => <button type="button" key={item.id} aria-pressed={value === item.id} title={item.hint} onClick={() => onPick(item.id)}>{item.label}</button>)}</div>
     {value === 'renko' && <p>Renko zamandan bağımsızdır; çizim araçları bu türde kapalıdır.</p>}
+  </div>
+}
+
+// Hacim profili: görünen mumların hacmini fiyat kademelerine dağıtır; sağdan sola yatay çubuklar, POC çizgisi ve %70 değer alanı.
+export function VolumeProfileLayer({visible, yOf, plotWidth}: {visible: ReadonlyArray<{high: number; low: number; volume: number}>; yOf: (value: number) => number; plotWidth: number}) {
+  const profile = volumeProfile(visible, 40)
+  if (!profile) return null
+  const maxWidth = plotWidth * 0.22
+  return <g className="refVolProfile" aria-hidden="true">
+    <rect className="refVolValueArea" x={plotWidth - maxWidth} width={maxWidth} y={yOf(profile.valueHigh)} height={Math.max(0, yOf(profile.valueLow) - yOf(profile.valueHigh))}/>
+    {profile.bins.map((bin, index) => {
+      const top = yOf(bin.high), height = Math.max(0.5, yOf(bin.low) - top - 0.5), width = bin.volume / profile.max * maxWidth
+      const inValue = bin.high > profile.valueLow && bin.low < profile.valueHigh
+      return <rect key={index} className={inValue ? 'refVolBin refVolBin--value' : 'refVolBin'} x={plotWidth - width} y={top} width={width} height={height}/>
+    })}
+    <line className="refVolPoc" x1={plotWidth - maxWidth} x2={plotWidth} y1={yOf(profile.poc)} y2={yOf(profile.poc)} vectorEffect="non-scaling-stroke"/>
+  </g>
+}
+
+export function LabToggles({profile, onProfile, onLab}: {profile: boolean; onProfile: () => void; onLab: () => void}) {
+  return <div className="refLabToggles" role="group" aria-label="Analiz araçları">
+    <small>ANALİZ ARAÇLARI</small>
+    <button type="button" aria-pressed={profile} onClick={onProfile}>Hacim profili</button>
+    <button type="button" onClick={onLab}>Strateji laboratuvarı</button>
   </div>
 }
