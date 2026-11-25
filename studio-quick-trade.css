@@ -352,3 +352,41 @@
 .masterReferenceAnalysis .sqtCloseAt em { font-style: normal; color: #ff8a8a; font-weight: 600; }
 @keyframes sqtLivePulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { .masterReferenceAnalysis .sqtLive[data-state="live"] i { animation: none; } }
+
+/* ---------- Emir sayfası: yatay telefon/tablet için dengeli 3 sütun (oku | emir ayarları | işlem özeti + düğme) ---------- */
+.masterReferenceAnalysis .sqtRead, .masterReferenceAnalysis .sqtDeal { display: grid; gap: 8px; min-width: 0; align-content: start; }
+@media (max-height: 620px) and (min-width: 640px) {
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtBody {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, .95fr);
+    grid-template-areas: "read ord deal" "read size deal" "read size act";
+    gap: 8px 14px; align-items: start;
+  }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtLeft { display: contents; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtRead { grid-area: read; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtDeal { grid-area: deal; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtOrd { grid-area: ord; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtSizing { grid-area: size; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtActions { grid-area: act; align-self: end; }
+  /* Özet: üç kutu yan yana değil, okunur satırlar (etiket solda, tutar sağda) */
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtStats { grid-template-columns: 1fr; gap: 4px; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtStats > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 6px 10px 6px 12px; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtStats small { white-space: nowrap; margin: 0; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtStats b { font-size: 14px; white-space: nowrap; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtChecks { gap: 3px 10px; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtChips { flex-wrap: wrap; gap: 5px; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtFine, .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtNote { display: none; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtSheet :is(.sqtSizing, .sqtOrd)::before { display: none; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtSheet .sqtDeal { position: relative; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtHold { min-height: 44px; font-size: 13px; }
+  /* Seviyeler: yan yana sığmayan fiyatlar yerine okunur dikey liste */
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtLevels { display: grid; grid-template-columns: 1fr; gap: 3px; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtLevels > span { display: flex !important; justify-content: space-between; align-items: baseline; gap: 8px; width: auto; text-align: right; font-size: 12.5px; font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: 6px; background: rgba(255, 255, 255, .03); }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtLevels small { display: inline !important; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtChips > span { white-space: normal; line-height: 1.25; }
+  /* Limit modunda orta sütun uzar: Basılı tut düğmesi her zaman görünür kalsın (kaydırmada alta yapışır) */
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtBody { grid-template-areas: "read ord deal" "read size deal" "read size act"; grid-template-rows: auto auto 1fr; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtActions { position: sticky; bottom: 0; align-self: end; background-color: #0e1822; box-shadow: 0 -8px 10px -4px #0e1822; padding-top: 4px; z-index: 2; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtPresets { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; }
+  .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtPresets button { min-width: 0; padding: 0 1px; font-size: 10px; overflow: hidden; }
+}
+

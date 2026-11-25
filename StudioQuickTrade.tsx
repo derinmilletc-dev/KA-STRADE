@@ -453,6 +453,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
         </header>
         <div className="sqtBody">
           <div className="sqtLeft">
+            <div className="sqtRead">
             <div className="sqtChips">
               {aligned(side) !== 'none' && <span data-tone={aligned(side) === 'with' ? 'ok' : 'bad'}>{confidenceText}</span>}
               {aligned(side) === 'none' && <span data-tone="warn">{tx('Analiz: net yön yok', 'Analysis: no clear direction')}</span>}
@@ -463,6 +464,8 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
             {levels!.source === 'mirror' && <p className="sqtNote">{tx('Analiz seviyeleri bu yöne ya da fiyata uymadığı için stop ve hedefler analizin mesafeleriyle yeniden hesaplandı.', 'The analysis levels do not fit this direction or price, so stop and targets were recalculated using the analysis distances.')}</p>}
             {levels!.source === 'default' && <p className="sqtNote">{tx('Analiz seviyesi bulunamadı; standart mesafeler kullanıldı (stop %1,5).', 'No analysis levels found; standard distances were used (1.5% stop).')}</p>}
             <Ladder side={side} entry={entryPrice} levels={levels!}/>
+            </div>
+            <div className="sqtDeal">
             <div className="sqtStats">
               <div data-tone="loss"><small>{tx('Stop olursa', 'If stopped out')}</small><b>−{fmt(risk.lossAtStop)} USDT</b></div>
               <div data-tone="gain"><small>{tx("TP1'de", 'At TP1')}</small><b>+{fmt(risk.gainAtTp1)} USDT</b></div>
@@ -474,6 +477,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
               {!demo && <li data-ok={!liveBlocked}>{liveBlocked ? <TriangleAlert aria-hidden="true"/> : <Check aria-hidden="true"/>}{liveBlocked ? <>{blocker}<ConsentRenew blocker={blocker} onDone={hours => setToast({kind: 'ok', title: tx('Risk izni yenilendi', 'Risk permission renewed'), detail: tx(`${hours} saat geçerli. Canlı işlem için ARM gerekebilir.`, `Valid for ${hours} h. Live trading may need ARM.`)})}/></> : tx('ARM açık · canlı kapılar geçti', 'ARM is on · live gates passed')}</li>}
               <li data-ok={risk.stopBeforeLiquidation}>{risk.stopBeforeLiquidation ? <Check aria-hidden="true"/> : <TriangleAlert aria-hidden="true"/>}{risk.stopBeforeLiquidation ? tx('Stop, likidasyondan önce çalışır', 'The stop triggers before liquidation') : tx('Stop likidasyona çok yakın; kaldıracı düşür', 'The stop is too close to liquidation; lower the leverage')}</li>
             </ul>
+            </div>
           </div>
           <div className="sqtRight">
             <div className="sqtOrd">
