@@ -1282,8 +1282,8 @@ html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewpo
     --u: calc(min(100vw, 480px) / 426);
     --wf: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, system-ui, sans-serif;
     position: relative; overflow-x: hidden; min-height: max(100dvh, calc(var(--u) * 923)); font-family: var(--wf);
-    background-color: #0a1a30 !important;
-    background-image: url("/login-winter-top.webp"), url("/login-winter-bottom.webp"), linear-gradient(180deg, #0b1d36 0, #0b1d36 calc(var(--u) * 465), #0b2235 calc(var(--u) * 930), #0b2235 100%) !important;
+    background-color: #141113 !important;
+    background-image: url("/login-winter-top.webp"), url("/login-winter-bottom.webp"), linear-gradient(180deg, #141113 0, #141113 calc(var(--u) * 400), #534c54 calc(var(--u) * 857), #534c54 100%) !important;
     background-repeat: no-repeat !important;
     background-position: center top, center calc(var(--u) * 465), 0 0 !important;
     background-size: min(100%, 480px) auto, min(100%, 480px) auto, 100% 100% !important;
@@ -1408,6 +1408,32 @@ html body #root .authPageLogin .authCardLogin .authMobileMarkets .authCoinViewpo
   html body #root .authRoot:has(.authPageLogin) > footer.authFooter > span { display: none !important; }
   html body #root .authRoot:has(.authPageLogin) > footer.authFooter a { position: relative; padding: 0 calc(var(--u) * 14) !important; color: rgba(236,242,248,.9) !important; font: 400 calc(var(--u) * 10.9)/calc(var(--u) * 14) var(--wf) !important; text-decoration: none; text-shadow: 0 1px 4px rgba(0,0,0,.45); white-space: nowrap; }
   html body #root .authRoot:has(.authPageLogin) > footer.authFooter a + a::before { content: ""; position: absolute; left: 0; top: 50%; width: 1px; height: calc(var(--u) * 13); margin-top: calc(var(--u) * -6.5); background: rgba(225,235,245,.5); }
+
+  /* Yilbasi fotografli arka plan: koyu cam kart (olculer degismez, sadece renkler) */
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin {
+    border: calc(var(--u) * 1.5) solid rgba(255,255,255,.16) !important;
+    background: rgba(27,28,30,.86) !important;
+    -webkit-backdrop-filter: blur(calc(var(--u) * 22)) !important; backdrop-filter: blur(calc(var(--u) * 22)) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 calc(var(--u) * 18) calc(var(--u) * 40) rgba(0,0,0,.4) !important;
+  }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin::before,
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin::after { content: none !important; }
+  html body #root .authPageLogin .authCardLogin .authInputWithIcon input,
+  html body #root .authPageLogin .authCardLogin .authGoogle,
+  html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn,
+  html body #root .authPageLogin .authCardLogin a.authInstagramFollow,
+  html body #root .authPageLogin .authCardLogin > section.authMobileMarkets,
+  html body #root .authPageLogin .authCardLogin .authMobileMarkets { border-color: rgba(255,255,255,.28) !important; background: rgba(18,19,20,.55) !important; box-shadow: none !important; }
+  html body #root .authPageLogin .authCardLogin .authInputWithIcon input::placeholder { color: rgba(255,255,255,.6); }
+  html body #root .authPageLogin .authCardLogin .authCardLead::after { color: rgba(255,255,255,.76); }
+  html body #root .authPageLogin .authCardLogin .authSocial > span::before,
+  html body #root .authPageLogin .authCardLogin .authSocial > span::after { background: rgba(255,255,255,.25); }
+  html body #root .authPageLogin .authCardLogin .authLoginForgot { color: #34c77b !important; }
+  html body #root .authPageLogin .authCardLogin .authLoginOptions .authCheck input:checked { background: #20b36a !important; box-shadow: none; }
+  html body #root .authPageLogin .authCardLogin .authSubmit {
+    background: linear-gradient(180deg, #26a35f 0%, #12924f 50%, #067f40 100%) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 calc(var(--u) * 6) calc(var(--u) * 16) rgba(10,140,70,.3) !important;
+  }
 }
 @media (max-width: 384px) {
   html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn svg.authAltChev { display: block !important; }
