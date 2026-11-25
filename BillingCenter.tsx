@@ -5,6 +5,7 @@ import {askKais} from './kais-ask'
 import BinanceManualPayment from './BinanceManualPayment'
 import {trialRequest, type Trial} from './FreeTrialPricing'
 import {PLAN_BY_CODE} from './subscription'
+import {useMemberAccess} from './premium-access'
 import {PAID_PLAN_AMOUNT, PAID_PLAN_NAME, type PaidPlan} from './smart-trade-plans'
 import './billing-center.css'
 
@@ -125,10 +126,12 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
   const binancePaid = subscription?.mode === 'BINANCE_MANUAL'
   const expiry = subscription?.current_period_end || subscription?.trial_end
   const smartTrade = subscription?.plan === 'SMART_TRADE'
-  const planName = onTrial ? '1 Hafta Ücretsiz Deneme' : smartTrade ? 'SMART TRADE' : subscription?.plan ? 'MASTER MODE' : 'Aktif plan yok'
-  const noPlan = !hasAccess && !onTrial && !subscription?.plan
-  const badge = loading ? 'Yükleniyor' : loadError ? 'Bilgi alınamadı' : hasAccess ? (onTrial ? 'Deneme aktif' : 'Aktif') : noPlan ? 'Abonelik yok' : STATUS_TR[status] || 'Kapalı'
-  const badgeTone = loading || loadError || noPlan ? 'neutral' : hasAccess ? 'positive' : 'warning'
+  const {owner} = useMemberAccess()
+  const ownerNoPlan = owner && !onTrial && !subscription?.plan
+  const planName = onTrial ? '1 Hafta Ücretsiz Deneme' : smartTrade ? 'SMART TRADE' : subscription?.plan ? 'MASTER MODE' : ownerNoPlan ? 'Sahip hesabı · tam erişim' : 'Aktif plan yok'
+  const noPlan = !hasAccess && !onTrial && !subscription?.plan && !owner
+  const badge = loading ? 'Yükleniyor' : loadError ? 'Bilgi alınamadı' : ownerNoPlan ? 'Sahip' : hasAccess ? (onTrial ? 'Deneme aktif' : 'Aktif') : noPlan ? 'Abonelik yok' : STATUS_TR[status] || 'Kapalı'
+  const badgeTone = loading || loadError || noPlan ? 'neutral' : hasAccess || ownerNoPlan ? 'positive' : 'warning'
 
   const trialUsed = trial?.enabled === true && trial.used
   const trialDays = trial?.enabled === true && trial.ends_at ? Math.max(0, Math.ceil((Date.parse(trial.ends_at) - now) / 86400000)) : 0

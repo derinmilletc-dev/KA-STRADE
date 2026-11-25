@@ -55,3 +55,5 @@ html body #root #notify-settings button.nsSwitch.on:active i { transform: transl
 #root #notify-settings .nsHelp summary svg { width: 18px; height: 18px; }
 #root #notify-settings .nsHelp ol { margin: 10px 0 8px; padding-left: 20px; display: grid; gap: 6px; }
 #root #notify-settings .nsHelp small { display: block; opacity: .8; }
+
+.nsReload { margin-top: 10px; min-height: 40px; padding: 0 16px; border-radius: 12px; border: 1px solid rgba(45,212,191,.5); background: rgba(45,212,191,.14); color: inherit; font-weight: 700; cursor: pointer; }

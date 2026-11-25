@@ -68,3 +68,8 @@ html body #root .v27Ops.v27Ops .v27Panel > header > span:not(.v27MonitorStatus) 
 html body #root .v27Ops.v27Ops .v27OpsActions > button.kaisInfoBtn { margin: 0 !important; background: rgba(61,220,151,.16) !important; color: #3ddc97 !important; }
 html body #root .v27Ops.v27Ops .v27OpsActions > button.kaisInfoBtn span { font-size: 12.5px !important; color: inherit !important; }
 html body #root .v27Ops.v27Ops .v27OpsActions > button.kaisInfoBtn:hover { background: #3ddc97 !important; color: #06281a !important; }
+
+/* Demo anahtarı yokken yönlendirme kartı: uyarı değil, davet gibi görünür. */
+html body #root .v27Ops.v27Ops .v27SleepNotice.v27Onboard { background: rgba(45,212,191,.09) !important; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+html body #root .v27Ops.v27Ops .v27Onboard > div { flex: 1 1 220px; min-width: 0; }
+html body #root .v27Ops.v27Ops .v27Onboard > button { min-height: 40px; padding: 0 16px; border-radius: 12px; border: 1px solid rgba(45,212,191,.5); background: rgba(45,212,191,.16); color: inherit; font-weight: 700; cursor: pointer; }
