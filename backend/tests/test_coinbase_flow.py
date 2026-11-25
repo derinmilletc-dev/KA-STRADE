@@ -460,8 +460,13 @@ class RestingTests(FlowBase):
     def rest(self, **over):
         return self.open(entry_limit_price="2995", take_profit_price="3100", rest=True, margin_usd="30", **over)
 
-    def test_flag_off_rejects_resting(self):
+    def test_resting_is_on_by_default(self):
         os.environ.pop("COINBASE_RESTING_ENABLED")
+        from app.coinbase import config
+        self.assertTrue(config.resting_enabled())
+
+    def test_flag_off_rejects_resting(self):
+        os.environ["COINBASE_RESTING_ENABLED"] = "false"
         err = self.fails(lambda: self.rest())
         self.assertEqual(err.code, "PREFLIGHT_FAILED")
         self.assertEqual(self.ex.posts(), [])
