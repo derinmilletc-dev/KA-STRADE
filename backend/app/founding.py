@@ -95,8 +95,11 @@ async def ensure_schema(pool: Any) -> None:
     if getattr(pool, "_founding_ready", False):
         return
     async with pool.acquire() as conn:
-        for statement in SCHEMA:
-            await conn.execute(statement)
+        # Aynı anda gelen istekler şemayı yarışarak kurmasın (DuplicateObject / pg_type UniqueViolation).
+        async with conn.transaction():
+            await conn.execute("SELECT pg_advisory_xact_lock(71010031)")
+            for statement in SCHEMA:
+                await conn.execute(statement)
     try:
         pool._founding_ready = True
     except AttributeError:  # asyncpg havuzu bazı sürümlerde öznitelik kabul etmeyebilir
