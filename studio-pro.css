@@ -1,0 +1,193 @@
+/* Analiz stüdyosu: göstergeler, alt paneller, yeni çizim araçları. master-trade-fullscreen.css'ten SONRA yüklenir. */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndLegend { display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndChip { display: inline-flex; align-items: center; gap: 4px; color: #b6c6c4; font-size: 11px; white-space: nowrap; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndChip i { width: 8px; height: 3px; border-radius: 2px; background: var(--ind); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndChip b { font-weight: 600; color: var(--ind); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicatorLayer path { pointer-events: none; }
+
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSubPanes { display: grid; gap: 1px; border-top: 1px solid rgba(255,255,255,.08); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSubPane { width: 100%; height: 92px; display: block; background: rgba(255,255,255,.015); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSubPane + .refSubPane { border-top: 1px solid rgba(255,255,255,.06); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refPaneBand { fill: rgba(192,132,252,.07); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refPaneGuide { stroke: rgba(255,255,255,.12); stroke-width: 1; stroke-dasharray: 3 4; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refPaneGuide[data-level="50"] { stroke-opacity: .5; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refPaneTick { fill: #8ca6a8; font-size: 10px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refPaneTitle { fill: #b6c6c4; font-size: 11px; font-weight: 600; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refPaneTitle tspan { fill: #e6f0ef; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refPaneTitle tspan[data-tone="hot"], .masterReferenceAnalysis .refPaneTitle tspan[data-tone="down"] { fill: #ff7a6b; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refPaneTitle tspan[data-tone="cold"], .masterReferenceAnalysis .refPaneTitle tspan[data-tone="up"] { fill: #00e4a4; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refMacdBar[data-up="true"] { fill: #00e4a4; fill-opacity: .35; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refMacdBar[data-up="false"] { fill: #ff6a5a; fill-opacity: .35; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refMacdBar[data-strong="true"] { fill-opacity: .7; }
+
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndPicker { display: grid; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.1); min-width: 220px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndPicker > small { color: #8ca6a8; font-size: 10px; letter-spacing: .08em; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndPicker button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 8px 10px; border-radius: 10px; text-align: left; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndPicker button i { width: 10px; height: 10px; border-radius: 3px; background: var(--ind); flex: none; opacity: .45; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndPicker button[aria-pressed="true"] i { opacity: 1; box-shadow: 0 0 8px var(--ind); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndPicker button span { flex: 1; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndPicker button em { font-style: normal; font-size: 10px; color: #8ca6a8; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndPicker button:disabled { opacity: .45; }
+
+@media (max-width: 560px) {
+  .masterReferenceAnalysis .refSubPane { height: 84px; }
+  .masterReferenceAnalysis .refIndLegend { gap: 6px; }
+}
+/* Yatay tam ekran: alt paneller ızgaranın 3. satırında, grafik alanı kalan yüksekliği alır (aynı özgüllük, sonra yüklenir). */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .kfsStage { grid-template-rows: auto minmax(0, 1fr) auto !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .kfsStage > .refSubPanes { grid-column: 2 !important; grid-row: 3 !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refSubPane { height: 72px; }
+
+/* ---- Yeni çizim araçları ---- */
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--fib line { stroke: #f0b90b; stroke-width: 1; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--fib .refFibDiag { stroke: #9fb3c8; stroke-dasharray: 5 4; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refFibLevel[data-tone="edge"] line { stroke: #9fb3c8; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refFibLevel[data-tone="gold"] line { stroke: #f0b90b; stroke-width: 1.4; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refFibLevel[data-tone="mid"] line { stroke: #4da3ff; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refFibLevel[data-tone="soft"] line { stroke: rgba(240,185,11,.55); }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refFibLevel[data-tone="ext"] line { stroke: #b36bff; stroke-dasharray: 4 4; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--fib text { fill: #e9d9a0; font-size: 10.5px; font-weight: 500; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refFibZone { fill: rgba(240,185,11,.10); stroke: none; pointer-events: none; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refRectBody { fill: rgba(77,163,255,.12); stroke: #4da3ff; stroke-width: 1.3; vector-effect: non-scaling-stroke; pointer-events: none; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--rect[data-up="false"] .refRectBody { fill: rgba(255,106,90,.12); stroke: #ff6a5a; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--rect text { fill: #cfe5ff; font-size: 10.5px; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--channel line:not(.refDrawingHit) { stroke: #2dd4bf; stroke-width: 1.5; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--channel .refChannelMid { stroke-dasharray: 4 4; stroke-opacity: .6; stroke-width: 1; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refChannelFill { fill: rgba(45,212,191,.09); stroke: none; pointer-events: none; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--measure line:not(.refDrawingHit) { stroke: #00e4a4; stroke-width: 1.4; stroke-dasharray: 5 3; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--measure[data-up="false"] line:not(.refDrawingHit) { stroke: #ff6a5a; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--measure circle { fill: #00e4a4; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--measure[data-up="false"] circle { fill: #ff6a5a; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refMeasureBox { fill: rgba(0,228,164,.08); stroke: none; pointer-events: none; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--measure[data-up="false"] .refMeasureBox { fill: rgba(255,106,90,.08); }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refMeasureTag { fill: rgba(7,13,11,.92); stroke: rgba(255,255,255,.18); stroke-width: 1; pointer-events: none; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing text.refMeasureText { fill: #e6f0ef; stroke: none; font-size: 11px; font-weight: 600; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--text circle { fill: #f0b90b; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refTextTag { fill: rgba(240,185,11,.16); stroke: #f0b90b; stroke-width: 1; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing text.refTextLabel { fill: #fff3c4; stroke: none; font-size: 12px; font-weight: 600; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawing--draft { opacity: .75; }
+#root > main.v26App.masterTradeRoute .masterReferenceAnalysis .refDrawings--pro[data-erasing="true"] .refDrawing:hover :is(line, .refRectBody, .refMeasureLine):not(.refDrawingHit) { stroke: #ff5c5c; }
+
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refTextPrompt { position: absolute; z-index: 6; display: flex; gap: 6px; align-items: center; padding: 6px; border-radius: 12px; background: rgba(7,13,11,.96); border: 1px solid rgba(240,185,11,.5); box-shadow: 0 8px 24px rgba(0,0,0,.45); transform: translate(-8px, -50%); max-width: calc(100% - 16px); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refTextPrompt input { min-width: 0; width: 190px; max-width: 52vw; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #e6f0ef; font-size: 16px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refTextPrompt button { min-height: 38px; padding: 0 12px; border-radius: 8px; border: 0; background: #f0b90b; color: #1a1400; font-weight: 700; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refTextPrompt .refTextCancel { background: rgba(255,255,255,.1); color: #e6f0ef; padding: 0 12px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .kfsMoreMenu { max-height: min(70dvh, 360px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* Göstergeler açılır menüsü uzun listeyi kaydırır; küçük ekranda taşmaz. */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators > div { max-height: min(72dvh, 460px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* Grafik türü seçici ve çizgi/alan grafiği */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refTypePicker { display: grid; gap: 6px; margin-top: 4px; padding-bottom: 8px; min-width: 220px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refTypePicker > small { color: #8ca6a8; font-size: 10px; letter-spacing: .08em; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refTypePicker > div { display: flex; flex-wrap: wrap; gap: 6px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refTypePicker button { min-height: 40px; padding: 8px 12px; border-radius: 10px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refTypePicker button[aria-pressed="true"] { background: rgba(0,228,164,.16); border-color: rgba(0,228,164,.5); color: #00e4a4; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refTypePicker p { margin: 0; font-size: 11px; color: #8ca6a8; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refClosePath polyline { stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refClosePath[data-tone="up"] { stroke: #00e4a4; color: #00e4a4; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refClosePath[data-tone="down"] { stroke: #ff6474; color: #ff6474; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refClosePath stop { stop-color: currentColor; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refClosePath polygon { stroke: none; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refCandle--flat { stroke: none; }
+
+/* Yan yana ikinci grafik ve bar replay */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSplit[data-on="false"] { display: contents; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSplit[data-on="true"] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; min-width: 0; }
+@media (max-width: 760px), (orientation: portrait) { .masterReferenceAnalysis .refSplit[data-on="true"] { grid-template-columns: minmax(0, 1fr); } }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSplitPicker, .masterReferenceAnalysis .refReplayToggle { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.1); min-width: 220px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSplitPicker > small { color: #8ca6a8; font-size: 10px; letter-spacing: .08em; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refReplayToggle > small { color: #8ca6a8; font-size: 11px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSplitPicker > div { display: flex; gap: 6px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSplitPicker button, .masterReferenceAnalysis .refReplayToggle button { min-height: 40px; padding: 8px 12px; border-radius: 10px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSplitPicker select { min-height: 40px; border-radius: 10px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSplitPicker button[aria-pressed="true"], .masterReferenceAnalysis .refReplayToggle button[aria-pressed="true"] { background: rgba(0,228,164,.16); border-color: rgba(0,228,164,.5); color: #00e4a4; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refReplayToggle button:disabled { opacity: .45; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refReplayBar { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 12px; background: rgba(8,16,18,.92); border: 1px solid rgba(0,228,164,.35); position: sticky; bottom: 6px; z-index: 6; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refReplayBar button, .masterReferenceAnalysis .refReplayBar select { min-width: 40px; min-height: 40px; border-radius: 10px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refReplayBar input[type="range"] { flex: 1; min-width: 60px; accent-color: #00e4a4; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refReplayPlay[aria-pressed="true"] { background: rgba(0,228,164,.18); }
+
+/* Hacim profili */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refVolBin { fill: rgba(140,166,168,.28); stroke: none; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refVolBin--value { fill: rgba(76,154,255,.38); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refVolValueArea { fill: rgba(76,154,255,.07); stroke: none; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refVolPoc { stroke: #f5b301; stroke-width: 1.2; stroke-dasharray: 3 3; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refLabToggles { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.1); min-width: 220px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refLabToggles > small { color: #8ca6a8; font-size: 10px; letter-spacing: .08em; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refLabToggles button { min-height: 40px; padding: 8px 12px; border-radius: 10px; text-align: left; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refLabToggles button[aria-pressed="true"] { background: rgba(0,228,164,.16); border-color: rgba(0,228,164,.5); color: #00e4a4; }
+
+/* Strateji laboratuvarı (alt sayfa / pencere) */
+html body #root .labBackdrop { position: fixed; inset: 0; z-index: 9000; display: grid; align-items: end; justify-items: center; background: rgba(2,8,10,.66); backdrop-filter: blur(3px); }
+html body #root .labSheet { width: min(720px, 100%); max-height: min(92dvh, 760px); display: flex; flex-direction: column; border-radius: 18px 18px 0 0; background: #0b1618; border: 1px solid rgba(0,228,164,.28); color: #e6f2f0; box-shadow: 0 -12px 40px rgba(0,0,0,.5); }
+html body #root .labSheet > header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.1); }
+html body #root .labSheet > header span { flex: 1; color: #8ca6a8; font-size: 12px; }
+html body #root .labSheet > header button { min-width: 40px; min-height: 40px; border-radius: 10px; font-size: 22px; }
+html body #root .labTabs { display: flex; gap: 6px; padding: 8px 14px 0; }
+html body #root .labTabs button { flex: 1; min-height: 40px; border-radius: 10px; }
+html body #root .labTabs button[aria-selected="true"] { background: rgba(0,228,164,.16); border-color: rgba(0,228,164,.5); color: #00e4a4; }
+html body #root .labBody { overflow: auto; padding: 12px 14px 18px; display: grid; gap: 12px; overscroll-behavior: contain; }
+html body #root .labPresets { display: flex; flex-wrap: wrap; gap: 6px; }
+html body #root .labPresets button, .labAdd, .labRun { min-height: 40px; padding: 8px 12px; border-radius: 10px; }
+html body #root .labRun { background: rgba(0,228,164,.18); border-color: rgba(0,228,164,.5); color: #00e4a4; font-weight: 700; }
+html body #root .labRun:disabled { opacity: .55; }
+html body #root .labRules { border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 8px 10px 10px; display: grid; gap: 8px; margin: 0; min-width: 0; }
+html body #root .labRules legend { padding: 0 6px; color: #8ca6a8; font-size: 11px; letter-spacing: .06em; }
+html body #root .labRule { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+html body #root .labOperand { display: inline-flex; gap: 4px; }
+html body #root .labRule select, .labRule input, .labParams select, .labParams input { min-height: 40px; border-radius: 10px; min-width: 0; }
+html body #root .labOperand input { width: 72px; }
+html body #root .labRemove { min-width: 40px; min-height: 40px; border-radius: 10px; font-size: 20px; }
+html body #root .labParams { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+html body #root .labParams label { display: grid; gap: 4px; font-size: 11px; color: #8ca6a8; }
+html body #root .labStats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+html body #root .labStats > div { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.05); }
+html body #root .labStats dt { font-size: 10px; color: #8ca6a8; }
+html body #root .labStats dd { margin: 2px 0 0; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+html body #root .labStats [data-tone="up"] dd { color: #00e4a4; } .labStats [data-tone="down"] dd { color: #ff6474; }
+html body #root .labEquity { width: 100%; height: 56px; }
+html body #root .labEquity polyline { stroke: #00e4a4; stroke-width: 1.6; }
+html body #root .labTrades { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+html body #root .labTrades li { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.04); font-size: 12px; }
+html body #root .labTrades [data-tone="up"] b, .labMatches [data-tone="up"] { color: #00e4a4; } .labTrades [data-tone="down"] b, .labMatches [data-tone="down"] { color: #ff6474; }
+html body #root .labNote { margin: 0; padding: 8px 10px; border-radius: 10px; background: rgba(245,179,1,.12); color: #f5d37a; font-size: 12px; }
+html body #root .labFine { color: #8ca6a8; font-size: 11px; margin: 0; }
+html body #root .labMatches { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+html body #root .labMatches button { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; }
+html body #root .labMatches button span { flex: 1; text-align: right; color: #b6c6c4; }
+html body #root .labMatches button em { font-style: normal; min-width: 56px; text-align: right; }
+@media (min-width: 761px) { html body #root .labBackdrop { align-items: center; } html body #root .labSheet { border-radius: 18px; } }
+@media (max-width: 480px) { html body #root .labParams, .labStats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Karşılaştırma ve formasyonlar */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refCompareLine path { stroke: #f472b6; stroke-width: 1.6; stroke-dasharray: 6 3; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refCompareLine text { fill: #f472b6; font-size: 11px; font-weight: 700; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refCompareLegend { color: #f472b6; font-size: 11px; font-weight: 600; white-space: nowrap; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refPattern text { font-size: 10px; font-weight: 800; paint-order: stroke; stroke: rgba(8,16,18,.85); stroke-width: 3px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refPattern--bull text { fill: #00e4a4; } .masterReferenceAnalysis .refPattern--bear text { fill: #ff6474; } .masterReferenceAnalysis .refPattern--neutral text { fill: #f5b301; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refCompareSelect { display: grid; gap: 4px; font-size: 11px; color: #8ca6a8; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refCompareSelect select { min-height: 40px; border-radius: 10px; }
+
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refCompareSelect select, html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSplitPicker select { width: 100%; min-width: 0; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refSplitPicker > div { display: grid; grid-template-columns: minmax(0, 1fr) 84px; }
+
+html body #root .labRule { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: start; padding: 8px; border-radius: 12px; background: rgba(255,255,255,.04); }
+html body #root .labRuleMain { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; min-width: 0; }
+html body #root .labRuleMain > .labOperand:first-child { grid-column: 1 / -1; }
+html body #root .labOperand { display: flex; gap: 4px; min-width: 0; }
+html body #root .labOperand select { flex: 1; min-width: 0; }
+html body #root .labOperand input { width: 72px; flex: none; }
+html body #root .labRuleMain > select { min-width: 0; }
+@media (min-width: 640px) { html body #root .labRuleMain { grid-template-columns: minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 1.2fr); } html body #root .labRuleMain > .labOperand:first-child { grid-column: auto; } }
+html body #root .labPresets { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+html body #root .labPresets button { flex: none; white-space: nowrap; }
+
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart:not([data-fs="on"]):has(.refSubPanes) { flex: none; min-height: 0; height: auto; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart:not([data-fs="on"]):has(.refSubPanes) .refChartCanvas { flex: none; height: clamp(340px, 43dvh, 460px); min-height: 340px; }
+
+html body #root .labOperand select { flex: 1 1 0; min-width: 88px; }
+html body #root .labOperand input { flex: 0 0 72px; width: 72px; }
+html body #root .labBody { grid-auto-rows: max-content; }
+html body #root .labPresets { min-height: 44px; align-items: flex-start; }
+@media (max-width: 480px) { html body #root .labRuleMain { grid-template-columns: minmax(0, 1fr); } html body #root .labRuleMain > .labOperand:first-child { grid-column: auto; } html body #root .labOperand select { min-width: 0; } }

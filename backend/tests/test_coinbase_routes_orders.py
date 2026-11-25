@@ -94,7 +94,7 @@ class AccessTests(OrderRouteCase):
         self.assertEqual(pairs, {
             ("POST", f"{URL}/preflight"), ("POST", f"{URL}/open"), ("POST", f"{URL}/close"), ("POST", f"{URL}/reduce"),
             ("POST", f"{URL}/stop"), ("POST", f"{URL}/cleanup-orphans"), ("GET", f"{URL}/protection"), ("GET", f"{URL}/open"),
-            ("POST", f"{URL}/cancel-entry"), ("POST", f"{URL}/reconcile"), ("GET", f"{URL}/pending"),
+            ("POST", f"{URL}/cancel-entry"), ("POST", f"{URL}/replace-entry"), ("POST", f"{URL}/reconcile"), ("GET", f"{URL}/pending"),
             ("GET", f"{URL}/limits"), ("PUT", f"{URL}/limits"), ("POST", f"{URL}/suggest"),
             ("GET", f"{URL}/profit-targets"), ("POST", f"{URL}/profit-target"),
         })

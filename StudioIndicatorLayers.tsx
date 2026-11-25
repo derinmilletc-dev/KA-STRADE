@@ -1,0 +1,189 @@
+import {useId} from 'react'
+import {INDICATORS, MAX_ACTIVE_INDICATORS, type IndicatorId, type IndicatorSet, type Series} from './studio-indicators'
+import {CHART_TYPES, type ChartCandle, type ChartType} from './studio-chart-types'
+import {PATTERNS, type PatternHit} from './studio-patterns'
+import {volumeProfile} from './studio-volume-profile'
+import {bandPaths, segmentPaths, symmetricExtent, valueText} from './studio-overlay-paths'
+
+// Grafik üstü ve alt panel gösterge katmanları. Yalnız görünüm: emir, analiz ya da veri akışına dokunmaz.
+export const INDICATOR_COLORS: Record<IndicatorId | 'signal', string> = {
+  ema20: '#f5b301', ema50: '#4c9aff', ema200: '#b36bff', vwap: '#2dd4bf', bollinger: '#9fb3c8', rsi: '#c084fc', macd: '#38bdf8', signal: '#fb923c',
+}
+const LINES: Array<{id: 'ema20' | 'ema50' | 'ema200' | 'vwap'; width: number; dash?: string}> = [
+  {id: 'ema200', width: 1.6}, {id: 'ema50', width: 1.4}, {id: 'ema20', width: 1.3}, {id: 'vwap', width: 1.3, dash: '5 4'},
+]
+export const SUB_PANE_HEIGHT = 92
+
+type Layout = {from: number; count: number; xOf: (visibleIndex: number) => number}
+
+/** Fiyat bölmesinin üstüne çizilen katman: EMA'lar, VWAP, Bollinger bandı. */
+export function PriceOverlays({set, from, count, xOf, yOf, plotWidth, priceHeight}: Layout & {set: IndicatorSet; yOf: (value: number) => number; plotWidth: number; priceHeight: number}) {
+  const clip = useId().replace(/:/g, '')
+  const to = from + count
+  const band = set.bollinger ? bandPaths(set.bollinger.upper, set.bollinger.lower, from, to, xOf, yOf) : []
+  return <g className="refIndicatorLayer" aria-hidden="true" clipPath={`url(#${clip})`}>
+    <defs><clipPath id={clip}><rect x="0" y="0" width={plotWidth} height={priceHeight}/></clipPath></defs>
+    {band.map((d, index) => <path key={`b${index}`} d={d} fill={INDICATOR_COLORS.bollinger} fillOpacity=".08" stroke="none"/>)}
+    {set.bollinger && [set.bollinger.upper, set.bollinger.mid, set.bollinger.lower].map((series, row) => segmentPaths(series, from, to, xOf, yOf).map((d, index) =>
+      <path key={`bb${row}-${index}`} d={d} fill="none" stroke={INDICATOR_COLORS.bollinger} strokeWidth={row === 1 ? 1 : 1.1} strokeDasharray={row === 1 ? '3 3' : undefined} strokeOpacity={row === 1 ? .7 : .9} vectorEffect="non-scaling-stroke"/>))}
+    {LINES.map(line => segmentPaths(set[line.id], from, to, xOf, yOf).map((d, index) =>
+      <path key={`${line.id}-${index}`} d={d} fill="none" stroke={INDICATOR_COLORS[line.id]} strokeWidth={line.width} strokeDasharray={line.dash} strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>))}
+  </g>
+}
+
+const valueAt = (series: Series | undefined, index: number): number | null => {
+  const value = series?.[index]
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+/** OHLC satırının yanındaki küçük göstergeler: imleç altındaki mumun değerleri (yoksa son mum). */
+export function IndicatorLegend({set, enabled, index}: {set: IndicatorSet; enabled: readonly IndicatorId[]; index: number}) {
+  if (!enabled.length) return null
+  const chip = (key: string, label: string, color: string, value: number | null) =>
+    <span key={key} className="refIndChip" style={{['--ind' as string]: color}}><i aria-hidden="true"/>{label} <b>{valueText(value)}</b></span>
+  return <span className="refIndLegend" aria-label="Gösterge değerleri">{enabled.flatMap(id => {
+    switch (id) {
+      case 'ema20': case 'ema50': case 'ema200': case 'vwap': return [chip(id, INDICATORS.find(item => item.id === id)!.label.replace(' (günlük)', ''), INDICATOR_COLORS[id], valueAt(set[id], index))]
+      case 'bollinger': return [chip(id, 'BB', INDICATOR_COLORS.bollinger, valueAt(set.bollinger?.mid, index))]
+      default: return []
+    }
+  })}</span>
+}
+
+type PaneProps = Layout & {set: IndicatorSet; enabled: readonly IndicatorId[]; width: number; plotWidth: number; hover: number | null}
+
+/** RSI ve MACD alt panelleri: ana grafikle aynı zaman ekseni ve aynı yatay ölçek. */
+export function SubPanes({set, enabled, from, count, xOf, width, plotWidth, hover}: PaneProps) {
+  const panes = (['rsi', 'macd'] as const).filter(id => enabled.includes(id))
+  if (!panes.length || count < 1) return null
+  const to = from + count
+  const index = hover === null ? to - 1 : Math.min(to - 1, from + hover)
+  const inner = SUB_PANE_HEIGHT - 20
+  return <div className="refSubPanes" data-count={panes.length}>{panes.map(id => {
+    if (id === 'rsi') {
+      const y = (value: number) => 10 + (100 - value) / 100 * inner
+      const last = valueAt(set.rsi, index)
+      return <svg key={id} className="refSubPane" data-pane="rsi" viewBox={`0 0 ${width} ${SUB_PANE_HEIGHT}`} preserveAspectRatio="none" role="img" aria-label={`RSI 14: ${valueText(last, 1)}`}>
+        <rect className="refPaneBand" x="0" y={y(70)} width={plotWidth} height={y(30) - y(70)}/>
+        {[70, 50, 30].map(level => <line key={level} className="refPaneGuide" data-level={level} x1="0" x2={plotWidth} y1={y(level)} y2={y(level)} vectorEffect="non-scaling-stroke"/>)}
+        {[70, 30].map(level => <text key={`t${level}`} className="refPaneTick" x={plotWidth + 10} y={y(level)} dominantBaseline="middle">{level}</text>)}
+        {segmentPaths(set.rsi, from, to, xOf, y).map((d, i) => <path key={i} d={d} fill="none" stroke={INDICATOR_COLORS.rsi} strokeWidth="1.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>)}
+        <text className="refPaneTitle" x="10" y="12">RSI 14 <tspan data-tone={last === null ? undefined : last >= 70 ? 'hot' : last <= 30 ? 'cold' : undefined}>{valueText(last, 1)}</tspan></text>
+      </svg>
+    }
+    const m = set.macd
+    const extent = symmetricExtent([m?.macd, m?.signal, m?.histogram], from, to)
+    const y = (value: number) => 10 + (extent - value) / (2 * extent) * inner
+    const step = count > 1 ? Math.abs(xOf(1) - xOf(0)) : 6
+    const bar = Math.max(1, Math.min(10, step * .7))
+    const hist = valueAt(m?.histogram, index)
+    return <svg key={id} className="refSubPane" data-pane="macd" viewBox={`0 0 ${width} ${SUB_PANE_HEIGHT}`} preserveAspectRatio="none" role="img" aria-label={`MACD histogram: ${valueText(hist, 4)}`}>
+      <line className="refPaneGuide" x1="0" x2={plotWidth} y1={y(0)} y2={y(0)} vectorEffect="non-scaling-stroke"/>
+      {Array.from({length: count}, (_, i) => {
+        const value = valueAt(m?.histogram, from + i)
+        if (value === null) return null
+        const previous = valueAt(m?.histogram, from + i - 1)
+        const growing = previous === null || Math.abs(value) >= Math.abs(previous)
+        const top = Math.min(y(value), y(0)), height = Math.max(.5, Math.abs(y(value) - y(0)))
+        return <rect key={i} className="refMacdBar" data-up={value >= 0} data-strong={growing} x={xOf(i) - bar / 2} y={top} width={bar} height={height}/>
+      })}
+      {segmentPaths(m?.macd, from, to, xOf, y).map((d, i) => <path key={`m${i}`} d={d} fill="none" stroke={INDICATOR_COLORS.macd} strokeWidth="1.4" vectorEffect="non-scaling-stroke"/>)}
+      {segmentPaths(m?.signal, from, to, xOf, y).map((d, i) => <path key={`s${i}`} d={d} fill="none" stroke={INDICATOR_COLORS.signal} strokeWidth="1.4" vectorEffect="non-scaling-stroke"/>)}
+      <text className="refPaneTitle" x="10" y="12">MACD 12·26·9 <tspan data-tone={hist === null ? undefined : hist >= 0 ? 'up' : 'down'}>{valueText(hist, 4)}</tspan></text>
+    </svg>
+  })}</div>
+}
+
+/** "Göstergeler" menüsündeki seçim listesi. */
+export function IndicatorPicker({enabled, onToggle}: {enabled: readonly IndicatorId[]; onToggle: (id: IndicatorId) => void}) {
+  const full = enabled.length >= MAX_ACTIVE_INDICATORS
+  return <div className="refIndPicker" role="group" aria-label="Teknik göstergeler">
+    <small>TEKNİK GÖSTERGELER</small>
+    {INDICATORS.map(item => {
+      const on = enabled.includes(item.id)
+      return <button type="button" key={item.id} aria-pressed={on} disabled={!on && full} title={item.hint} onClick={() => onToggle(item.id)} style={{['--ind' as string]: INDICATOR_COLORS[item.id]}}>
+        <i aria-hidden="true"/><span>{item.label}</span><em>{item.pane === 'sub' ? 'alt panel' : 'grafikte'}</em>
+      </button>
+    })}
+  </div>
+}
+
+// Çizgi / alan grafiği: kapanışları birleştirir. Mumların hacim çubukları ayrıca çizilmeye devam eder.
+export function ClosePath({visible, xOf, yOf, fill, baseline}: {visible: readonly ChartCandle[]; xOf: (index: number) => number; yOf: (value: number) => number; fill: boolean; baseline: number}) {
+  const gradient = useId()
+  if (visible.length < 2) return null
+  const points = visible.map((candle, index) => `${xOf(index).toFixed(2)},${yOf(candle.close).toFixed(2)}`)
+  const rising = visible[visible.length - 1].close >= visible[0].close
+  return <g className="refClosePath" data-tone={rising ? 'up' : 'down'} aria-hidden="true">
+    {fill && <>
+      <defs><linearGradient id={gradient} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopOpacity=".32"/><stop offset="1" stopOpacity="0"/></linearGradient></defs>
+      <polygon points={`${xOf(0).toFixed(2)},${baseline} ${points.join(' ')} ${xOf(visible.length - 1).toFixed(2)},${baseline}`} fill={`url(#${gradient})`}/>
+    </>}
+    <polyline points={points.join(' ')} fill="none" vectorEffect="non-scaling-stroke"/>
+  </g>
+}
+
+export function ChartTypePicker({value, onPick}: {value: ChartType; onPick: (type: ChartType) => void}) {
+  return <div className="refTypePicker" role="group" aria-label="Grafik türü">
+    <small>GRAFİK TÜRÜ</small>
+    <div>{CHART_TYPES.map(item => <button type="button" key={item.id} aria-pressed={value === item.id} title={item.hint} onClick={() => onPick(item.id)}>{item.label}</button>)}</div>
+    {value === 'renko' && <p>Renko zamandan bağımsızdır; çizim araçları bu türde kapalıdır.</p>}
+  </div>
+}
+
+// Hacim profili: görünen mumların hacmini fiyat kademelerine dağıtır; sağdan sola yatay çubuklar, POC çizgisi ve %70 değer alanı.
+export function VolumeProfileLayer({visible, yOf, plotWidth}: {visible: ReadonlyArray<{high: number; low: number; volume: number}>; yOf: (value: number) => number; plotWidth: number}) {
+  const profile = volumeProfile(visible, 40)
+  if (!profile) return null
+  const maxWidth = plotWidth * 0.22
+  return <g className="refVolProfile" aria-hidden="true">
+    <rect className="refVolValueArea" x={plotWidth - maxWidth} width={maxWidth} y={yOf(profile.valueHigh)} height={Math.max(0, yOf(profile.valueLow) - yOf(profile.valueHigh))}/>
+    {profile.bins.map((bin, index) => {
+      const top = yOf(bin.high), height = Math.max(0.5, yOf(bin.low) - top - 0.5), width = bin.volume / profile.max * maxWidth
+      const inValue = bin.high > profile.valueLow && bin.low < profile.valueHigh
+      return <rect key={index} className={inValue ? 'refVolBin refVolBin--value' : 'refVolBin'} x={plotWidth - width} y={top} width={width} height={height}/>
+    })}
+    <line className="refVolPoc" x1={plotWidth - maxWidth} x2={plotWidth} y1={yOf(profile.poc)} y2={yOf(profile.poc)} vectorEffect="non-scaling-stroke"/>
+  </g>
+}
+
+export function LabToggles({profile, onProfile, patterns, onPatterns, compare, compareOptions, onCompare, onLab}: {profile: boolean; onProfile: () => void; patterns: boolean; onPatterns: () => void; compare: string; compareOptions: readonly string[]; onCompare: (symbol: string) => void; onLab: () => void}) {
+  return <div className="refLabToggles" role="group" aria-label="Analiz araçları">
+    <small>ANALİZ ARAÇLARI</small>
+    <button type="button" aria-pressed={profile} onClick={onProfile}>Hacim profili</button>
+    <button type="button" aria-pressed={patterns} onClick={onPatterns}>Mum formasyonları</button>
+    <label className="refCompareSelect">Sembol karşılaştır
+      <select aria-label="Karşılaştırılacak sembol" value={compare} onChange={event => onCompare(event.target.value)}>
+        <option value="">Kapalı</option>
+        {compareOptions.map(symbol => <option key={symbol} value={symbol}>{symbol}</option>)}
+      </select>
+    </label>
+    <button type="button" onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onLab() }}>Strateji laboratuvarı</button>
+  </div>
+}
+
+// Karşılaştırma çizgisi: ikinci sembol, pencerenin başında ana fiyata eşitlenmiş (aynı yüzde ölçeği).
+export function CompareLine({values, xOf, yOf, label}: {values: Array<number | null>; xOf: (index: number) => number; yOf: (value: number) => number; label: string}) {
+  const paths = segmentPaths(values, 0, values.length, xOf, yOf)
+  const lastIndex = values.reduce<number>((found, value, index) => value === null ? found : index, -1)
+  if (!paths.length || lastIndex < 0) return null
+  return <g className="refCompareLine" aria-hidden="true">
+    {paths.map((d, index) => <path key={index} d={d} fill="none" vectorEffect="non-scaling-stroke"/>)}
+    <text x={xOf(lastIndex) - 4} y={yOf(values[lastIndex] as number) - 6} textAnchor="end">{label}</text>
+  </g>
+}
+
+export function PatternMarkers({hits, from, xOf, yOf, candles}: {hits: readonly PatternHit[]; from: number; xOf: (index: number) => number; yOf: (value: number) => number; candles: ReadonlyArray<{high: number; low: number}>}) {
+  return <g className="refPatterns" aria-hidden="true">
+    {hits.filter((hit, index) => !hits.slice(0, index).some(other => (other.bias === 'bear') === (hit.bias === 'bear') && hit.index - other.index < 2)).map(hit => {
+      const local = hit.index - from, candle = candles[hit.index]
+      if (local < 0 || !candle) return null
+      const above = hit.bias === 'bear'
+      const y = above ? yOf(candle.high) - 8 : yOf(candle.low) + 14
+      return <g key={`${hit.index}-${hit.id}`} className={`refPattern refPattern--${hit.bias}`}>
+        <title>{PATTERNS[hit.id].label}: {PATTERNS[hit.id].hint}</title>
+        <text x={xOf(local)} y={y} textAnchor="middle">{PATTERNS[hit.id].short}</text>
+      </g>
+    })}
+  </g>
+}

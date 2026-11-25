@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState, type ReactNode} from 'react'
 import {Bell, ChevronLeft, ChevronRight, Crosshair, MoreHorizontal, Eraser, Eye, EyeOff, Minus, Redo2, Trash2, TrendingUp, Undo2} from 'lucide-react'
 import type {DrawMode} from './chart-drawings'
+import {ChannelIcon, FibIcon, MeasureIcon, RectIcon, TextIcon} from './StudioDrawingShapes'
 
 type Props = {
   drawMode: DrawMode
@@ -89,6 +90,11 @@ export function DrawingRail(props: Props) {
           onPointerLeave={event => { if (event.pointerType === 'mouse') hideTip() }}
           onClick={() => { hideTip(); setMenu(value => !value) }}><MoreHorizontal aria-hidden="true"/></button>
         {menu && <div className="kfsMoreMenu" role="menu" aria-label="More tools">
+          {tool('Fibonacci', <FibIcon/>, pick('fib'), {pressed: props.drawMode === 'fib', menuItem: true})}
+          {tool('Rectangle', <RectIcon/>, pick('rect'), {pressed: props.drawMode === 'rect', menuItem: true})}
+          {tool('Parallel channel', <ChannelIcon/>, pick('channel'), {pressed: props.drawMode === 'channel', menuItem: true})}
+          {tool('Measure', <MeasureIcon/>, pick('measure'), {pressed: props.drawMode === 'measure', menuItem: true})}
+          {tool('Text note', <TextIcon/>, pick('text'), {pressed: props.drawMode === 'text', menuItem: true})}
           {tool('Price alert', <Bell aria-hidden="true"/>, pick('alarm'), {pressed: props.drawMode === 'alarm', menuItem: true})}
           {tool(props.hidden ? 'Show drawings' : 'Hide drawings', props.hidden ? <EyeOff aria-hidden="true"/> : <Eye aria-hidden="true"/>, () => { setMenu(false); props.onToggleHidden() }, {disabled: !props.hasDrawings && !props.hidden, menuItem: true, key: 'visibility'})}
           {tool('Clear all drawings', <Trash2 aria-hidden="true"/>, () => { setMenu(false); props.onClear() }, {disabled: !props.hasDrawings, menuItem: true})}
