@@ -127,6 +127,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   const [settings, setSettings] = useState(false)
   const [card, setCard] = useState(false)
   const [tray, setTray] = useState(false)
+  const [swapOpen, setSwapOpen] = useState(false)
   const [action, setAction] = useState<'half' | 'close' | null>(null)
   const [actionError, setActionError] = useState('')
   const [lockedUntil, setLockedUntil] = useState(0)
@@ -182,9 +183,9 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
     const fresh = levelsFor(next, price, analysis)
     const at = positive(price)
     if (at === null || !fresh) { setToast({kind: 'error', title: tx('Fiyat ya da analiz verisi hazır değil', 'Price or analysis data is not ready'), detail: tx('Birkaç saniye sonra tekrar dene.', 'Try again in a few seconds.')}); return }
-    setSheetError(''); setIntentId(newIntentId()); setFrozen({price: at, levels: fresh}); setSide(next); setSettings(false); setKind('MARKET'); setLimitText('')
+    setSheetError(''); setIntentId(newIntentId()); setFrozen({price: at, levels: fresh}); setSide(next); setSettings(false); setSwapOpen(false); setKind('MARKET'); setLimitText('')
   }
-  const closeSheet = () => { if (busyRef.current) return; setSide(null); setFrozen(null); setSheetError('') }
+  const closeSheet = () => { if (busyRef.current) return; setSide(null); setFrozen(null); setSheetError(''); setSwapOpen(false) }
   const changeParam = (change: Partial<Prefs>) => { update(change); setIntentId(newIntentId()); setSheetError('') }
 
   const sending = busy !== null
@@ -390,6 +391,8 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   useEffect(() => () => onChartTools?.({}), [onChartTools])
 
   const dockDisabled = !dataReady || sending || lockLeft > 0
+  // Hızlı düğme analizin önerdiği yönü gösterir; net yön yoksa iki yön de görünür. Ters yön onay ekranından seçilebilir.
+  const suggested: Side | null = decision.direction === 'LONG' || decision.direction === 'SHORT' ? decision.direction : null
   const aligned = (target: Side) => decision.direction === target ? 'with' : decision.direction === 'LONG' || decision.direction === 'SHORT' ? 'against' : 'none'
   const confidenceText = tx(`${aligned(side ?? 'LONG') === 'with' ? 'Analiz seninle' : 'Analiz ters'} · ${decision.direction}${decision.confidenceScore !== null ? ` · güven %${Math.round(decision.confidenceScore)}` : ''}`, `${aligned(side ?? 'LONG') === 'with' ? 'Analysis agrees' : 'Analysis is opposite'} · ${decision.direction}${decision.confidenceScore !== null ? ` · confidence ${Math.round(decision.confidenceScore)}%` : ''}`)
   // Gerçek hesapta: kapatınca dolacak fiyat (LONG → en iyi alış, SHORT → en iyi satış). Yayın yoksa eski kaynağa düşer.
@@ -412,7 +415,8 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
         <span className="sqtMode" data-demo={demo || undefined}>{demo ? 'DEMO' : tx('CANLI', 'LIVE')}</span>
         <b>{margin} USDT <em>· {leverage}x</em></b>
       </button>
-      <button type="button" className="sqtSide" data-side="buy" disabled={dockDisabled} onClick={() => startOrder('LONG')} aria-label={`${symbol} ${tx('AL', 'BUY')} (LONG)`}><span className="sqtTx"><b>{tx('AL', 'BUY')}</b><small>{price0 ? analysisPrice(price0) : '—'}</small></span><span className="sqtIc" aria-hidden="true">▲</span></button>
+      {suggested !== 'LONG' && <button type="button" className="sqtSide" data-side="sell" data-suggested={suggested === 'SHORT' || undefined} disabled={dockDisabled} onClick={() => startOrder('SHORT')} aria-label={`${symbol} ${tx('SAT', 'SELL')} (SHORT)`}><span className="sqtIc" aria-hidden="true">▼</span><span className="sqtTx"><b>{tx('SAT', 'SELL')}</b><small>{price0 ? analysisPrice(price0) : '—'}</small></span></button>}
+      {suggested !== 'SHORT' && <button type="button" className="sqtSide" data-side="buy" data-suggested={suggested === 'LONG' || undefined} disabled={dockDisabled} onClick={() => startOrder('LONG')} aria-label={`${symbol} ${tx('AL', 'BUY')} (LONG)`}><span className="sqtTx"><b>{tx('AL', 'BUY')}</b><small>{price0 ? analysisPrice(price0) : '—'}</small></span><span className="sqtIc" aria-hidden="true">▲</span></button>}
       {settings && <div className="sqtPop" role="dialog" aria-label={tx('Teminat ve kaldıraç', 'Margin and leverage')}>
         <ParamPicker label={tx('Teminat (USDT)', 'Margin (USDT)')} choices={margins} value={margin} onPick={value => update({margin: value})}/>
         <ParamPicker label={tx('Kaldıraç', 'Leverage')} choices={leverages} value={leverage} suffix="x" onPick={value => update({leverage: value})}/>
@@ -446,7 +450,8 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
       <div className="sqtScrim" onClick={closeSheet} aria-hidden="true"/>
       <div className="sqtSheet" data-demo={demo || undefined} role="dialog" aria-modal="true" aria-label={tx(`${symbol} ${side === 'LONG' ? 'AL' : 'SAT'} onayı`, `${symbol} ${side === 'LONG' ? 'BUY' : 'SELL'} confirmation`)} data-side={side}>
         <header className="sqtHead">
-          <span className="sqtTag" data-side={side}>{side === 'LONG' ? tx('AL · LONG', 'BUY · LONG') : tx('SAT · SHORT', 'SELL · SHORT')}</span><b>{symbol}</b>
+          <span className="sqtTagWrap"><button type="button" className="sqtTag sqtTagBtn" data-side={side} aria-haspopup="menu" aria-expanded={swapOpen} disabled={sending} onClick={() => setSwapOpen(open => !open)}>{side === 'LONG' ? tx('AL · LONG', 'BUY · LONG') : tx('SAT · SHORT', 'SELL · SHORT')}<i aria-hidden="true">▾</i></button>
+            {swapOpen && <span className="sqtSwap" role="menu"><button type="button" role="menuitem" data-side={side === 'LONG' ? 'SHORT' : 'LONG'} onClick={() => startOrder(side === 'LONG' ? 'SHORT' : 'LONG')}>{side === 'LONG' ? tx('SAT · SHORT', 'SELL · SHORT') : tx('AL · LONG', 'BUY · LONG')}<small>{aligned(side === 'LONG' ? 'SHORT' : 'LONG') === 'against' ? tx('analize ters yön', 'against the analysis') : aligned(side === 'LONG' ? 'SHORT' : 'LONG') === 'with' ? tx('analizin önerdiği yön', 'the analysis direction') : tx('yönü değiştir', 'switch side')}</small></button></span>}</span><b>{symbol}</b>
           <span className="sqtMkt">{kind === 'LIMIT' ? tx('Limit emri', 'Limit order') : tx('Piyasa emri', 'Market order')} · {analysisPrice(entryPrice)}</span>
           <span className="sqtAcc" data-demo={demo || undefined}><i aria-hidden="true"/>{demo ? 'DEMO' : tx('CANLI', 'LIVE')}</span>
           <button type="button" className="sqtX" aria-label={tx('Vazgeç', 'Cancel')} onClick={closeSheet} disabled={sending}><X/></button>
