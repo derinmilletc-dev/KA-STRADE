@@ -22,6 +22,8 @@ LIVE_CLIENT_PREFIX = "PTBLV_"
 # Manuel işlem tek pozisyon teminat tavanı. Otomatik stratejiler (grid/DCA) AUTO_MAX_MARGIN_USDT ile eski 300 tavanında kalır.
 HARD_MAX_MARGIN_USDT = 10_000.0
 AUTO_MAX_MARGIN_USDT = 300.0
+AUTO_MAX_LOSS_PER_TRADE_USDT = 25.0      # otomatik stratejiler (V25 auto, Original V2) için değişmeyen sistem tavanları
+AUTO_MAX_TOTAL_EXPOSURE_USDT = 1000.0
 MANUAL_MARGIN_REQUEST_MAX = 10_000_000.0  # manuel emir için pratikte sınırsız; asıl sınır kullanılabilir bakiye
 HARD_MAX_LEVERAGE = 50
 HARD_MAX_POSITIONS = 5
@@ -38,9 +40,9 @@ def system_ceilings() -> dict[str, float]:
     """Sistem genelinde, TÜM stratejiler (manuel, V25, Original V2) için geçerli mutlak güvenlik tavanları.
     Strateji bazlı dinamik risk hesabı bunları aşamaz; bir tavan devreye girerse sessizce değil, ekranda sebebiyle gösterilir."""
     return {
-        "max_loss_per_trade_usdt": HARD_MAX_LOSS_PER_TRADE_USDT,
-        "max_margin_per_trade_usdt": HARD_MAX_MARGIN_USDT,
-        "max_total_exposure_usdt": HARD_MAX_TOTAL_EXPOSURE_USDT,
+        "max_loss_per_trade_usdt": AUTO_MAX_LOSS_PER_TRADE_USDT,
+        "max_margin_per_trade_usdt": AUTO_MAX_MARGIN_USDT,
+        "max_total_exposure_usdt": AUTO_MAX_TOTAL_EXPOSURE_USDT,
         "max_daily_loss_usdt": HARD_MAX_DAILY_LOSS_USDT,
     }
 DEFAULT_MIN_CONFIDENCE = 80
