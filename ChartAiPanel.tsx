@@ -4,10 +4,11 @@ import {Camera, Info, Loader2, Lock, Upload, X} from 'lucide-react'
 import {ChartAiIcon} from './chart-ai-icon'
 import {ChartClientError, chartRequest, chartResult, chartUsage, captureChart, CHART_AI_DISCLAIMER, CHART_AI_PRIVACY,
   imageBase64, validateChartUpload, type ChartResult, type ChartSnapshot, type ChartUsage} from './chart-ai-client'
+import {readEngineNote, withEngineNote} from './studio-insights'
 import './chart-ai.css'
 
 type Pending = {request_key: string; symbol: string; timeframe: string}
-type Preview = {blob: Blob; url: string; context: ChartSnapshot; source: 'screenshot' | 'upload'}
+type Preview = {blob: Blob; url: string; context: ChartSnapshot; source: 'screenshot' | 'upload'; engine: string}
 type Props = {userId: string; symbol: string; timeframe: string; snapshot: () => ChartSnapshot; chart: () => SVGSVGElement | null}
 const QUESTIONS = ['Bu grafiği yorumla', 'Riskler neler?', 'Yukarı ve aşağı senaryolar']
 const MODES = ['Yorum', 'Riskler', 'Senaryolar']
@@ -33,6 +34,7 @@ export default function ChartAiPanel(props: Props) {
   const [error, setError] = useState('')
   const [preview, setPreview] = useState<Preview | null>(null)
   const [mode, setMode] = useState(0)
+  const [withEngine, setWithEngine] = useState(true)
   const [custom, setCustom] = useState('')
   const [resultHidden, setResultHidden] = useState(false)
   const asked = custom.trim() || QUESTIONS[mode]
@@ -151,7 +153,7 @@ export default function ChartAiPanel(props: Props) {
       const blob = file ?? await captureChart(props.chart())
       await validateChartUpload(blob)
       if (!alive.current || revision !== preparation.current) return
-      setPreview({blob, url: URL.createObjectURL(blob), context, source: file ? 'upload' : 'screenshot'})
+      setPreview({blob, url: URL.createObjectURL(blob), context, source: file ? 'upload' : 'screenshot', engine: readEngineNote(`${context.symbol}:${context.timeframe}`)})
       setResult(null)
     } catch (failure: unknown) {
       if (alive.current && revision === preparation.current) setError(message(failure))
@@ -182,7 +184,7 @@ export default function ChartAiPanel(props: Props) {
       started = true
       const next = chartResult(await chartRequest('/analyze', {
         method: 'POST', signal: controller.current?.signal, headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({...job, question: asked, image: {
+        body: JSON.stringify({...job, question: withEngineNote(asked, withEngine ? preview.engine : ''), image: {
           source: preview.source, media_type: preview.blob.type, data_base64: data,
         }, context: preview.context}),
       }))
@@ -272,8 +274,12 @@ export default function ChartAiPanel(props: Props) {
 
         <label className="chartAiField">
           <span className="chartAiLabel">Sorunuz <em>(isteğe bağlı)</em></span>
-          <textarea rows={2} value={custom} maxLength={800} disabled={inputLocked} placeholder="Örn. 1 saatlik trend ile uyumlu mu?" onChange={event => setCustom(event.target.value)}/>
+          <textarea rows={2} value={custom} maxLength={500} disabled={inputLocked} placeholder="Örn. 1 saatlik trend ile uyumlu mu?" onChange={event => setCustom(event.target.value)}/>
         </label>
+        {preview?.engine && <div className="chartAiField chartAiEngine">
+          <label className="chartAiConsent"><input type="checkbox" checked={withEngine} disabled={inputLocked} onChange={event => setWithEngine(event.target.checked)}/><span>Akıllı yorum motorunun okumasını da gönder <em>(grafikle karşılaştırarak yorumlar)</em></span></label>
+          {withEngine && <details><summary>Eklenecek özet</summary><p className="chartAiHint">{preview.engine}</p></details>}
+        </div>}
         </>}
 
         {pending && <p role="status" className="chartAiHint">{pending.symbol} · {pending.timeframe}: {busy ? 'Yanıt hazırlanıyor; en fazla iki üretim, toplam analiz sınırı 60 saniye.' : 'Analiz durumu doğrulanmalı.'}</p>}
@@ -290,7 +296,7 @@ export default function ChartAiPanel(props: Props) {
           <p>{CHART_AI_PRIVACY}</p>
           <details>
             <summary><Info aria-hidden="true"/>Ayrıntılar</summary>
-            <p>Yalnız grafiğin görseli ve gösterilen piyasa verileri gönderilir. Hesap, bakiye ve anahtar bilgileri gönderilmez. Aylık bütçe sınırı geçerlidir.</p>
+            <p>Yalnız grafiğin görseli, gösterilen piyasa verileri ve (açıksa) akıllı yorum motorunun bu verilerden çıkardığı özet gönderilir. Hesap, bakiye ve anahtar bilgileri gönderilmez. Aylık bütçe sınırı geçerlidir.</p>
             {usage?.acknowledgement.text && <p className="chartAiPre">{usage.acknowledgement.text}</p>}
           </details>
         </div>

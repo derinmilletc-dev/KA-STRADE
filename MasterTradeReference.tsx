@@ -885,7 +885,7 @@ export default function MasterTradeReference(props: Props) {
               <div className="kfsTiles"><IndicatorTiles analysis={analysis} decision={decision} candles={liveChart.candles} opportunity={false}/></div>
             </AnalysisDrawer>}
             {terminal && <StudioQuickTrade symbol={props.symbol} price={liveChart.price ?? props.price} book={liveBook} demo={demo} premium={premium} onUpgrade={() => openUpgrade('Manuel emir')} live={live}
-              analysis={analysis} decision={{direction: decision.direction, confidenceScore: decision.confidenceScore, mtfScore: decision.mtfScore, mtfConfirmed: decision.mtfConfirmed ?? 0, mtfTotal: decision.mtfTotal, status: decision.status}}
+              analysis={analysis} decision={{direction: decision.direction, confidenceScore: decision.confidenceScore, mtfScore: decision.mtfScore, mtfConfirmed: decision.mtfConfirmed ?? 0, mtfTotal: decision.mtfTotal, status: decision.status, riskReward: decision.riskReward}} interval={props.interval}
               positions={props.positions ?? []} onSelect={selectOpenPosition} drawerOpen={drawerOpen} candles={liveChart.candles} onGridLines={setGridLines} onChartTools={setChartTools} dataReady={available && liveChart.candles.length >= 2 && !props.dataIssue && !props.refreshing}/>}
           </div>
           {livePosition && !terminal && <PositionLiveCard position={livePosition} price={liveChart.price ?? props.price}/>}
