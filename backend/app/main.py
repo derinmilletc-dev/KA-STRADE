@@ -1330,6 +1330,14 @@ async def lifespan(app: FastAPI):
     from .read_log import eval_loop as read_log_eval_loop  # yorum doğruluk takibi: 1 saat sonrasını fiyatla karşılaştırır
     app.state.runtime_tasks.append(asyncio.create_task(entry_watch_loop(app)))
     app.state.runtime_tasks.append(asyncio.create_task(read_log_eval_loop(app)))
+    from .forward_test import forward_loop as forward_test_loop  # emirsiz ileriye dönük test: yalnız herkese açık piyasa verisi okur, emir/hesap yok
+
+    async def forward_test_get(path: str, params: dict[str, Any]) -> Any:
+        response = await market_data_request(app, path, params=params, source="analysis")  # analiz çağrılarıyla aynı önbelleği paylaşır
+        response.raise_for_status()
+        return response.json()
+
+    app.state.runtime_tasks.append(asyncio.create_task(forward_test_loop(app, forward_test_get)))
     if getattr(app.state, "coinbase_enabled", False):  # Coinbase bildirim izleyicisi (salt okunur; emir göndermez)
         from .coinbase.watcher import watcher_loop as coinbase_watcher_loop
         app.state.runtime_tasks.append(asyncio.create_task(coinbase_watcher_loop(app)))
