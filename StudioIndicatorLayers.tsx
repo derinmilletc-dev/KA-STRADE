@@ -187,3 +187,13 @@ export function PatternMarkers({hits, from, xOf, yOf, candles}: {hits: readonly 
     })}
   </g>
 }
+
+// Yatay tam ekran hızlı çubuğu (OHLC satırının sağı): grafik türü, replay kısayolu ve aktif gösterge çipleri (× ile kapanır).
+export function StudioQuickBar({chartType, onChartType, indicators, onRemove, onAdd, replayActive, replayEnabled, onReplay}: {chartType: ChartType; onChartType: (type: ChartType) => void; indicators: readonly IndicatorId[]; onRemove: (id: IndicatorId) => void; onAdd: () => void; replayActive: boolean; replayEnabled: boolean; onReplay: () => void}) {
+  return <span className="kfsQuickBar" role="group" aria-label="Hızlı grafik ayarları">
+    <select className="kfsQuickType" aria-label="Grafik türü" value={chartType} onChange={event => onChartType(event.target.value as ChartType)}>{CHART_TYPES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
+    <button type="button" className="kfsQuickBtn" aria-pressed={replayActive} disabled={!replayEnabled && !replayActive} aria-label="Bar replay" title="Bar replay" onClick={onReplay}>⏮ Replay</button>
+    {indicators.map(id => <span key={id} className="kfsQuickChip" style={{['--ind' as string]: INDICATOR_COLORS[id]}}><i aria-hidden="true"/>{INDICATORS.find(item => item.id === id)?.label.replace(' (günlük)', '') ?? id}<button type="button" aria-label={`${id} göstergesini kaldır`} onClick={() => onRemove(id)}>×</button></span>)}
+    <button type="button" className="kfsQuickBtn" aria-label="Gösterge ekle" onClick={onAdd}>+ Gösterge</button>
+  </span>
+}
