@@ -9,7 +9,7 @@ type Tick = Candle & {key: string; priceOnly: boolean}
 // Binance 2026-04-23'ten sonra Futures piyasa yayınlarını yalnız /market yolundan gönderiyor; eski /ws bağlanıyor ama veri vermiyor.
 const SOURCES = [{url: 'wss://fstream.binance.com/market/ws', priceOnly: false}, {url: 'wss://stream.binance.com:9443/ws', priceOnly: true}] as const
 const SAFE = /^[A-Z0-9]{2,30}$/
-const INTERVALS = new Set(['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '1w'])
+const INTERVALS = new Set(['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '1w', '1M'])
 
 export function mergeLiveCandle(candles: Candle[], tick: (Candle & {priceOnly?: boolean}) | null): Candle[] {
   const last = candles[candles.length - 1]
