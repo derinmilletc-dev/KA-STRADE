@@ -172,6 +172,9 @@ const compactPrice = (value: number, full: (value: number) => string) => Math.ab
 function ReferenceChart({candles: sourceCandles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone, recoverSymbol, onRecover, position, ohlcExtra, gridLines = [], tools, compare}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void; recoverSymbol?: string | null; onRecover?: () => void; position?: LivePosition | null; ohlcExtra?: ReactNode; gridLines?: GridChartLine[]; tools?: ChartTools; compare?: {symbol: string; candles: readonly CompareCandle[]} | null}) {
   const candles = useMemo(() => convertCandles(sourceCandles, prefs.chartType), [sourceCandles, prefs.chartType])
   const [hover, setHover] = useState<number | null>(null)
+  const pendingHover = useRef<{y: number; index: number} | null>(null)
+  const hoverFrame = useRef<number | null>(null)
+  useEffect(() => () => { if (hoverFrame.current !== null) cancelAnimationFrame(hoverFrame.current) }, [])
   const [lineDrag, setLineDrag] = useState<{id: string; price: number} | null>(null)
   const [hoverY, setHoverY] = useState<number | null>(null)
   const [anchors, setAnchors] = useState<ChartPoint[]>([])
@@ -306,14 +309,17 @@ function ReferenceChart({candles: sourceCandles, symbol, interval, analysis, tri
         }} onDoubleClick={() => { if (drawMode === 'none') resetView() }}
         onPointerDown={event => {
           // Sol tuşla ya da parmakla sürükleyince grafik geçmişe/ileriye kayar (çizim modunda değilken).
-          if (drawMode !== 'none' || tools?.pick || (event.pointerType === 'mouse' && event.button !== 0)) return
+          // Çizim modunda da iki parmakla yakınlaştırma çalışır; tek parmak yalnız çizim modu kapalıyken kaydırır.
+          const drawing = drawMode !== 'none' || !!tools?.pick
+          if (event.pointerType === 'mouse' && (drawing || event.button !== 0)) return
+          if (drawing && event.pointerType !== 'touch') return
           pointers.current.set(event.pointerId, {x: event.clientX, y: event.clientY})
-          event.currentTarget.setPointerCapture(event.pointerId)
+          if (!drawing || pointers.current.size === 2) event.currentTarget.setPointerCapture(event.pointerId)
           if (pointers.current.size === 2) {
             const [a, b] = [...pointers.current.values()]
             pinch.current = {distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), count: zoomState.current.count}
             drag.current = null
-          } else if (pointers.current.size === 1) {
+          } else if (pointers.current.size === 1 && !drawing) {
             drag.current = {x: event.clientX, shift: zoomState.current.shift, moved: false}
           }
         }}
@@ -340,11 +346,19 @@ function ReferenceChart({candles: sourceCandles, symbol, interval, analysis, tri
           if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
         }}
         onPointerCancel={event => { pointers.current.delete(event.pointerId); pinch.current = null; drag.current = null; if (pointers.current.size === 0) setDragging(false) }}
-        onMouseLeave={() => {setHover(null); setHoverY(null)}} onMouseMove={event => {
+        onMouseLeave={() => {pendingHover.current = null; setHover(null); setHoverY(null)}} onMouseMove={event => {
+          // Her piksel hareketinde tüm grafiği yeniden çizmek telefonda donmaya yol açıyordu: kare başına en çok bir güncelleme.
           const box = event.currentTarget.getBoundingClientRect()
-          setHoverY((event.clientY - box.top) / box.height * size.height)
-          const index = Math.floor((event.clientX - box.left - 10) / (plotWidth - 20) * visible.length)
-          setHover(Math.max(0, Math.min(visible.length - 1, index)))
+          const nextY = (event.clientY - box.top) / box.height * size.height
+          const index = Math.max(0, Math.min(visible.length - 1, Math.floor((event.clientX - box.left - 10) / (plotWidth - 20) * visible.length)))
+          pendingHover.current = {y: nextY, index}
+          if (hoverFrame.current !== null) return
+          hoverFrame.current = requestAnimationFrame(() => {
+            hoverFrame.current = null
+            const next = pendingHover.current
+            if (!next) return
+            setHoverY(next.y); setHover(next.index)
+          })
         }}>
           <g className="refChartGrid" data-grid={prefs.grid}>{Array.from({length: 7}, (_, index) => {
             const tickY = 11 + index / 6 * (priceHeight - 22)
