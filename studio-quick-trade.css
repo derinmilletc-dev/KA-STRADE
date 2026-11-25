@@ -601,3 +601,13 @@ html body .masterReferenceAnalysis .sqtSlideFoot button[data-on="true"] { color:
 .masterReferenceAnalysis .sqtInsightAsk:hover { background: linear-gradient(180deg, #1b4559, #143445); }
 .masterReferenceAnalysis .sqtInsightAsk svg { width: 14px; height: 14px; }
 .masterReferenceAnalysis .sqtInsightCard { max-height: min(72vh, 560px); }
+
+/* Kısmi kapatma oranı seçici */
+.masterReferenceAnalysis .sqtPcts { display: flex; gap: 6px; }
+.masterReferenceAnalysis .sqtPcts button { flex: 1; height: 30px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .04); color: #cfe0e8; font-size: 12px; font-weight: 700; cursor: pointer; }
+.masterReferenceAnalysis .sqtPcts button[data-on] { background: #123b30; border-color: #1fc88a; color: #3ee0a0; }
+
+.masterReferenceAnalysis .sqtAddAmt { display: flex; align-items: center; gap: 8px; }
+.masterReferenceAnalysis .sqtAddAmt > span { flex: none; color: #8fa4ad; }
+.masterReferenceAnalysis .sqtAddAmt input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border-radius: 9px; border: 0; background: rgba(255, 255, 255, .06); color: #eef7f4; font-size: 13px; font-weight: 700; }
+.masterReferenceAnalysis .sqtAddAmt u { text-decoration: none; color: #8fa4ad; }

@@ -75,6 +75,7 @@ from .execution_core import (
     HARD_MAX_DAILY_LOSS_USDT,
     DEFAULT_EXECUTION_POLICY,
     HARD_MAX_MARGIN_USDT,
+    HARD_MAX_LOSS_PER_TRADE_USDT,
     MANUAL_MARGIN_REQUEST_MAX,
     HARD_MAX_TOTAL_EXPOSURE_USDT,
     configured_min_confidence,
@@ -3528,6 +3529,7 @@ async def live_plan_position(client: BinanceLiveClient, symbol: str) -> dict[str
         "quantity": decimal_text(abs(amount)),
         "mark_price": position.get("markPrice"),
         "entry_price": position.get("entryPrice"),
+        "leverage": position.get("leverage"),
     }
 
 
@@ -4281,6 +4283,166 @@ async def manual_reduce_position(
               reduced_quantity=decimal_text(reduce_quantity), remaining_quantity=decimal_text(remaining_now), targets=resized)
     persist_state(state)
     return {"reduced_quantity": decimal_text(reduce_quantity), "remaining_quantity": decimal_text(remaining_now), "targets": resized}
+
+
+async def manual_add_to_position(
+    client: BinanceLiveClient,
+    state: dict[str, Any],
+    plan: dict[str, Any],
+    *,
+    margin_usdt: float,
+) -> dict[str, Any]:
+    """Manuel pozisyona AYNI yönde ek alım (market). Yalnız doğrulanmış MANUEL planlar.
+
+    Sıra (hepsi position_guard altında): 1) plan/pozisyon/kural doğrulaması, 2) risk sınırları (toplam teminat, toplam
+    stop zararı), 3) plan beklenen miktarı ARTIRILIR (aksi halde sahiplik kontrolü 'pozisyon > beklenen' görüp planı
+    bozar), 4) market emri, 5) kesin red ise miktar geri alınır, 6) dolum sonrası plan miktarı/giriş ortalaması
+    borsadan okunur, 7) TP1/TP2 miktarları yeni toplama göre büyütülür, 8) stop (tam-kapatma) hâlâ borsada mı doğrulanır;
+    yoksa pozisyon güvenlik için kapatılır. Stop ve TP3 tam-kapatma emri olduğu için yeni miktarı otomatik kapsar."""
+    _manual_plan_guard(state, plan)
+    if plan_is_user_no_stop(plan):
+        raise ManualPlanActionError("Stopsuz pozisyona ek alım yapılmaz; önce stop belirle.", http_status=422)
+    margin = Decimal(str(margin_usdt))
+    if not margin.is_finite() or margin < Decimal("5"):
+        raise ManualPlanActionError("Ek alım teminatı en az 5 USDT olmalı.", http_status=422)
+    symbol, direction = plan["symbol"], plan["direction"]
+    position = await live_plan_position(client, symbol)
+    if position is None or position["direction"] != direction:
+        raise ManualPlanActionError("Borsada bu plana ait açık pozisyon doğrulanamadı.", http_status=409)
+    try:
+        leverage = Decimal(str(position.get("leverage") or plan.get("leverage")))
+        mark = Decimal(str(position["mark_price"]))
+        quantity = Decimal(str(position["quantity"]))
+        entry = Decimal(str(position["entry_price"]))
+        stop = Decimal(str(plan["stop_loss"]))
+    except (TypeError, ValueError, ArithmeticError) as exc:
+        raise ManualPlanActionError("Pozisyon bilgisi (kaldıraç/fiyat/stop) okunamadı; ek alım yapılmadı.", http_status=503) from exc
+    if not all(value.is_finite() and value > 0 for value in (leverage, mark, quantity, entry, stop)):
+        raise ManualPlanActionError("Pozisyon bilgisi geçersiz; ek alım yapılmadı.", http_status=503)
+    rules = await live_symbol_rules(client, symbol, "MARKET")
+    add_quantity = floor_step(margin * leverage / mark, rules["step"])
+    if add_quantity < rules["min_qty"] or add_quantity <= 0 or add_quantity * mark < rules["min_notional"]:
+        raise ManualPlanActionError("Ek alım miktarı Binance alt sınırının altında; teminatı artır.", http_status=422)
+    if quantity + add_quantity > rules.get("max_qty", Decimal("Infinity")):
+        raise ManualPlanActionError("Toplam miktar Binance üst sınırını aşar; teminatı azalt.", http_status=422)
+    new_total = quantity + add_quantity
+    new_entry = (entry * quantity + mark * add_quantity) / new_total  # tahmin; dolumdan sonra borsa değeri okunur
+    policy = state.get("policy") or {}
+    # Sınır 1: bu pozisyonun toplam teminatı sistem tavanını aşamaz.
+    total_margin = new_total * mark / leverage
+    if total_margin > Decimal(str(HARD_MAX_MARGIN_USDT)) + Decimal("0.01"):
+        room = max(Decimal(0), Decimal(str(HARD_MAX_MARGIN_USDT)) - quantity * mark / leverage)
+        raise ManualPlanActionError(f"Toplam teminat {HARD_MAX_MARGIN_USDT:g} USDT sistem tavanını aşar; en fazla yaklaşık {room:.1f} USDT ekleyebilirsin.", http_status=422)
+    # Sınır 2: toplam pozisyonun stopta vereceği zarar, kullanıcının işlem başı zarar limitini aşamaz (stop girişin lehine ise sorun yok).
+    loss_limit = Decimal(str(policy.get("max_loss_per_trade", HARD_MAX_LOSS_PER_TRADE_USDT)))
+    gap = (new_entry - stop) if direction == "LONG" else (stop - new_entry)
+    worst_loss = new_total * gap if gap > 0 else Decimal(0)
+    if worst_loss > loss_limit + Decimal("0.01"):
+        raise ManualPlanActionError(f"Ek alımla stopta olası zarar {worst_loss:.2f} USDT olur; işlem başı zarar limitin {loss_limit:.2f} USDT. Stopu girişe yaklaştır ya da daha küçük ekle.", http_status=422)
+    if live_execution_blocked(state):
+        raise ManualPlanActionError("Canlı yürütme kilitli; ek alım yapılmadı.", http_status=423)
+    sequence = int(plan.get("add_count") or 0) + 1
+    client_id = client_id_for("ADDON", f"add-{plan['id']}-{sequence}")
+    had_requested = "requested_quantity" in plan
+    expected_before = Decimal(str(plan.get("requested_quantity", plan.get("quantity"))))
+    plan["requested_quantity"] = decimal_text(expected_before + add_quantity)
+    plan["add_count"] = sequence
+    plan.setdefault("add_client_order_ids", []).append(client_id)
+    persist_state(state)
+    params = {"symbol": symbol, "side": "BUY" if direction == "LONG" else "SELL", "type": "MARKET",
+              "quantity": decimal_text(add_quantity), "newClientOrderId": client_id, "newOrderRespType": "RESULT"}
+    order: dict[str, Any] | None
+    try:
+        order = await client.signed("POST", "/fapi/v1/order", params)
+    except LiveExchangeError as exc:
+        if not exc.unknown_execution:
+            # Kesin red: emir borsaya girmedi; beklenen miktar geri alınır.
+            if had_requested:
+                plan["requested_quantity"] = decimal_text(expected_before)
+            else:
+                plan.pop("requested_quantity", None)
+            plan["add_count"] = sequence - 1
+            plan["add_client_order_ids"].remove(client_id)
+            persist_state(state)
+            raise ManualPlanActionError(f"Ek alım emri reddedildi: {sanitized_exception_message(exc)}", http_status=409) from exc
+        order = await find_order(client, symbol, client_id)
+        if order is None:
+            # Emrin dolup dolmadığı bilinmiyor: beklenen miktar artırılmış KALIR (pozisyon beklenenden büyük görünüp plan bozulmasın).
+            add_event(state, "MANUAL_ADD_UNKNOWN", f"{symbol} ek alım sonucu doğrulanamadı; pozisyonu kontrol et.", symbol=symbol, plan_id=plan.get("id"))
+            persist_state(state)
+            raise ManualPlanActionError("Ek alım sonucu doğrulanamadı; birkaç saniye sonra pozisyonu kontrol et.", http_status=502) from exc
+    if isinstance(order, dict) and order.get("orderId"):
+        known = plan.setdefault("exchange_order_ids", [])
+        if int(order["orderId"]) not in known:
+            known.append(int(order["orderId"]))
+    after = await live_plan_position(client, symbol)
+    if after is None or after["direction"] != direction:
+        add_event(state, "MANUAL_ADD_UNVERIFIED", f"{symbol} ek alım sonrası pozisyon doğrulanamadı.", symbol=symbol, plan_id=plan.get("id"))
+        persist_state(state)
+        raise ManualPlanActionError("Ek alım sonrası pozisyon doğrulanamadı; pozisyonu kontrol et.", http_status=502)
+    new_quantity_total = Decimal(str(after["quantity"]))
+    filled = new_quantity_total - quantity
+    if filled < 0:
+        filled = Decimal(0)
+    # Gerçek dolum miktarına göre beklenen miktarı düzelt (kısmi dolum olabilir) ve planı borsa değerlerine eşitle.
+    plan["requested_quantity"] = decimal_text(expected_before + filled)
+    plan["quantity"] = decimal_text(new_quantity_total)
+    try:
+        plan["entry_price"] = decimal_text(Decimal(str(after["entry_price"])))
+    except (TypeError, ValueError, ArithmeticError):
+        pass
+    if plan.get("initial_quantity"):
+        plan["initial_quantity"] = decimal_text(Decimal(str(plan["initial_quantity"])) + filled)
+    resized: dict[str, str] = {}
+    rows = await _open_algo_rows(client, symbol)
+    stop_row = _row_for_client(rows, str(plan.get("stop_client_id") or ""))
+    if stop_row is None and plan.get("stop_algo_id"):
+        stop_row = next((row for row in rows if str(row.get("algo_id")) == str(plan.get("stop_algo_id"))
+                         and str(row.get("status") or "").upper() in {"NEW", "WORKING", "PENDING_NEW"}), None)
+    if stop_row is None:
+        add_event(state, "MANUAL_ADD_STOP_MISSING", f"{symbol} ek alım sonrası stop doğrulanamadı; pozisyon güvenlik için kapatılıyor.", symbol=symbol, plan_id=plan.get("id"))
+        plan["status"] = "GÜVENLİK KAPATMASI · DOĞRULAMA BEKLİYOR"
+        persist_state(state)
+        await close_tracked_symbol(client, symbol, f"add-safety-{plan['id']}-{sequence}")
+        raise ManualPlanActionError("Ek alım sonrası stop doğrulanamadı; pozisyon güvenlik için kapatıldı.", http_status=502)
+    for key, fraction in (("TP12", plan_tp1_fraction(plan)), ("TP2", plan_tp2_fraction(plan))):
+        row = _row_for_client(rows, client_id_for(key, plan["intent_id"]))
+        if row is None:
+            continue
+        try:
+            old_quantity = Decimal(str(row.get("quantity")))
+        except (TypeError, ValueError, ArithmeticError):
+            continue
+        new_target = floor_step(new_quantity_total * fraction, rules["step"])
+        if new_target <= old_quantity:
+            continue
+        if not await _delete_algo_verified(client, symbol, row["algo_id"]):
+            resized[key] = "UNCHANGED"
+            continue
+        if not manual_target_quantity_ok(new_target, mark, rules):
+            resized[key] = "MERGED_INTO_TP3"
+            continue
+        try:
+            placed = await post_algo(client, {
+                "algoType": "CONDITIONAL", "symbol": symbol, "side": "SELL" if direction == "LONG" else "BUY",
+                "workingType": TARGET_WORKING_TYPE, "priceProtect": "TRUE", "type": "TAKE_PROFIT_MARKET",
+                "triggerPrice": str(row.get("trigger_price")), "quantity": decimal_text(new_target),
+                "reduceOnly": "true", "clientAlgoId": client_id_for(key, plan["intent_id"]),
+            })
+            algo_id = int((placed or {}).get("algoId") or 0)
+            if algo_id:
+                plan["tp12_algo_id" if key == "TP12" else "tp2_algo_id"] = algo_id
+                plan["tp12_quantity" if key == "TP12" else "tp2_quantity"] = decimal_text(new_target)
+            resized[key] = "RESIZED" if algo_id else "MISSING"
+        except LiveExchangeError:
+            resized[key] = "MISSING"
+        if resized[key] == "MISSING":
+            add_event(state, "MANUAL_TARGET_MISSING", f"{symbol} {key} ek alım sonrası yeniden konamadı; bu pay Stop veya TP3 ile kapanır.", symbol=symbol, plan_id=plan.get("id"))
+    add_event(state, "MANUAL_ADD", f"{symbol} pozisyona ek alım yapıldı.", symbol=symbol, plan_id=plan.get("id"),
+              added_quantity=decimal_text(filled), total_quantity=decimal_text(new_quantity_total), targets=resized)
+    persist_state(state)
+    return {"added_quantity": decimal_text(filled), "total_quantity": decimal_text(new_quantity_total),
+            "entry_price": plan.get("entry_price"), "targets": resized}
 
 
 async def manual_fill_risk_audit(
@@ -10606,6 +10768,12 @@ class ManualReduceRequest(BaseModel):
     confirmation: str = Field(min_length=1, max_length=64)
 
 
+class ManualAddRequest(BaseModel):
+    plan_id: str = Field(min_length=6, max_length=64)
+    margin_usdt: float = Field(ge=5, le=HARD_MAX_MARGIN_USDT, allow_inf_nan=False)
+    confirmation: str = Field(min_length=1, max_length=64)
+
+
 @router.post("/position/protection")
 async def v25_manual_protection(request: Request, body: ManualProtectionRequest) -> dict[str, Any]:
     """Manuel pozisyonda stop/hedef değiştir (yalnız MANUEL planlar)."""
@@ -10821,6 +10989,28 @@ async def v25_manual_reduce(request: Request, body: ManualReduceRequest) -> dict
             persist_state(state)
             raise safe_exchange_error(exc) from exc
         add_event(state, "MANUAL_REDUCE_REQUEST", "Manuel kısmi kapatma uygulandı.", actor=user["id"], plan_id=body.plan_id)
+        persist_state(state)
+    return {"ok": True, **result, "plan": plan}
+
+
+@router.post("/position/add")
+async def v25_manual_add(request: Request, body: ManualAddRequest) -> dict[str, Any]:
+    """Manuel pozisyona aynı yönde ek alım (yalnız MANUEL ve doğrulanmış planlar)."""
+    user = execution_owner(request)
+    if body.confirmation.strip().upper() != "EK ALIM":
+        raise HTTPException(422, "Ek alım için EK ALIM yazın.")
+    state = request.app.state.v25_execution
+    async with position_guard(state, _plan_symbol(state, body.plan_id)):
+        plan = state.get("plans", {}).get(body.plan_id)
+        try:
+            result = await manual_add_to_position(client_for(request.app, request), state, plan, margin_usdt=body.margin_usdt)
+        except ManualPlanActionError as exc:
+            persist_state(state)
+            raise HTTPException(exc.http_status, str(exc)) from exc
+        except LiveExchangeError as exc:
+            persist_state(state)
+            raise safe_exchange_error(exc) from exc
+        add_event(state, "MANUAL_ADD_REQUEST", "Manuel ek alım uygulandı.", actor=user["id"], plan_id=body.plan_id)
         persist_state(state)
     return {"ok": True, **result, "plan": plan}
 
