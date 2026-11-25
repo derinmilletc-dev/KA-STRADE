@@ -155,6 +155,9 @@ LIVE_CHANNEL_ENABLED = env_flag("PROTREBOT_LIVE_CHANNEL_ENABLED", default=True)
 EXECUTION_MODE = "TESTNET_FIRST"
 ALLOWED_INTERVALS = {"1m", "5m", "15m", "30m", "1h", "4h", "1d"}
 INTERVAL_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}
+# Yalnızca GRAFİK görünümü için ek zaman dilimleri (/api/klines, /api/analysis). İşlem/tarama/kapı mantığı ALLOWED_INTERVALS'ta kalır.
+CHART_INTERVAL_SECONDS = {**INTERVAL_SECONDS, "3m": 180, "2h": 7200, "6h": 21600, "8h": 28800, "12h": 43200, "1w": 604800, "1M": 2592000}
+CHART_MIN_ANALYSIS_CANDLES = 30
 SCAN_CACHE: dict[tuple[int, str], tuple[float, list]] = {}
 ANALYSIS_UNIVERSE_CACHE: dict[str, tuple[float, list[dict]]] = {}
 CANDLE_CACHE: dict[tuple[str, str, int], tuple[int, list[dict]]] = {}
@@ -2069,12 +2072,15 @@ async def _markets(limit: int, timing: dict[str, float] | None = None):
     return result[:limit]
 
 
-async def fetch_candles(symbol: str, interval: str, limit: int) -> list[dict]:
-    if interval not in ALLOWED_INTERVALS:
+async def fetch_candles(symbol: str, interval: str, limit: int, *, chart_only: bool = False) -> list[dict]:
+    if interval not in (CHART_INTERVAL_SECONDS if chart_only else ALLOWED_INTERVALS):
         raise HTTPException(400, "Desteklenmeyen zaman dilimi")
     safe_symbol = "".join(char for char in symbol.upper() if char.isalnum())
     key = (safe_symbol, interval, limit)
-    interval_seconds = INTERVAL_SECONDS[interval]
+    interval_seconds = CHART_INTERVAL_SECONDS[interval]
+    if interval not in ALLOWED_INTERVALS:
+        # 1w/1M gibi uzun mumlarda önbellek günlerce eski kalmasın: en çok 15 dk.
+        interval_seconds = min(interval_seconds, 900)
     candle_bucket = int(time.time() // interval_seconds)
     cached = CANDLE_CACHE.get(key)
     if cached and cached[0] == candle_bucket:
@@ -2277,13 +2283,14 @@ async def historical_fetch_candles(symbol: str, interval: str, total_limit: int 
 
 @app.get("/api/klines/{symbol}")
 async def klines(symbol: str, interval: str = "15m", limit: int = Query(500, ge=50, le=1000)):
-    return await fetch_candles(symbol, interval, limit)
+    return await fetch_candles(symbol, interval, limit, chart_only=True)
 
 
 @app.get("/api/analysis/{symbol}")
 async def technical_analysis(symbol: str, interval: str = "15m"):
-    candles = await fetch_candles(symbol, interval, 500)
-    if len(candles) < 220:
+    candles = await fetch_candles(symbol, interval, 500, chart_only=True)
+    # Grafik-only zaman dilimlerinde (1w/1M…) yeni listelenen coinlerin geçmişi kısadır; analiz daha az mumla gösterilir.
+    if len(candles) < (220 if interval in ALLOWED_INTERVALS else CHART_MIN_ANALYSIS_CANDLES):
         raise HTTPException(422, "Analiz için yeterli mum verisi yok")
     result = analyze(candles)
     # Keep the legacy direction for existing consumers and expose a normalized signal separately.
