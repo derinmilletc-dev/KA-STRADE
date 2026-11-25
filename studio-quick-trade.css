@@ -530,7 +530,8 @@ html body .masterReferenceAnalysis .sqtSlideFoot button[data-on="true"] { color:
 @media (prefers-reduced-motion: reduce) { .masterReferenceAnalysis .sqtPosClose[data-sure] { animation: none; } }
 
 /* ---------- Akıllı yorum (PC) ---------- */
-.masterReferenceAnalysis .sqtInsight { position: absolute; z-index: 2; top: 10px; right: 210px; display: none; flex-direction: column; align-items: flex-end; gap: 6px; max-width: min(380px, calc(100% - 200px)); }
+.masterReferenceAnalysis .sqtInsight { position: absolute; z-index: 2; top: 10px; left: 12px; right: 210px; display: none; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; }
+.masterReferenceAnalysis .sqtInsight > * { pointer-events: auto; max-width: 100%; }
 @media (min-width: 900px) { .masterReferenceAnalysis .sqtInsight { display: flex; } }
 .masterReferenceAnalysis .sqtInsightBtn { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 10px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .12); background: rgba(12, 19, 27, .82); backdrop-filter: blur(10px); color: #cfe0e8; cursor: pointer; font-size: 12px; }
 .masterReferenceAnalysis .sqtInsightBtn:hover { background: rgba(20, 32, 43, .92); }
@@ -557,7 +558,7 @@ html body .masterReferenceAnalysis .sqtSlideFoot button[data-on="true"] { color:
 .masterReferenceAnalysis .sqtInsightPct[data-tone="up"] { background: #0f3a2d; color: #3ee0a0; }
 .masterReferenceAnalysis .sqtInsightPct[data-tone="down"] { background: #3a1820; color: #ff8d9a; }
 .masterReferenceAnalysis .sqtInsightDot { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: #f2c46d; color: #1b1405; font-style: normal; font-size: 10px; font-weight: 800; }
-.masterReferenceAnalysis .sqtInsightCard { width: 400px; display: grid; gap: 10px; }
+.masterReferenceAnalysis .sqtInsightCard { width: min(400px, 100%); display: grid; gap: 10px; }
 .masterReferenceAnalysis .sqtInsightConf { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .06); }
 .masterReferenceAnalysis .sqtInsightBar { display: flex; gap: 3px; height: 8px; }
 .masterReferenceAnalysis .sqtInsightBar > i { flex-basis: 0; min-width: 0; border-radius: 99px; background: #3a4a56; }
@@ -600,3 +601,13 @@ html body .masterReferenceAnalysis .sqtSlideFoot button[data-on="true"] { color:
 .masterReferenceAnalysis .sqtInsightAsk:hover { background: linear-gradient(180deg, #1b4559, #143445); }
 .masterReferenceAnalysis .sqtInsightAsk svg { width: 14px; height: 14px; }
 .masterReferenceAnalysis .sqtInsightCard { max-height: min(72vh, 560px); }
+
+/* Kısmi kapatma oranı seçici */
+.masterReferenceAnalysis .sqtPcts { display: flex; gap: 6px; }
+.masterReferenceAnalysis .sqtPcts button { flex: 1; height: 30px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .04); color: #cfe0e8; font-size: 12px; font-weight: 700; cursor: pointer; }
+.masterReferenceAnalysis .sqtPcts button[data-on] { background: #123b30; border-color: #1fc88a; color: #3ee0a0; }
+
+.masterReferenceAnalysis .sqtAddAmt { display: flex; align-items: center; gap: 8px; }
+.masterReferenceAnalysis .sqtAddAmt > span { flex: none; color: #8fa4ad; }
+.masterReferenceAnalysis .sqtAddAmt input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border-radius: 9px; border: 0; background: rgba(255, 255, 255, .06); color: #eef7f4; font-size: 13px; font-weight: 700; }
+.masterReferenceAnalysis .sqtAddAmt u { text-decoration: none; color: #8fa4ad; }
