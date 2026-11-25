@@ -2183,7 +2183,7 @@ class BinanceLiveClient:
             unknown = response.status_code >= 500
             if unknown:
                 message = "Emir yürütme sonucu belirsiz; benzersiz emir kimliğiyle sorgulanacak, kör tekrar yapılmayacak."
-            await self._record_exchange_error(method, path, params, self._exchange_error_code(response.status_code, code), message, code, (time.perf_counter() - started) * 1000)
+            await self._record_exchange_error(method, path, params, self._exchange_error_code(response.status_code, code, method), message, code, (time.perf_counter() - started) * 1000)
             raise LiveExchangeError(message, http_status=429 if response.status_code in {429, 418} else 502, exchange_code=int(code) if isinstance(code, int) else None, unknown_execution=unknown)
         if isinstance(self.diagnostic_state, dict):
             heartbeat = self.diagnostic_state.setdefault("heartbeat", {})
@@ -2207,19 +2207,22 @@ class BinanceLiveClient:
         return payload
 
     @staticmethod
-    def _exchange_error_code(status: int, code: Any) -> str:
+    def _exchange_error_code(status: int, code: Any, method: str = "POST") -> str:
         if status in {429, 418}: return "RATE_LIMITED"
         if status >= 500: return "EXCHANGE_DOWN"
         if code in {-2015, -2014}: return "API_KEY_PERMISSION"
+        # Okuma (GET) isteğinde "emir bulunamadı" gerçek bir ret değildir (uzlaştırma sorgusu); olay listesini ORDER_REJECTED ile doldurmasın.
+        if method == "GET" and code in {-2011, -2013}: return "ORDER_LOOKUP_MISS"
         if code in {-2011, -2013}: return "ORDER_REJECTED"
         if code in {-2019, -2022}: return "INSUFFICIENT_BALANCE"
         if code in {-1111, -1013}: return "PRICE_FILTER"
+        if method == "GET": return "EXCHANGE_REQUEST_REJECTED"
         return "ORDER_REJECTED"
 
     async def _record_exchange_error(self, method: str, path: str, params: dict[str, Any], code: str, message: str, exchange_code: Any, elapsed_ms: float) -> None:
         await log_event(getattr(self.application.state, "db_pool", None) if self.application is not None else None, build_error_event(
             source="backend", service="live_trading", kind="ExchangeError", code=code, message=message,
-            severity="CRITICAL" if code in {"STOP_LOSS_FAILED", "KILL_SWITCH_TRIGGERED"} else "ERROR",
+            severity="CRITICAL" if code in {"STOP_LOSS_FAILED", "KILL_SWITCH_TRIGGERED"} else "WARNING" if code == "ORDER_LOOKUP_MISS" else "ERROR",
             route=path, method=method, user_id=((self.diagnostic_state or {}).get("live_session_authorization") or {}).get("user_id"),
             context={"exchange": "BINANCE", "symbol": params.get("symbol"), "direction": params.get("side"), "order_type": params.get("type"), "quantity": params.get("quantity"), "price": params.get("price"), "order_id": params.get("orderId"), "bot": "V25", "raw_exchange_code": exchange_code},
             details={"response_time_ms": round(elapsed_ms, 2), "attempt": 1, "params": params},

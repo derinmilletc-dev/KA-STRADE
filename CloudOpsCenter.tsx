@@ -82,7 +82,7 @@ export default function CloudOpsCenter() {
 
   useEffect(() => {
     void refresh()
-    const timer = window.setInterval(() => void refresh(true),5000)
+    const timer = window.setInterval(() => { if (!document.hidden) void refresh(true) },10000)
     return () => window.clearInterval(timer)
   },[])
 

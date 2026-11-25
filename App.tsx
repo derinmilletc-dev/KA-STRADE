@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import {clearVisibleInterval, visibleInterval} from './visible-interval'
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries } from 'lightweight-charts'
 import { Activity, Bot, BrainCircuit, ChevronDown, FlaskConical, Grid3X3, History, LayoutDashboard, Power, RadioTower, RefreshCw, Search, Shield, ShieldCheck, TrendingUp, X } from 'lucide-react'
 import { API_BASE } from './api'
@@ -304,9 +305,9 @@ function Chart({ symbol, interval, horizon, notional, onAnalysis, onFutureLab, o
       }
     }
     connectStream()
-    const refreshTimer = window.setInterval(refreshAnalysis, 15000)
-    const futureTimer = window.setInterval(refreshFuture, 15000)
-    return () => { active = false; window.clearInterval(refreshTimer); window.clearInterval(futureTimer); if (reconnectTimer) window.clearTimeout(reconnectTimer); socket?.close(); chart.remove() }
+    const refreshTimer = visibleInterval(refreshAnalysis, 15000)
+    const futureTimer = visibleInterval(refreshFuture, 15000)
+    return () => { active = false; clearVisibleInterval(refreshTimer); clearVisibleInterval(futureTimer); if (reconnectTimer) window.clearTimeout(reconnectTimer); socket?.close(); chart.remove() }
   }, [symbol, interval, horizon, notional, overlayKey, showAnalysisLevels])
   return <div className="chart" ref={ref}/>
 }
@@ -564,22 +565,22 @@ export default function App() {
   }
 
   useEffect(() => { scan() }, [])
-  useEffect(() => { refreshV9(); const timer = window.setInterval(refreshV9, 3000); return () => window.clearInterval(timer) }, [])
-  useEffect(() => { refreshV10State(); const timer = window.setInterval(refreshV10State, 4000); return () => window.clearInterval(timer) }, [])
+  useEffect(() => { refreshV9(); const timer = visibleInterval(refreshV9, 3000); return () => clearVisibleInterval(timer) }, [])
+  useEffect(() => { refreshV10State(); const timer = visibleInterval(refreshV10State, 4000); return () => clearVisibleInterval(timer) }, [])
   useEffect(() => {
     let active = true
     const refresh = async () => { if (active) await refreshV10Preview() }
     refresh()
-    const timer = window.setInterval(refresh, 60000)
-    return () => { active = false; window.clearInterval(timer) }
+    const timer = visibleInterval(refresh, 60000)
+    return () => { active = false; clearVisibleInterval(timer) }
   }, [symbol, interval, v10Capital])
-  useEffect(() => { refreshV11State(); const timer = window.setInterval(refreshV11State, 4000); return () => window.clearInterval(timer) }, [])
+  useEffect(() => { refreshV11State(); const timer = visibleInterval(refreshV11State, 4000); return () => clearVisibleInterval(timer) }, [])
   useEffect(() => {
     let active = true
     const refresh = async () => { if (active) await refreshV11Preview() }
     refresh()
-    const timer = window.setInterval(refresh, 60000)
-    return () => { active = false; window.clearInterval(timer) }
+    const timer = visibleInterval(refresh, 60000)
+    return () => { active = false; clearVisibleInterval(timer) }
   }, [symbol, interval, v11Capital])
   useEffect(() => {
     setConsensus(null)
@@ -588,69 +589,69 @@ export default function App() {
   useEffect(() => {
     const refreshGuard = () => fetch(`${API}/guard/${symbol}`).then(response => response.json()).then(setMarketGuard).catch(() => setMarketGuard(null))
     refreshGuard()
-    const timer = window.setInterval(refreshGuard, 15000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshGuard, 15000)
+    return () => clearVisibleInterval(timer)
   }, [symbol])
   useEffect(() => {
     const refreshGate = () => fetch(`${API}/gate/${symbol}?interval=${interval}`).then(response => response.json()).then(setSignalGate).catch(() => setSignalGate(null))
     refreshGate()
-    const timer = window.setInterval(refreshGate, 15000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshGate, 15000)
+    return () => clearVisibleInterval(timer)
   }, [symbol, interval])
   useEffect(() => {
     const refreshFreshness = () => fetch(`${API}/freshness/${symbol}?interval=${interval}`).then(response => response.json()).then(setFreshness).catch(() => setFreshness(null))
     refreshFreshness()
-    const timer = window.setInterval(refreshFreshness, 5000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshFreshness, 5000)
+    return () => clearVisibleInterval(timer)
   }, [symbol, interval])
   useEffect(() => {
     const refreshLiquidity = () => fetch(`${API}/liquidity/${symbol}`).then(response => response.json()).then(setLiquidity).catch(() => setLiquidity(null))
     refreshLiquidity()
-    const timer = window.setInterval(refreshLiquidity, 5000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshLiquidity, 5000)
+    return () => clearVisibleInterval(timer)
   }, [symbol])
   useEffect(() => {
     const refreshRegime = () => fetch(`${API}/regime/${symbol}?interval=${interval}`).then(response => response.json()).then(setRegime).catch(() => setRegime(null))
     refreshRegime()
-    const timer = window.setInterval(refreshRegime, 15000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshRegime, 15000)
+    return () => clearVisibleInterval(timer)
   }, [symbol, interval])
   useEffect(() => {
     const refreshStability = () => fetch(`${API}/regime/stability/${symbol}?interval=${interval}`)
       .then(response => { if (!response.ok) throw new Error('Rejim kararlılığı geçici olarak bekliyor'); return response.json() })
       .then(setRegimeStability).catch(() => setRegimeStability(null))
     refreshStability()
-    const timer = window.setInterval(refreshStability, 10000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshStability, 10000)
+    return () => clearVisibleInterval(timer)
   }, [symbol, interval])
   useEffect(() => {
     const direction = analysis?.direction ?? 'BEKLE'
     const refreshPortfolio = () => fetch(`${API}/portfolio/guard/${symbol}?direction=${direction}`).then(response => response.json()).then(setPortfolioGuard).catch(() => setPortfolioGuard(null))
     refreshPortfolio()
-    const timer = window.setInterval(refreshPortfolio, 15000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshPortfolio, 15000)
+    return () => clearVisibleInterval(timer)
   }, [symbol, analysis?.direction])
   useEffect(() => {
     const direction = analysis?.direction ?? 'BEKLE'
     const activeRegime = regime?.label ?? 'GENEL'
     const refreshAdaptive = () => fetch(`${API}/adaptive/gate?regime=${encodeURIComponent(activeRegime)}&direction=${direction}`).then(response => response.json()).then(setAdaptiveGate).catch(() => setAdaptiveGate(null))
     refreshAdaptive()
-    const timer = window.setInterval(refreshAdaptive, 10000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshAdaptive, 10000)
+    return () => clearVisibleInterval(timer)
   }, [regime?.label, analysis?.direction])
   useEffect(() => {
     const direction = analysis?.direction ?? 'BEKLE'
     const activeRegime = regime?.label ?? ''
     const refreshSession = () => fetch(`${API}/session/intelligence?symbol=${symbol}&regime=${encodeURIComponent(activeRegime)}&direction=${direction}`).then(response => response.json()).then(setSessionIntelligence).catch(() => setSessionIntelligence(null))
     refreshSession()
-    const timer = window.setInterval(refreshSession, 15000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshSession, 15000)
+    return () => clearVisibleInterval(timer)
   }, [symbol, regime?.label, analysis?.direction])
   useEffect(() => {
     const refreshDecisionExplanation = () => fetch(`${API}/decision/explain/${symbol}?interval=${interval}`).then(response => response.json()).then(setDecisionExplanation).catch(() => setDecisionExplanation(null))
     refreshDecisionExplanation()
-    const timer = window.setInterval(refreshDecisionExplanation, 12000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshDecisionExplanation, 12000)
+    return () => clearVisibleInterval(timer)
   }, [symbol, interval])
   useEffect(() => {
     let active = true
@@ -676,8 +677,8 @@ export default function App() {
       }
     }
     refreshGrid()
-    const timer = window.setInterval(refreshGrid, 20000)
-    return () => { active = false; window.clearInterval(timer) }
+    const timer = visibleInterval(refreshGrid, 20000)
+    return () => { active = false; clearVisibleInterval(timer) }
   }, [symbol, interval, gridCapital])
   const refreshGridEngine = async () => {
     try {
@@ -690,8 +691,8 @@ export default function App() {
   }
   useEffect(() => {
     refreshGridEngine()
-    const timer = window.setInterval(refreshGridEngine, 3000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshGridEngine, 3000)
+    return () => clearVisibleInterval(timer)
   }, [])
   useEffect(() => {
     let active = true
@@ -704,8 +705,8 @@ export default function App() {
       } catch { if (active) setTwinLab(null) }
     }
     refreshTwins()
-    const timer = window.setInterval(refreshTwins, 30000)
-    return () => { active = false; window.clearInterval(timer) }
+    const timer = visibleInterval(refreshTwins, 30000)
+    return () => { active = false; clearVisibleInterval(timer) }
   }, [symbol, interval, gridCapital])
   useEffect(() => {
     let active = true
@@ -718,8 +719,8 @@ export default function App() {
       } catch { if (active) setOrderbook(null) }
     }
     refreshOrderbook()
-    const timer = window.setInterval(refreshOrderbook, 5000)
-    return () => { active = false; window.clearInterval(timer) }
+    const timer = visibleInterval(refreshOrderbook, 5000)
+    return () => { active = false; clearVisibleInterval(timer) }
   }, [symbol])
   useEffect(() => {
     if (!notificationsEnabled || !gridEngine?.events?.[0] || Notification.permission !== 'granted') return
@@ -741,8 +742,8 @@ export default function App() {
   }
   useEffect(() => {
     refreshOrchestrator()
-    const timer = window.setInterval(refreshOrchestrator, 4000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshOrchestrator, 4000)
+    return () => clearVisibleInterval(timer)
   }, [])
   useEffect(() => {
     let active = true
@@ -756,14 +757,14 @@ export default function App() {
       } catch { if (active) setV7Replay(null) }
     }
     refreshReplay()
-    const timer = window.setInterval(refreshReplay, 60000)
-    return () => { active = false; window.clearInterval(timer) }
+    const timer = visibleInterval(refreshReplay, 60000)
+    return () => { active = false; clearVisibleInterval(timer) }
   }, [symbol, interval, replayHorizon, orchestraCapital])
   useEffect(() => {
     const refreshWeekly = () => fetch(`${API}/v7/report/weekly`).then(response => response.json()).then(setV7Weekly).catch(() => setV7Weekly(null))
     refreshWeekly()
-    const timer = window.setInterval(refreshWeekly, 30000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshWeekly, 30000)
+    return () => clearVisibleInterval(timer)
   }, [])
   useEffect(() => {
     if (!notificationsEnabled || !orchestrator?.events?.[0] || !('Notification' in window) || Notification.permission !== 'granted') return
@@ -774,7 +775,7 @@ export default function App() {
     }
     v7NotificationRef.current = eventKey
   }, [orchestrator?.events, notificationsEnabled])
-  useEffect(() => { const timer = window.setInterval(() => setClock(Date.now()), 1000); return () => window.clearInterval(timer) }, [])
+  useEffect(() => { const timer = window.setInterval(() => setClock(Date.now()), 1000); return () => clearVisibleInterval(timer) }, [])
   const refreshPaper = async () => {
     try {
       const response = await fetch(`${API}/paper/account`)
@@ -785,14 +786,14 @@ export default function App() {
       setPaperMessage(error instanceof Error ? `${error.message}; son sağlam görünüm korunuyor.` : 'Sanal hesap bağlantısı kurulamadı; son sağlam görünüm korunuyor.')
     }
   }
-  useEffect(() => { refreshPaper(); const timer = window.setInterval(refreshPaper, 5000); return () => window.clearInterval(timer) }, [])
+  useEffect(() => { refreshPaper(); const timer = visibleInterval(refreshPaper, 5000); return () => clearVisibleInterval(timer) }, [])
   const refreshGridPlans = async () => {
     try { const response = await fetch(`${API}/grid/plans`); setSavedGridPlans(await response.json()) }
     catch { setSavedGridPlans(null) }
   }
-  useEffect(() => { refreshGridPlans(); const timer = window.setInterval(refreshGridPlans, 10000); return () => window.clearInterval(timer) }, [])
+  useEffect(() => { refreshGridPlans(); const timer = visibleInterval(refreshGridPlans, 10000); return () => clearVisibleInterval(timer) }, [])
   const refreshPaperBot = async () => { try { const response = await fetch(`${API}/paper/bot`); setPaperBot(await response.json()) } catch { setPaperBot(null) } }
-  useEffect(() => { refreshPaperBot(); const timer = window.setInterval(refreshPaperBot, 5000); return () => window.clearInterval(timer) }, [])
+  useEffect(() => { refreshPaperBot(); const timer = visibleInterval(refreshPaperBot, 5000); return () => clearVisibleInterval(timer) }, [])
   const refreshV20 = async () => {
     try {
       const response = await fetch(`${API}/v20/command`)
@@ -801,36 +802,36 @@ export default function App() {
       setV20Command(payload)
     } catch { setV20Command(null) }
   }
-  useEffect(() => { refreshV20(); const timer = window.setInterval(refreshV20, 5000); return () => window.clearInterval(timer) }, [])
+  useEffect(() => { refreshV20(); const timer = visibleInterval(refreshV20, 5000); return () => clearVisibleInterval(timer) }, [])
   useEffect(() => {
     const refreshSystem = () => fetch(`${API}/health`).then(response => response.json()).then(setSystemHealth).catch(() => setSystemHealth(null))
     refreshSystem()
-    const timer = window.setInterval(refreshSystem, 5000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshSystem, 5000)
+    return () => clearVisibleInterval(timer)
   }, [])
   useEffect(() => {
     const refreshArchive = () => fetch(`${API}/archive/decisions?limit=8`).then(response => response.json()).then(setArchive).catch(() => setArchive(null))
     refreshArchive()
-    const timer = window.setInterval(refreshArchive, 10000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshArchive, 10000)
+    return () => clearVisibleInterval(timer)
   }, [])
   useEffect(() => {
     const refreshReport = () => fetch(`${API}/report/daily`).then(response => response.json()).then(setDailyReport).catch(() => setDailyReport(null))
     refreshReport()
-    const timer = window.setInterval(refreshReport, 10000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshReport, 10000)
+    return () => clearVisibleInterval(timer)
   }, [])
   useEffect(() => {
     const refreshTestnet = () => fetch(`${API}/testnet/readiness`).then(response => response.json()).then(setTestnet).catch(() => setTestnet(null))
     refreshTestnet()
-    const timer = window.setInterval(refreshTestnet, 30000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshTestnet, 30000)
+    return () => clearVisibleInterval(timer)
   }, [])
   useEffect(() => {
     const refreshBlackbox = () => fetch(`${API}/decision/blackbox`).then(response => response.json()).then(setBlackbox).catch(() => setBlackbox(null))
     refreshBlackbox()
-    const timer = window.setInterval(refreshBlackbox, 15000)
-    return () => window.clearInterval(timer)
+    const timer = visibleInterval(refreshBlackbox, 15000)
+    return () => clearVisibleInterval(timer)
   }, [])
   const togglePaperBot = async () => {
     setPaperBusy(true)
