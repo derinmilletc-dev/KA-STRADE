@@ -7,7 +7,7 @@ import {requestPositionsRefresh} from './trade-intent'
 import {liveBlockerMessage, type SharedLiveStatus} from './frontend/src/LiveTradingPanel'
 import {
   DEMO_CLOSE_PHRASE, DEMO_PHRASE, DEMO_REDUCE_PHRASE, DEMO_STOP_PHRASE, DEMO_TRAIL_PHRASE, LIVE_TRAIL_PHRASE, TRAIL_CHOICES, JOURNAL_KEY, LIMIT_EXPIRY_CHOICES, LIVE_CLOSE_PHRASE, LIVE_PHRASE, LIVE_REDUCE_PHRASE, RISK_PCT_CHOICES,
-  activePlan, addJournal, allowedLeverages, allowedMargins, breakEvenStop, isOpen, levelsFor, limitIssue, limitPresets, nearestChoice, newIntentId, parseJournal, planRights, postJson, riskSummary,
+  activePlan, addJournal, allowedLeverages, allowedMargins, breakEvenStop, clampLeverage, clampMargin, leverageCap, marginCap, marginFromSlider, marginToSlider, LEVERAGE_UI_MAX, MARGIN_MIN, MARGIN_UI_MAX, SLIDER_STEPS, isOpen, levelsFor, limitIssue, limitPresets, newIntentId, parseJournal, planRights, postJson, riskSummary,
   setLanguageReader, sideOf, sizeByRisk, stopIssue, tightenStop, tx, netOfFees,
   type AnalysisLevels, type JournalEntry, type LimitExpiry, type Levels, type OrderKind, type PositionLike, type Side,
 } from './studio-quick-trade'
@@ -153,10 +153,13 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   const blocker = demo ? '' : liveBlockerMessage(live, armed)
   const liveBlocked = !demo && blocker !== 'Engel yok.'
   const policy = (live?.policy ?? {}) as Record<string, unknown>
-  const margins = useMemo(() => allowedMargins(demo ? 100 : Number(policy.max_margin_per_trade)), [demo, policy.max_margin_per_trade])
-  const leverages = useMemo(() => allowedLeverages(demo ? 3 : Number(policy.max_leverage)), [demo, policy.max_leverage])
-  const margin = nearestChoice(prefs.margin, margins)
-  const leverage = nearestChoice(prefs.leverage, leverages)
+  const mCap = marginCap(demo, policy.max_margin_per_trade)
+  const lCap = leverageCap(demo, policy.max_leverage)
+  const margins = useMemo(() => allowedMargins(mCap), [mCap])
+  const leverages = useMemo(() => allowedLeverages(lCap), [lCap])
+  const margin = clampMargin(prefs.margin)
+  const leverage = clampLeverage(prefs.leverage)
+  const overLimit = (prefs.sizing === 'fixed' && margin > mCap) || leverage > lCap
   const update = (change: Partial<Prefs>) => setPrefs(currentPrefs => { const next = {...currentPrefs, ...change}; savePrefs(next); return next })
 
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(id) }, [])
@@ -199,7 +202,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   const entryPrice = frozen && kind === 'LIMIT' && limitLevels ? limitValue : frozen?.price ?? 0
   const levels = frozen ? (kind === 'LIMIT' && limitLevels ? limitLevels : frozen.levels) : null
   const balance = demo ? demoBalance : positive(live?.account?.wallet_balance ?? undefined)
-  const maxMargin = demo ? 100 : Math.min(Number(policy.max_margin_per_trade) || 100, 300)
+  const maxMargin = mCap
   const sized = side && levels && prefs.sizing === 'risk' ? sizeByRisk({balance, riskPct: prefs.riskPct, entry: entryPrice, stop: levels.stop, leverage, maxMargin}) : null
   const sizingBlock = prefs.sizing === 'risk' && (!sized || sized.tooSmall)
   const effMargin = prefs.sizing === 'risk' && sized && !sized.tooSmall ? sized.margin : margin
@@ -239,6 +242,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
       setSheetError(tx(`Fiyat %${MAX_DRIFT_PCT} üzerinde oynadı; seviyeler güncellendi. Kontrol edip tekrar basılı tut.`, `The price moved by more than ${MAX_DRIFT_PCT}%; levels were updated. Review them and hold again.`))
       return
     }
+    if (overLimit) { setSheetError(tx(`Hesap limitin: en çok ${mCap} USDT teminat, ${lCap}x kaldıraç. Değeri limite çek.`, `Your account limit is ${mCap} USDT margin and ${lCap}x leverage. Bring the value within the limit.`)); return }
     if (sizingBlock) { setSheetError(tx('Risk yüzdesine göre teminat hesaplanamadı; Sabit teminat seç ya da riski/stopu değiştir.', 'The margin could not be sized from the risk percentage; choose Fixed margin or change the risk/stop.')); return }
     busyRef.current = true
     const base = {symbol, direction: side, order_type: kind, margin_usdt: effMargin, leverage, limit_price: kind === 'LIMIT' ? limitValue : null, stop_loss: levels.stop, tp1: levels.tp1, tp2: levels.tp2, tp3: levels.tp3}
@@ -418,8 +422,8 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
       </button>
       <button type="button" className="sqtSide" data-side={dockSide === 'LONG' ? 'buy' : 'sell'} disabled={dockDisabled} onClick={() => startOrder(dockSide)} aria-label={`${symbol} ${tx('AL', 'BUY')} (${dockSide})`}><span className="sqtTx"><b>{tx('AL', 'BUY')}</b><small>{dockSide}{price0 ? ` · ${analysisPrice(price0)}` : ''}</small></span><span className="sqtIc" aria-hidden="true">{dockSide === 'LONG' ? '▲' : '▼'}</span></button>
       {settings && <div className="sqtPop" role="dialog" aria-label={tx('Teminat ve kaldıraç', 'Margin and leverage')}>
-        <ParamPicker label={tx('Teminat (USDT)', 'Margin (USDT)')} choices={margins} value={margin} onPick={value => update({margin: value})}/>
-        <ParamPicker label={tx('Kaldıraç', 'Leverage')} choices={leverages} value={leverage} suffix="x" onPick={value => update({leverage: value})}/>
+        <ParamSlider label={tx('Teminat', 'Margin')} unit="USDT" value={margin} min={MARGIN_MIN} max={MARGIN_UI_MAX} cap={mCap} presets={margins} toPos={marginToSlider} fromPos={marginFromSlider} clamp={clampMargin} onPick={value => update({margin: value})}/>
+        <ParamSlider label={tx('Kaldıraç', 'Leverage')} unit="x" value={leverage} min={1} max={LEVERAGE_UI_MAX} cap={lCap} presets={leverages} toPos={value => Math.round((value - 1) / (LEVERAGE_UI_MAX - 1) * SLIDER_STEPS)} fromPos={position => clampLeverage(1 + position / SLIDER_STEPS * (LEVERAGE_UI_MAX - 1))} clamp={clampLeverage} onPick={value => update({leverage: value})}/>
         {liveBlocked && <p className="sqtPopWarn"><TriangleAlert aria-hidden="true"/>{blocker}<ConsentRenew blocker={blocker} onDone={hours => setToast({kind: 'ok', title: tx('Risk izni yenilendi', 'Risk permission renewed'), detail: tx(`${hours} saat geçerli. Canlı işlem için ARM gerekebilir.`, `Valid for ${hours} h. Live trading may need ARM.`)})}/></p>}
       </div>}
       {lockLeft > 0 && <p className="sqtLockNote" role="status">{tx(`Sonuç kontrol ediliyor · ${lockLeft} sn`, `Checking the result · ${lockLeft} s`)}</p>}
@@ -479,6 +483,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
             <ul className="sqtChecks">
               <li data-ok="true"><Check aria-hidden="true"/>{kind === 'LIMIT' ? tx('Limit dolunca stop ve 3 hedef kurulur; dolmazsa pozisyon açılmaz', 'Stop and 3 targets are placed when the limit fills; no position opens if it does not') : tx('Stop ve 3 hedef emirle birlikte gider', 'Stop and 3 targets are sent with the order')}</li>
               {sizingBlock && <li data-ok="false"><TriangleAlert aria-hidden="true"/>{sized?.tooSmall ? tx('Risk yüzdesine göre teminat 5 USDT altında kalıyor; riski artır ya da stopu yaklaştır.', 'Sized margin falls below 5 USDT; raise the risk or tighten the stop.') : balance === null && !(demo && !balanceFailed) ? tx('Bakiye okunamadı; Sabit teminat seç.', 'Balance could not be read; choose Fixed margin.') : tx('Bakiye okunuyor…', 'Reading balance…')}</li>}
+              {overLimit && <li data-ok="false"><TriangleAlert aria-hidden="true"/>{tx(`Hesap limitini aşıyor (en çok ${mCap} USDT · ${lCap}x). Emir gitmez.`, `Over your account limit (max ${mCap} USDT · ${lCap}x). The order will not be sent.`)}</li>}
               {!demo && <li data-ok={!liveBlocked}>{liveBlocked ? <TriangleAlert aria-hidden="true"/> : <Check aria-hidden="true"/>}{liveBlocked ? <>{blocker}<ConsentRenew blocker={blocker} onDone={hours => setToast({kind: 'ok', title: tx('Risk izni yenilendi', 'Risk permission renewed'), detail: tx(`${hours} saat geçerli. Canlı işlem için ARM gerekebilir.`, `Valid for ${hours} h. Live trading may need ARM.`)})}/></> : tx('ARM açık · canlı kapılar geçti', 'ARM is on · live gates passed')}</li>}
               <li data-ok={risk.stopBeforeLiquidation}>{risk.stopBeforeLiquidation ? <Check aria-hidden="true"/> : <TriangleAlert aria-hidden="true"/>}{risk.stopBeforeLiquidation ? tx('Stop, likidasyondan önce çalışır', 'The stop triggers before liquidation') : tx('Stop likidasyona çok yakın; kaldıracı düşür', 'The stop is too close to liquidation; lower the leverage')}</li>
             </ul>
@@ -505,15 +510,15 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
               <button type="button" role="radio" aria-checked={prefs.sizing === 'fixed'} data-on={prefs.sizing === 'fixed'} disabled={sending} onClick={() => changeParam({sizing: 'fixed'})}>{tx('Sabit teminat', 'Fixed margin')}</button>
               <button type="button" role="radio" aria-checked={prefs.sizing === 'risk'} data-on={prefs.sizing === 'risk'} disabled={sending} onClick={() => changeParam({sizing: 'risk'})}>{tx('Risk %', 'Risk %')}</button></div></div>
             {prefs.sizing === 'fixed'
-              ? <ParamPicker label={tx('Teminat (USDT)', 'Margin (USDT)')} choices={margins} value={margin} onPick={value => changeParam({margin: value})} disabled={sending}/>
+              ? <ParamSlider label={tx('Teminat', 'Margin')} unit="USDT" value={margin} min={MARGIN_MIN} max={MARGIN_UI_MAX} cap={mCap} presets={margins} toPos={marginToSlider} fromPos={marginFromSlider} clamp={clampMargin} onPick={value => changeParam({margin: value})} disabled={sending}/>
               : <div className="sqtParam"><small>{tx('Hesap riski (%)', 'Account risk (%)')}</small><div role="radiogroup" aria-label={tx('Risk yüzdesi', 'Risk percentage')}>
                   {RISK_PCT_CHOICES.map(value => <button key={value} type="button" role="radio" aria-checked={prefs.riskPct === value} data-on={prefs.riskPct === value} disabled={sending} onClick={() => changeParam({riskPct: value})}>%{String(value).replace('.', ',')}</button>)}</div>
                   <p className="sqtSized" role="status">{sized && !sized.tooSmall ? tx(`→ ${fmt(sized.margin)} USDT teminat · risk ≈ ${fmt(sized.actualRisk)} USDT${sized.capped ? ' (üst sınır)' : ''}`, `→ ${fmt(sized.margin)} USDT margin · risk ≈ ${fmt(sized.actualRisk)} USDT${sized.capped ? ' (capped)' : ''}`) : balance === null && (!demo || balanceFailed) ? tx('Bakiye okunamadı', 'Balance unavailable') : sized?.tooSmall ? tx('Teminat çok küçük kalıyor', 'Margin would be too small') : tx('Hesaplanıyor…', 'Calculating…')}</p></div>}
-            <ParamPicker label={tx('Kaldıraç', 'Leverage')} choices={leverages} value={leverage} suffix="x" onPick={value => changeParam({leverage: value})} disabled={sending}/>
+            <ParamSlider label={tx('Kaldıraç', 'Leverage')} unit="x" value={leverage} min={1} max={LEVERAGE_UI_MAX} cap={lCap} presets={leverages} toPos={value => Math.round((value - 1) / (LEVERAGE_UI_MAX - 1) * SLIDER_STEPS)} fromPos={position => clampLeverage(1 + position / SLIDER_STEPS * (LEVERAGE_UI_MAX - 1))} clamp={clampLeverage} onPick={value => changeParam({leverage: value})} disabled={sending}/>
             </div>
             <div className="sqtActions">
             {sheetError && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{sheetError}</p>}
-            <HoldButton ms={demo ? HOLD_MS.demo : HOLD_MS.live} tone={side === 'LONG' ? 'buy' : 'sell'} disabled={sending || liveBlocked || !risk.stopBeforeLiquidation || Boolean(limitError) || sizingBlock}
+            <HoldButton ms={demo ? HOLD_MS.demo : HOLD_MS.live} tone={side === 'LONG' ? 'buy' : 'sell'} disabled={sending || liveBlocked || !risk.stopBeforeLiquidation || Boolean(limitError) || sizingBlock || overLimit}
               label={sending ? busy ?? '' : kind === 'LIMIT' ? tx(`Basılı tut · ${side === 'LONG' ? 'LONG AL' : 'SHORT AL'} limit`, `Hold · ${side === 'LONG' ? 'BUY LONG' : 'OPEN SHORT'} limit`) : tx(`Basılı tut · ${side === 'LONG' ? 'LONG AL' : 'SHORT AL'}`, `Hold · ${side === 'LONG' ? 'BUY LONG' : 'OPEN SHORT'}`)} onDone={() => void placeOrder()}
               hint={tx(`${symbol} ${side === 'LONG' ? 'LONG AL' : 'SHORT AL'} emrini göndermek için basılı tut`, `Press and hold to send the ${symbol} ${side === 'LONG' ? 'long' : 'short'} order`)}/>
             <button type="button" className="sqtCancel" onClick={closeSheet} disabled={sending}>{tx('Vazgeç', 'Cancel')}</button>
@@ -526,8 +531,29 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   </div>
 }
 
-function ParamPicker({label, choices, value, onPick, suffix = '', disabled = false}: {label: string; choices: readonly number[]; value: number; onPick: (value: number) => void; suffix?: string; disabled?: boolean}) {
-  return <div className="sqtParam"><small>{label}</small><div role="radiogroup" aria-label={label}>{choices.map(choice => <button key={choice} type="button" role="radio" aria-checked={choice === value} data-on={choice === value} disabled={disabled} onClick={() => onPick(choice)}>{choice}{suffix}</button>)}</div></div>
+/** Kaydırıcı + yazıyla giriş + hazır değer çipleri. Hesap limitini aşan kısım kırmızı boyanır, aşan değer uyarılır. */
+function ParamSlider({label, unit, value, min, max, cap, presets, toPos, fromPos, clamp, onPick, disabled = false}: {label: string; unit: string; value: number; min: number; max: number; cap: number; presets: readonly number[]; toPos: (value: number) => number; fromPos: (position: number) => number; clamp: (value: number) => number; onPick: (value: number) => void; disabled?: boolean}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const pos = toPos(value), capPos = Math.min(SLIDER_STEPS, toPos(cap))
+  const over = value > cap
+  const typed = (text: string) => {
+    setDraft(text)
+    const number = Number(text.replace(',', '.'))
+    if (text.trim() && Number.isFinite(number) && number >= min && number <= max) onPick(clamp(number))
+  }
+  const finish = () => {
+    const number = Number((draft ?? '').replace(',', '.'))
+    if (draft !== null && draft.trim() && Number.isFinite(number)) onPick(clamp(number))
+    setDraft(null)
+  }
+  const style = {'--p': `${pos / SLIDER_STEPS * 100}%`, '--cap': `${capPos / SLIDER_STEPS * 100}%`} as CSSProperties
+  return <div className="sqtParam sqtSlide" data-over={over}>
+    <div className="sqtSlideHead"><small>{label}</small>
+      <label className="sqtNum"><input type="text" inputMode="numeric" autoComplete="off" spellCheck={false} aria-label={label} value={draft ?? String(value)} disabled={disabled} onFocus={event => event.currentTarget.select()} onChange={event => typed(event.target.value.replace(/[^0-9.,]/g, ''))} onBlur={finish} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}/><em>{unit}</em></label></div>
+    <input className="sqtRange" type="range" min={0} max={SLIDER_STEPS} step={1} value={pos} style={style} disabled={disabled} aria-label={label} aria-valuetext={`${value} ${unit}`} onChange={event => { setDraft(null); onPick(fromPos(Number(event.target.value))) }}/>
+    <div className="sqtSlideFoot"><div role="group" aria-label={label}>{presets.map(choice => <button key={choice} type="button" data-on={choice === value} disabled={disabled} onClick={() => { setDraft(null); onPick(choice) }}>{choice}{unit === 'x' ? 'x' : ''}</button>)}</div>
+      <span data-over={over}>{over ? tx(`Limit ${cap}`, `Limit ${cap}`) : tx(`En çok ${cap}`, `Max ${cap}`)}</span></div>
+  </div>
 }
 
 /** Stop – giriş – hedefler: tek bakışta okunan seviye şeridi. SHORT'ta fiyat sırası tersine çevrilir. */

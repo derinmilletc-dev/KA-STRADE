@@ -104,6 +104,24 @@ export function allowedLeverages(max: number | null | undefined): number[] {
   const list = LEVERAGE_CHOICES.filter(value => value <= cap)
   return list.length ? [...list] : [1]
 }
+/** Kaydırıcı ve yazı girişinin tavanları; hesap limiti bunun altında kalabilir (marginCap/leverageCap). */
+export const MARGIN_MIN = 5
+export const MARGIN_UI_MAX = 2500
+export const LEVERAGE_UI_MAX = 100
+export const clampMargin = (value: number): number => finite(value) ? Math.min(MARGIN_UI_MAX, Math.max(MARGIN_MIN, Math.round(value))) : 25
+export const clampLeverage = (value: number): number => finite(value) ? Math.min(LEVERAGE_UI_MAX, Math.max(1, Math.round(value))) : 2
+/** Hesabın izin verdiği tavan: demo sabit güvenlik sınırı, canlı kullanıcı politikası (en çok 300 USDT / 50x). */
+export const marginCap = (demo: boolean, policyMax: unknown): number => demo ? 300 : Math.min(Number(policyMax) > 0 ? Number(policyMax) : 100, 300)
+export const leverageCap = (demo: boolean, policyMax: unknown): number => demo ? 50 : Math.min(Number(policyMax) >= 1 ? Math.floor(Number(policyMax)) : 3, 50)
+/** Teminat kaydırıcısı karekök ölçeklidir: küçük tutarlarda ince, büyüklerde hızlı ayar. */
+export const SLIDER_STEPS = 1000
+export const marginToSlider = (value: number): number => Math.round(SLIDER_STEPS * Math.sqrt((clampMargin(value) - MARGIN_MIN) / (MARGIN_UI_MAX - MARGIN_MIN)))
+export function marginFromSlider(position: number): number {
+  const ratio = Math.min(1, Math.max(0, position / SLIDER_STEPS))
+  const raw = MARGIN_MIN + (MARGIN_UI_MAX - MARGIN_MIN) * ratio * ratio
+  const step = raw < 100 ? 1 : raw < 500 ? 5 : 25
+  return clampMargin(Math.round(raw / step) * step)
+}
 export const nearestChoice = (value: number, choices: readonly number[]): number =>
   choices.includes(value) ? value : choices.reduce((best, item) => Math.abs(item - value) < Math.abs(best - value) ? item : best, choices[0])
 

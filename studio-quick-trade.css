@@ -87,6 +87,27 @@
 .masterReferenceAnalysis .sqtLockNote { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); margin: 0; padding: 5px 12px; border-radius: 99px; background: #2b2412; border: 1px solid #6b5520; color: #ffd98a; font-size: 11px; white-space: nowrap; }
 
 /* ---------- Seçiciler (teminat / kaldıraç) ---------- */
+.masterReferenceAnalysis .sqtSlide { gap: 5px; }
+.masterReferenceAnalysis .sqtSlide > div { display: flex; }
+.masterReferenceAnalysis .sqtSlideHead { align-items: center; justify-content: space-between; gap: 8px; }
+.masterReferenceAnalysis .sqtNum { display: inline-flex; align-items: center; gap: 4px; padding: 0 10px; height: 30px; min-width: 96px; max-width: 60%; border-radius: 10px; background: #0d1620; border: 1px solid #1d2c39; }
+.masterReferenceAnalysis .sqtNum:focus-within { border-color: #1f8f61; }
+.masterReferenceAnalysis .sqtSlide[data-over="true"] .sqtNum { border-color: #b4414f; }
+.masterReferenceAnalysis .sqtNum input { flex: 1; min-width: 0; width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: #e8f1f5; font: 700 14px/1 inherit; text-align: right; font-variant-numeric: tabular-nums; -webkit-user-select: text; user-select: text; }
+.masterReferenceAnalysis .sqtNum em { font-style: normal; font-size: 10.5px; color: #7f94a0; }
+.masterReferenceAnalysis .sqtSlideHead > small { font-size: 10px; letter-spacing: .04em; color: #7f94a0; }
+.masterReferenceAnalysis .sqtRange { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 24px; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; cursor: pointer; touch-action: pan-y; }
+.masterReferenceAnalysis .sqtRange::-webkit-slider-runnable-track { height: 6px; border-radius: 99px; background: linear-gradient(90deg, #1f8f61 0 var(--p), #22323f var(--p) var(--cap), #4a2630 var(--cap) 100%); }
+.masterReferenceAnalysis .sqtRange::-moz-range-track { height: 6px; border-radius: 99px; background: linear-gradient(90deg, #1f8f61 0 var(--p), #22323f var(--p) var(--cap), #4a2630 var(--cap) 100%); }
+.masterReferenceAnalysis .sqtRange::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; margin-top: -8px; border-radius: 50%; background: #e8f1f5; border: 3px solid #1f8f61; box-shadow: 0 1px 6px rgba(0,0,0,.5); }
+.masterReferenceAnalysis .sqtRange::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #e8f1f5; border: 3px solid #1f8f61; }
+.masterReferenceAnalysis .sqtSlide[data-over="true"] .sqtRange::-webkit-slider-thumb { border-color: #e0586a; }
+.masterReferenceAnalysis .sqtRange:disabled { opacity: .5; cursor: not-allowed; }
+.masterReferenceAnalysis .sqtSlideFoot { align-items: center; justify-content: space-between; gap: 8px; }
+.masterReferenceAnalysis .sqtSlideFoot > div { display: flex; gap: 4px; flex: 1; min-width: 0; }
+.masterReferenceAnalysis .sqtSlideFoot button { flex: 0 1 44px; min-height: 24px; font-size: 11.5px; border-radius: 8px; }
+.masterReferenceAnalysis .sqtSlideFoot > span { flex: none; font-size: 10px; color: #7f94a0; }
+.masterReferenceAnalysis .sqtSlideFoot > span[data-over="true"] { color: #ff8a97; font-weight: 700; }
 .masterReferenceAnalysis .sqtParam { display: grid; gap: 4px; }
 .masterReferenceAnalysis .sqtParam > small { font-size: 10px; letter-spacing: .04em; color: #7f94a0; }
 .masterReferenceAnalysis .sqtParam > div { display: flex; gap: 5px; }
@@ -404,3 +425,16 @@
 .masterReferenceAnalysis .sqtSwap { min-width: 210px; }
 .masterReferenceAnalysis .sqtSwap button { white-space: nowrap; }
 .masterReferenceAnalysis .sqtSwap button small { white-space: normal; }
+
+/* Yatay telefon: etiket · kaydırıcı · değer tek satırda; hazır değer çipleri gizlenir (alan kazanmak için). */
+@media (max-height: 620px) and (min-width: 640px) {
+  .masterReferenceAnalysis .sqtSlide { grid-template-columns: auto minmax(40px, 1fr) 88px; align-items: center; column-gap: 8px; row-gap: 0; }
+  .masterReferenceAnalysis .sqtSlide > div.sqtSlideHead { display: contents; }
+  .masterReferenceAnalysis .sqtSlideHead > small { grid-column: 1; grid-row: 1; white-space: nowrap; }
+  .masterReferenceAnalysis .sqtSlideHead > .sqtNum { grid-column: 3; grid-row: 1; height: 26px; width: 88px; min-width: 0; max-width: none; padding: 0 8px; }
+  .masterReferenceAnalysis .sqtSlide > .sqtRange { grid-column: 2; grid-row: 1; height: 22px; }
+  .masterReferenceAnalysis .sqtSlideFoot { grid-column: 1 / -1; grid-row: 2; }
+  .masterReferenceAnalysis .sqtSlideFoot > div { display: none; }
+  .masterReferenceAnalysis .sqtSlideFoot > span { margin-left: auto; font-size: 9.5px; line-height: 1.1; }
+  .masterReferenceAnalysis .sqtSlide[data-over="false"] .sqtSlideFoot { display: none; }
+}
