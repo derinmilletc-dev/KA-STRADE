@@ -191,3 +191,8 @@ html body #root .labOperand input { flex: 0 0 72px; width: 72px; }
 html body #root .labBody { grid-auto-rows: max-content; }
 html body #root .labPresets { min-height: 44px; align-items: flex-start; }
 @media (max-width: 480px) { html body #root .labRuleMain { grid-template-columns: minmax(0, 1fr); } html body #root .labRuleMain > .labOperand:first-child { grid-column: auto; } html body #root .labOperand select { min-width: 0; } }
+
+/* Telefonda çizim araçları yalnız Analiz Stüdyosu (tam ekran) içinde; grafik kartının altında tekrar gösterilmez. */
+@media (max-width: 767px) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart:not([data-fs="on"]) .refToolbar .refDrawingTools { display: none !important; }
+}
