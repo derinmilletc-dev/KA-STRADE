@@ -127,6 +127,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   const [settings, setSettings] = useState(false)
   const [card, setCard] = useState(false)
   const [tray, setTray] = useState(false)
+  const [swapOpen, setSwapOpen] = useState(false)
   const [action, setAction] = useState<'half' | 'close' | null>(null)
   const [actionError, setActionError] = useState('')
   const [lockedUntil, setLockedUntil] = useState(0)
@@ -182,9 +183,9 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
     const fresh = levelsFor(next, price, analysis)
     const at = positive(price)
     if (at === null || !fresh) { setToast({kind: 'error', title: tx('Fiyat ya da analiz verisi hazır değil', 'Price or analysis data is not ready'), detail: tx('Birkaç saniye sonra tekrar dene.', 'Try again in a few seconds.')}); return }
-    setSheetError(''); setIntentId(newIntentId()); setFrozen({price: at, levels: fresh}); setSide(next); setSettings(false); setKind('MARKET'); setLimitText('')
+    setSheetError(''); setIntentId(newIntentId()); setFrozen({price: at, levels: fresh}); setSide(next); setSettings(false); setSwapOpen(false); setKind('MARKET'); setLimitText('')
   }
-  const closeSheet = () => { if (busyRef.current) return; setSide(null); setFrozen(null); setSheetError('') }
+  const closeSheet = () => { if (busyRef.current) return; setSide(null); setFrozen(null); setSheetError(''); setSwapOpen(false) }
   const changeParam = (change: Partial<Prefs>) => { update(change); setIntentId(newIntentId()); setSheetError('') }
 
   const sending = busy !== null
@@ -356,19 +357,6 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
     } finally { busyRef.current = false; setBusy(null) }
   }
 
-  // ---- Grafik çizgileri: onay kartındaki plan ve açık pozisyonun seviyeleri (grid çizgileriyle birlikte) ----
-  const tradeLines = useMemo<GridChartLine[]>(() => {
-    const out: GridChartLine[] = []
-    const add = (value: unknown, kind: GridChartLine['kind'], label: string, extra?: Partial<GridChartLine>) => { const n = positive(value); if (n) out.push({price: n, kind, label: `${label} ${analysisPrice(n)}`, ...extra}) }
-    if (side && levels && entryPrice > 0) {
-      add(entryPrice, 'entry', kind === 'LIMIT' ? tx('Limit', 'Limit') : tx('Giriş', 'Entry')); add(levels.stop, 'stop', 'Stop'); add(levels.tp1, 'target', 'TP1'); add(levels.tp2, 'target', 'TP2'); add(levels.tp3, 'target', 'TP3')
-    } else if (current) {
-      add(current.entry_price, 'entry', tx('Giriş', 'Entry')); add(current.stop_loss, 'stop', 'Stop', canManage ? {id: 'pos-stop', draggable: true} : undefined); add(current.tp1, 'target', 'TP1'); add(current.tp2, 'target', 'TP2'); add(current.tp3, 'target', 'TP3')
-    }
-    return out
-  }, [side, levels, entryPrice, kind, current, canManage])
-  useEffect(() => { onGridLines?.([...gridLocal, ...tradeLines]) }, [gridLocal, tradeLines, onGridLines])
-  useEffect(() => () => onGridLines?.([]), [onGridLines])
 
   // Grafik etkileşimleri: limit fiyatı grafikten seç ve stop çizgisini sürükle. İşleyiciler ref'ten okunur; efekt gereksiz yere yenilenmez.
   const toolsRef = useRef({pick: (_price: number) => {}, drop: (_id: string, _price: number) => {}})
@@ -390,6 +378,8 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   useEffect(() => () => onChartTools?.({}), [onChartTools])
 
   const dockDisabled = !dataReady || sending || lockLeft > 0
+  // İşlem açılmadan önce tek AL düğmesi vardır ve analizin önerdiği yönde açar (net yön yoksa LONG). Ters yön onay ekranından seçilir.
+  const dockSide: Side = decision.direction === 'SHORT' ? 'SHORT' : 'LONG'
   const aligned = (target: Side) => decision.direction === target ? 'with' : decision.direction === 'LONG' || decision.direction === 'SHORT' ? 'against' : 'none'
   const confidenceText = tx(`${aligned(side ?? 'LONG') === 'with' ? 'Analiz seninle' : 'Analiz ters'} · ${decision.direction}${decision.confidenceScore !== null ? ` · güven %${Math.round(decision.confidenceScore)}` : ''}`, `${aligned(side ?? 'LONG') === 'with' ? 'Analysis agrees' : 'Analysis is opposite'} · ${decision.direction}${decision.confidenceScore !== null ? ` · confidence ${Math.round(decision.confidenceScore)}%` : ''}`)
   // Gerçek hesapta: kapatınca dolacak fiyat (LONG → en iyi alış, SHORT → en iyi satış). Yayın yoksa eski kaynağa düşer.
@@ -398,6 +388,20 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   const liveAge = book ? Math.max(0, now - book.at) : 0
   const currentClose = current ? closeNow(current) : null
   const pnl = current ? positionPnl(current, currentClose) : null
+
+  // ---- Grafik çizgileri: onay kartındaki plan ve açık pozisyonun seviyeleri (grid çizgileriyle birlikte) ----
+  const tradeLines = useMemo<GridChartLine[]>(() => {
+    const out: GridChartLine[] = []
+    const add = (value: unknown, kind: GridChartLine['kind'], label: string, extra?: Partial<GridChartLine>) => { const n = positive(value); if (n) out.push({price: n, kind, label: `${label} ${analysisPrice(n)}`, ...extra}) }
+    if (side && levels && entryPrice > 0) {
+      add(entryPrice, 'entry', kind === 'LIMIT' ? tx('Limit', 'Limit') : tx('Giriş', 'Entry')); add(levels.stop, 'stop', 'Stop'); add(levels.tp1, 'target', 'TP1'); add(levels.tp2, 'target', 'TP2'); add(levels.tp3, 'target', 'TP3')
+    } else if (current) {
+      add(current.entry_price, 'entry', `${tx('Giriş', 'Entry')} · ${sideOf(current)}${pnl && pnl.pnl !== null ? ` ${signed(pnl.pnl, Math.abs(pnl.pnl) < 1 ? 4 : 2)} USDT` : ''}`); add(current.stop_loss, 'stop', 'Stop', canManage ? {id: 'pos-stop', draggable: true} : undefined); add(current.tp1, 'target', 'TP1'); add(current.tp2, 'target', 'TP2'); add(current.tp3, 'target', 'TP3')
+    }
+    return out
+  }, [side, levels, entryPrice, kind, current, canManage, pnl?.pnl])
+  useEffect(() => { onGridLines?.([...gridLocal, ...tradeLines]) }, [gridLocal, tradeLines, onGridLines])
+  useEffect(() => () => onGridLines?.([]), [onGridLines])
 
   return <div className="sqtLayer" data-drawer={drawerOpen || undefined} data-grid={gridOpen || journalOpen || undefined}>
     {toast && <div className="sqtToast" role="status" data-kind={toast.kind}><span aria-hidden="true">{toast.kind === 'ok' ? <Check/> : <TriangleAlert/>}</span><div><b>{toast.title}</b>{toast.detail && <small>{toast.detail}</small>}</div><button type="button" aria-label={tx('Kapat', 'Close')} onClick={() => setToast(null)}><X/></button></div>}
@@ -412,7 +416,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
         <span className="sqtMode" data-demo={demo || undefined}>{demo ? 'DEMO' : tx('CANLI', 'LIVE')}</span>
         <b>{margin} USDT <em>· {leverage}x</em></b>
       </button>
-      <button type="button" className="sqtSide" data-side="buy" disabled={dockDisabled} onClick={() => startOrder('LONG')} aria-label={`${symbol} ${tx('AL', 'BUY')} (LONG)`}><span className="sqtTx"><b>{tx('AL', 'BUY')}</b><small>{price0 ? analysisPrice(price0) : '—'}</small></span><span className="sqtIc" aria-hidden="true">▲</span></button>
+      <button type="button" className="sqtSide" data-side={dockSide === 'LONG' ? 'buy' : 'sell'} disabled={dockDisabled} onClick={() => startOrder(dockSide)} aria-label={`${symbol} ${tx('AL', 'BUY')} (${dockSide})`}><span className="sqtTx"><b>{tx('AL', 'BUY')}</b><small>{dockSide}{price0 ? ` · ${analysisPrice(price0)}` : ''}</small></span><span className="sqtIc" aria-hidden="true">{dockSide === 'LONG' ? '▲' : '▼'}</span></button>
       {settings && <div className="sqtPop" role="dialog" aria-label={tx('Teminat ve kaldıraç', 'Margin and leverage')}>
         <ParamPicker label={tx('Teminat (USDT)', 'Margin (USDT)')} choices={margins} value={margin} onPick={value => update({margin: value})}/>
         <ParamPicker label={tx('Kaldıraç', 'Leverage')} choices={leverages} value={leverage} suffix="x" onPick={value => update({leverage: value})}/>
@@ -444,9 +448,10 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
 
     {side && frozen && risk && !picking && <>
       <div className="sqtScrim" onClick={closeSheet} aria-hidden="true"/>
-      <div className="sqtSheet" data-demo={demo || undefined} role="dialog" aria-modal="true" aria-label={tx(`${symbol} ${side === 'LONG' ? 'AL' : 'SAT'} onayı`, `${symbol} ${side === 'LONG' ? 'BUY' : 'SELL'} confirmation`)} data-side={side}>
+      <div className="sqtSheet" data-demo={demo || undefined} role="dialog" aria-modal="true" aria-label={tx(`${symbol} ${side === 'LONG' ? 'AL · LONG' : 'AL · SHORT'} onayı`, `${symbol} ${side === 'LONG' ? 'BUY LONG' : 'OPEN SHORT'} confirmation`)} data-side={side}>
         <header className="sqtHead">
-          <span className="sqtTag" data-side={side}>{side === 'LONG' ? tx('AL · LONG', 'BUY · LONG') : tx('SAT · SHORT', 'SELL · SHORT')}</span><b>{symbol}</b>
+          <span className="sqtTagWrap"><button type="button" className="sqtTag sqtTagBtn" data-side={side} aria-haspopup="menu" aria-expanded={swapOpen} disabled={sending} onClick={() => setSwapOpen(open => !open)}>{side === 'LONG' ? tx('AL · LONG', 'BUY · LONG') : tx('AL · SHORT', 'BUY · SHORT')}<i aria-hidden="true">▾</i></button>
+            {swapOpen && <span className="sqtSwap" role="menu"><button type="button" role="menuitem" data-side={side === 'LONG' ? 'SHORT' : 'LONG'} onClick={() => startOrder(side === 'LONG' ? 'SHORT' : 'LONG')}>{side === 'LONG' ? tx('AL · SHORT', 'BUY · SHORT') : tx('AL · LONG', 'BUY · LONG')}<small>{aligned(side === 'LONG' ? 'SHORT' : 'LONG') === 'against' ? tx('analize ters yön', 'against the analysis') : aligned(side === 'LONG' ? 'SHORT' : 'LONG') === 'with' ? tx('analizin önerdiği yön', 'the analysis direction') : tx('yönü değiştir', 'switch side')}</small></button></span>}</span><b>{symbol}</b>
           <span className="sqtMkt">{kind === 'LIMIT' ? tx('Limit emri', 'Limit order') : tx('Piyasa emri', 'Market order')} · {analysisPrice(entryPrice)}</span>
           <span className="sqtAcc" data-demo={demo || undefined}><i aria-hidden="true"/>{demo ? 'DEMO' : tx('CANLI', 'LIVE')}</span>
           <button type="button" className="sqtX" aria-label={tx('Vazgeç', 'Cancel')} onClick={closeSheet} disabled={sending}><X/></button>
@@ -460,7 +465,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
               {decision.mtfScore !== null && aligned(side) !== 'none' && <span data-tone={aligned(side) === 'with' ? 'ok' : 'bad'}>{tx(`MTF ${decision.mtfConfirmed}/${decision.mtfTotal} ${aligned(side) === 'with' ? 'uyumlu' : 'ters yönde'}`, `MTF ${decision.mtfConfirmed}/${decision.mtfTotal} ${aligned(side) === 'with' ? 'aligned' : 'opposite'}`)}</span>}
               {risk.rewardRisk !== null && <span data-tone={risk.rewardRisk >= 1 ? 'ok' : 'warn'}>{tx('R/Ö', 'R/R')} 1 : {fmt(risk.rewardRisk, 1)}</span>}
             </div>
-            {aligned(side) === 'against' && <p className="sqtWarn"><b>{tx(`Analiz ${decision.direction} diyor.`, `The analysis says ${decision.direction}.`)}</b> {tx(`${side === 'LONG' ? 'AL' : 'SAT'} analizin tersine bir işlemdir.`, `${side === 'LONG' ? 'BUY' : 'SELL'} is a trade against the analysis.`)}</p>}
+            {aligned(side) === 'against' && <p className="sqtWarn"><b>{tx(`Analiz ${decision.direction} diyor.`, `The analysis says ${decision.direction}.`)}</b> {tx(`${side === 'LONG' ? 'LONG AL' : 'SHORT AL'} analizin tersine bir işlemdir.`, `${side === 'LONG' ? 'BUY LONG' : 'OPEN SHORT'} is a trade against the analysis.`)}</p>}
             {levels!.source === 'mirror' && <p className="sqtNote">{tx('Analiz seviyeleri bu yöne ya da fiyata uymadığı için stop ve hedefler analizin mesafeleriyle yeniden hesaplandı.', 'The analysis levels do not fit this direction or price, so stop and targets were recalculated using the analysis distances.')}</p>}
             {levels!.source === 'default' && <p className="sqtNote">{tx('Analiz seviyesi bulunamadı; standart mesafeler kullanıldı (stop %1,5).', 'No analysis levels found; standard distances were used (1.5% stop).')}</p>}
             <Ladder side={side} entry={entryPrice} levels={levels!}/>
@@ -509,8 +514,8 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
             <div className="sqtActions">
             {sheetError && <p className="sqtError" role="alert"><TriangleAlert aria-hidden="true"/>{sheetError}</p>}
             <HoldButton ms={demo ? HOLD_MS.demo : HOLD_MS.live} tone={side === 'LONG' ? 'buy' : 'sell'} disabled={sending || liveBlocked || !risk.stopBeforeLiquidation || Boolean(limitError) || sizingBlock}
-              label={sending ? busy ?? '' : kind === 'LIMIT' ? tx(`Basılı tut · ${side === 'LONG' ? 'AL' : 'SAT'} limit`, `Hold · ${side === 'LONG' ? 'BUY' : 'SELL'} limit`) : tx(`Basılı tut · ${side === 'LONG' ? 'AL' : 'SAT'}`, `Hold · ${side === 'LONG' ? 'BUY' : 'SELL'}`)} onDone={() => void placeOrder()}
-              hint={tx(`${symbol} ${side === 'LONG' ? 'AL' : 'SAT'} emrini göndermek için basılı tut`, `Press and hold to send the ${symbol} ${side === 'LONG' ? 'buy' : 'sell'} order`)}/>
+              label={sending ? busy ?? '' : kind === 'LIMIT' ? tx(`Basılı tut · ${side === 'LONG' ? 'LONG AL' : 'SHORT AL'} limit`, `Hold · ${side === 'LONG' ? 'BUY LONG' : 'OPEN SHORT'} limit`) : tx(`Basılı tut · ${side === 'LONG' ? 'LONG AL' : 'SHORT AL'}`, `Hold · ${side === 'LONG' ? 'BUY LONG' : 'OPEN SHORT'}`)} onDone={() => void placeOrder()}
+              hint={tx(`${symbol} ${side === 'LONG' ? 'LONG AL' : 'SHORT AL'} emrini göndermek için basılı tut`, `Press and hold to send the ${symbol} ${side === 'LONG' ? 'long' : 'short'} order`)}/>
             <button type="button" className="sqtCancel" onClick={closeSheet} disabled={sending}>{tx('Vazgeç', 'Cancel')}</button>
             </div>
           </div>

@@ -390,3 +390,17 @@
   .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer .sqtPresets button { min-width: 0; padding: 0 1px; font-size: 10px; overflow: hidden; }
 }
 
+
+/* Onay ekranı: yön etiketine basınca karşı yön seçeneği altta açılır; hızlı düğme analiz yönünü gösterir */
+.masterReferenceAnalysis .sqtTagWrap { position: relative; display: inline-flex; flex: none; }
+.masterReferenceAnalysis .sqtTagBtn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+.masterReferenceAnalysis .sqtTagBtn i { font-style: normal; font-size: 10px; opacity: .8; }
+.masterReferenceAnalysis .sqtSwap { position: absolute; z-index: 5; left: 0; top: calc(100% + 6px); min-width: 188px; padding: 4px; border-radius: 12px; background: #0b141d; border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 12px 28px rgba(0, 0, 0, .6); }
+.masterReferenceAnalysis .sqtSwap button { width: 100%; display: grid; gap: 2px; justify-items: start; text-align: left; padding: 8px 12px; min-height: 44px; border-radius: 9px; border: 1px solid transparent; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+.masterReferenceAnalysis .sqtSwap button small { font-size: 10px; font-weight: 500; letter-spacing: 0; opacity: .85; }
+.masterReferenceAnalysis .sqtSwap button[data-side="LONG"] { background: #10392b; color: #3ee0a0; border-color: #1f8f6155; }
+.masterReferenceAnalysis .sqtSwap button[data-side="SHORT"] { background: #3a1820; color: #ff8d9a; border-color: #b13a4c66; }
+.masterReferenceAnalysis .sqtSide[data-suggested] { box-shadow: 0 0 0 2px rgba(255, 255, 255, .22) inset; }
+.masterReferenceAnalysis .sqtSwap { min-width: 210px; }
+.masterReferenceAnalysis .sqtSwap button { white-space: nowrap; }
+.masterReferenceAnalysis .sqtSwap button small { white-space: normal; }
