@@ -369,7 +369,7 @@ export default function ExecutionCenter({token=''}:{token?:string}) {
         <div className="executionFields">
           <label>İzinli pariteler<input value={policy.allowed_symbols.join(', ')} onChange={e => setPolicy({...policy,allowed_symbols:e.target.value.split(',').map(v => v.trim().toUpperCase()).filter(Boolean)})}/></label>
           <label>Zaman dilimi<select value={policy.interval} onChange={e => setPolicy({...policy,interval:e.target.value})}><option>1m</option><option>5m</option><option>15m</option><option>1h</option><option>4h</option></select></label>
-          <label>Maks. marjin / işlem<input type="number" min="5" max="100" value={policy.max_margin_per_trade} onChange={e => setPolicy({...policy,max_margin_per_trade:Number(e.target.value)})}/><span>USDT</span></label>
+          <label>Maks. marjin / işlem<input type="number" min="5" max="10000" value={policy.max_margin_per_trade} onChange={e => setPolicy({...policy,max_margin_per_trade:Number(e.target.value)})}/><span>USDT</span></label>
           <label>Maks. kayıp / işlem<input type="number" min="0.5" max="25" step="0.5" value={policy.max_loss_per_trade} onChange={e => setPolicy({...policy,max_loss_per_trade:Number(e.target.value)})}/><span>USDT</span></label>
           <label>Maks. kaldıraç<input type="number" min="1" max="50" value={policy.max_leverage} onChange={e => setPolicy({...policy,max_leverage:Number(e.target.value)})}/></label>
           <label>Maks. pozisyon<input type="number" min="1" max="3" value={policy.max_positions} onChange={e => setPolicy({...policy,max_positions:Number(e.target.value)})}/></label>

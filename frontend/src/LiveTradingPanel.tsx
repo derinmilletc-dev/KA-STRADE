@@ -1265,8 +1265,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     if (!nextOrder.symbol.endsWith('USDT') || values.some(value => !Number.isFinite(Number(value)) || Number(value) <= 0)) {
       setNotice({kind: 'error', text: 'Sembol, miktar, kaldıraç, Stop Loss ve tüm TP seviyeleri pozitif olmalıdır.'}); return
     }
-    if (Number(nextOrder.margin_usdt) < 5 || Number(nextOrder.margin_usdt) > 300) {
-      setNotice({kind: 'error', text: 'Marjin 5 ile 300 USDT arasında olmalıdır.'}); return
+    if (Number(nextOrder.margin_usdt) < 5 || Number(nextOrder.margin_usdt) > 10000) {
+      setNotice({kind: 'error', text: 'Marjin 5 ile 10.000 USDT arasında olmalıdır.'}); return
     }
     const policyMargin = Number(status?.policy?.max_margin_per_trade)
     if (Number.isFinite(policyMargin) && policyMargin > 0 && Number(nextOrder.margin_usdt) > policyMargin) {

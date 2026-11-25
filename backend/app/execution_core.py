@@ -19,7 +19,9 @@ from typing import Any
 
 V25_VERSION = "25.0.0"
 LIVE_CLIENT_PREFIX = "PTBLV_"
-HARD_MAX_MARGIN_USDT = 300.0
+# Manuel işlem tek pozisyon teminat tavanı. Otomatik stratejiler (grid/DCA) AUTO_MAX_MARGIN_USDT ile eski 300 tavanında kalır.
+HARD_MAX_MARGIN_USDT = 10_000.0
+AUTO_MAX_MARGIN_USDT = 300.0
 MANUAL_MARGIN_REQUEST_MAX = 10_000_000.0  # manuel emir için pratikte sınırsız; asıl sınır kullanılabilir bakiye
 HARD_MAX_LEVERAGE = 50
 HARD_MAX_POSITIONS = 5
@@ -28,8 +30,8 @@ HARD_MAX_POSITIONS = 5
 HARD_MAX_DAILY_LOSS_USDT = 1_000_000_000.0
 HARD_MAX_DAILY_TRADES = 12
 HARD_MAX_CONSECUTIVE_LOSSES = 10
-HARD_MAX_TOTAL_EXPOSURE_USDT = 1000.0
-HARD_MAX_LOSS_PER_TRADE_USDT = 25.0
+HARD_MAX_TOTAL_EXPOSURE_USDT = 500_000.0  # = 10.000 USDT teminat x 50x; asıl sınır kullanıcının kendi politikası (varsayılan 350)
+HARD_MAX_LOSS_PER_TRADE_USDT = 10_000.0  # sonlu üst sınır; işlem başı zarar limiti kullanıcının politikasıdır (varsayılan 3)
 
 
 def system_ceilings() -> dict[str, float]:
@@ -147,7 +149,7 @@ def sanitize_execution_policy(payload: Any, *, preserve_empty_allowed_symbols: b
             raise ValueError("Invalid max_direction_exposure_usdt") from exc
         if not math.isfinite(direction_cap) or not 0 < direction_cap <= HARD_MAX_TOTAL_EXPOSURE_USDT:
             logger.error("max_direction_exposure_usdt outside policy bounds")
-            raise ValueError("max_direction_exposure_usdt must be positive and at most 350")
+            raise ValueError("max_direction_exposure_usdt must be positive and within the system exposure ceiling")
     base["max_direction_exposure_usdt"] = direction_cap
     base["max_total_exposure_usdt"] = _number(source.get("max_total_exposure_usdt"), 350, 25, HARD_MAX_TOTAL_EXPOSURE_USDT)
     base["daily_loss_limit"] = _number(source.get("daily_loss_limit"), 10, 5, HARD_MAX_DAILY_LOSS_USDT)

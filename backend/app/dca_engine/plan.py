@@ -9,7 +9,7 @@ from __future__ import annotations
 from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from typing import Any
 
-from ..execution_core import HARD_MAX_MARGIN_USDT
+from ..execution_core import AUTO_MAX_MARGIN_USDT
 from .risk_config import (FUNDING_ALLOWANCE_PCT, LIQ_BUFFER_PCT, MAINTENANCE_RATE_ESTIMATE, MAKER_FEE, MIN_NET_PROFIT_PCT,  # noqa: F401
                           MIN_NET_PROFIT_USDT, SLIPPAGE_LIMIT_ENTRY_PCT, SLIPPAGE_MARKET_PCT, SLIPPAGE_TP_EXIT_PCT, TAKER_FEE,
                           TRAIL_MIN_LOCKED_PCT, TRAIL_MIN_PCT)
@@ -48,7 +48,7 @@ def _positive(*values: Any) -> bool:
 def limits_payload() -> dict[str, Any]:
     return {"max_safety_orders": MAX_SAFETY_ORDERS, "max_volume_multiplier": MAX_VOLUME_MULTIPLIER, "max_leverage": MAX_LEVERAGE,
             "step_pct": [MIN_STEP_PCT, MAX_STEP_PCT], "take_profit_pct": [MIN_TP_PCT, MAX_TP_PCT], "stop_gap_pct": [MIN_STOP_GAP_PCT, MAX_STOP_GAP_PCT],
-            "max_span_pct": MAX_SPAN_PCT, "max_margin_usdt": HARD_MAX_MARGIN_USDT,
+            "max_span_pct": MAX_SPAN_PCT, "max_margin_usdt": AUTO_MAX_MARGIN_USDT,
             "costs": {"taker_fee": TAKER_FEE, "slippage_market_pct": SLIPPAGE_MARKET_PCT, "slippage_limit_entry_pct": SLIPPAGE_LIMIT_ENTRY_PCT,
                       "slippage_tp_exit_pct": SLIPPAGE_TP_EXIT_PCT, "funding_allowance_pct": FUNDING_ALLOWANCE_PCT,
                       "min_net_profit_usdt": MIN_NET_PROFIT_USDT, "min_net_profit_pct": MIN_NET_PROFIT_PCT,
@@ -168,8 +168,8 @@ def prepare_dca_plan(*, direction: str, price: float, base_margin_usdt: float, s
         problems.append(f"Taban fiyattan stopa uzaklık %{span_pct:.2f}, sınır %{MAX_SPAN_PCT:g}; aralığı ya da ek emir sayısını azalt.")
     if liq_gap_pct < LIQ_BUFFER_PCT:
         problems.append("Stop, tahmini likidasyona çok yakın ya da ötesinde; kaldıracı düşür, aralığı kısalt ya da stopu yakınlaştır.")
-    if total_margin > HARD_MAX_MARGIN_USDT + 1e-9:
-        problems.append(f"Gereken toplam marjin {total_margin:.2f} USDT, sınırı {HARD_MAX_MARGIN_USDT:g} USDT.")
+    if total_margin > AUTO_MAX_MARGIN_USDT + 1e-9:
+        problems.append(f"Gereken toplam marjin {total_margin:.2f} USDT, sınırı {AUTO_MAX_MARGIN_USDT:g} USDT.")
     loss_limit = float(policy.get("max_loss_per_trade", 3))
     if worst_loss > loss_limit + 1e-9:
         problems.append(f"En kötü zarar {worst_loss:.2f} USDT, tek işlem sınırı {loss_limit:g} USDT.")
