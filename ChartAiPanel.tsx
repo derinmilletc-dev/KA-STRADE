@@ -4,7 +4,7 @@ import {Camera, Info, Loader2, Lock, Upload, X} from 'lucide-react'
 import {ChartAiIcon} from './chart-ai-icon'
 import {ChartClientError, chartRequest, chartResult, chartUsage, captureChart, CHART_AI_DISCLAIMER, CHART_AI_PRIVACY,
   imageBase64, validateChartUpload, type ChartResult, type ChartSnapshot, type ChartUsage} from './chart-ai-client'
-import {readEngineNote, withEngineNote} from './studio-insights'
+import {OPEN_CHART_AI_EVENT, publishAiNote, readEngineNote, withEngineNote} from './studio-insights'
 import './chart-ai.css'
 
 type Pending = {request_key: string; symbol: string; timeframe: string}
@@ -67,6 +67,7 @@ export default function ChartAiPanel(props: Props) {
     if (!alive.current) return
     setResult(next)
     setResultHidden(false)
+    if (next.status === 'succeeded' && next.result_text && !next.error) publishAiNote(`${expected.symbol}:${expected.timeframe}`, next.result_text)
     if (next.status !== 'processing') {
       setPending(null)
       sessionStorage.removeItem(storageKey)
@@ -109,6 +110,11 @@ export default function ChartAiPanel(props: Props) {
     if (!preview) return
     return () => URL.revokeObjectURL(preview.url)
   }, [preview])
+  useEffect(() => {
+    const onOpen = () => { setOpen(true); window.setTimeout(() => { if (!locked.current) void prepare() }, 0) }
+    window.addEventListener(OPEN_CHART_AI_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_CHART_AI_EVENT, onOpen)
+  })
   useEffect(() => {
     preparation.current++
     setPreparing(false)

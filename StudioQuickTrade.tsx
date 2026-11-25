@@ -1,10 +1,12 @@
-import {useEffect, useMemo, useRef, useState, type CSSProperties} from 'react'
+import {useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties} from 'react'
 import {ChevronDown, ChevronUp, Check, Layers, Sparkles, TriangleAlert, X} from 'lucide-react'
 import {API_BASE} from './api'
 import {currentLang} from './i18n'
 import {analysisPrice} from './master-trade-presentation'
 import {requestPositionsRefresh} from './trade-intent'
-import {buildInsights, publishEngineNote, type InsightResult} from './studio-insights'
+import {aiPreview, buildInsights, higherTimeframes, OPEN_CHART_AI_EVENT, publishEngineNote, readAiNote, subscribeAiNote, tfLabel, type InsightResult} from './studio-insights'
+import {fetchPublicMarketData} from './master-trade-request'
+import {parseKlines, type Kline} from './studio-klines'
 import {liveBlockerMessage, type SharedLiveStatus} from './frontend/src/LiveTradingPanel'
 import {
   DEMO_CLOSE_PHRASE, DEMO_PHRASE, DEMO_REDUCE_PHRASE, DEMO_STOP_PHRASE, DEMO_TRAIL_PHRASE, LIVE_TRAIL_PHRASE, TRAIL_CHOICES, JOURNAL_KEY, LIMIT_EXPIRY_CHOICES, LIVE_CLOSE_PHRASE, LIVE_PHRASE, LIVE_REDUCE_PHRASE, RISK_PCT_CHOICES,
@@ -37,6 +39,7 @@ const locale = () => currentLang() === 'en' ? 'en-US' : 'tr-TR'
 const fmt = (value: number, digits = 2) => value.toLocaleString(locale(), {minimumFractionDigits: digits, maximumFractionDigits: digits})
 const signed = (value: number, digits = 2) => `${value >= 0 ? '+' : '−'}${fmt(Math.abs(value), digits)}`
 const positive = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
+const SAFE_SYMBOL = /^[A-Z0-9]{3,20}$/
 const short = (symbol: string) => symbol.replace(/USDT$/, '')
 
 type Prefs = {margin: number; leverage: number; sizing: 'fixed' | 'risk'; riskPct: number}
@@ -416,7 +419,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   return <div className="sqtLayer" data-drawer={drawerOpen || undefined} data-grid={gridOpen || journalOpen || undefined}>
     {toast && <div className="sqtToast" role="status" data-kind={toast.kind}><span aria-hidden="true">{toast.kind === 'ok' ? <Check/> : <TriangleAlert/>}</span><div><b>{toast.title}</b>{toast.detail && <small>{toast.detail}</small>}</div><button type="button" aria-label={tx('Kapat', 'Close')} onClick={() => setToast(null)}><X/></button></div>}
 
-    {!side && <InsightsChip symbol={symbol} interval={interval} candles={candles} price={price} analysis={analysis} decision={decision}/>}
+    {!side && <InsightsChip symbol={symbol} interval={interval} candles={candles} price={price} analysis={analysis} decision={decision} position={current}/>}
     <StudioGrid symbol={symbol} price={price} demo={demo} premium={premium} onUpgrade={onUpgrade} analysis={analysis} decision={decision.direction} liveBlocker={liveBlocked ? blocker : ''}
       policy={policy} dataReady={dataReady} hasPosition={Boolean(current)} hidden={Boolean(side)} onSelect={onSelect} onToast={setToast} onOpenChange={setGridOpen} candles={candles} onLines={setGridLocal}
       extra={<JournalChip count={journal.length} onOpen={() => setJournalOpen(true)}/>}/>
@@ -540,31 +543,74 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
   </div>
 }
 
-/** Canlı akıllı yorum: mumlardan ve analiz kararından anında okunur özet. Kais AI'a Sor'un soru metnine de bu özet eklenir. */
-function InsightsChip({symbol, interval, candles, price, analysis, decision}: {symbol: string; interval: string; candles?: readonly Candle[]; price: number | null; analysis: AnalysisLevels; decision: StudioDecision}) {
+/** Canlı akıllı yorum: mumlardan, üst zaman dilimlerinden ve analiz kararından anında okunur özet; plana özel uyarılar, açık pozisyon önerileri ve son Kais AI yorumu.
+ *  Özet, Kais AI'a Sor'un soru metnine de eklenir. Üst zaman dilimi mumları herkese açık /klines ucundan okunur; alınamazsa bu bölüm sessizce atlanır. */
+function InsightsChip({symbol, interval, candles, price, analysis, decision, position}: {symbol: string; interval: string; candles?: readonly Candle[]; price: number | null; analysis: AnalysisLevels; decision: StudioDecision; position: StudioPosition | null}) {
   const [openCard, setOpenCard] = useState(false)
   const [result, setResult] = useState<InsightResult | null>(null)
-  const latest = useRef({candles, price, analysis, decision})
-  latest.current = {candles, price, analysis, decision}
+  const [mtf, setMtf] = useState<Array<{tf: string; candles: Kline[]}>>([])
+  const key = `${symbol}:${interval}`
+  const aiNote = useSyncExternalStore(subscribeAiNote, () => readAiNote(key), () => null)
+  const posInput = position && positive(position.entry_price) ? {side: sideOf(position), entry: positive(position.entry_price) as number, stop: positive(position.stop_loss), tp1: positive(position.tp1)} : null
+  const latest = useRef({candles, price, analysis, decision, mtf, posInput})
+  latest.current = {candles, price, analysis, decision, mtf, posInput}
+  useEffect(() => {
+    const tfs = higherTimeframes(interval)
+    setMtf([])
+    if (!tfs.length || !SAFE_SYMBOL.test(symbol)) return
+    const controller = new AbortController()
+    const load = async () => {
+      const rows = await Promise.all(tfs.map(async tf => {
+        try {
+          const response = await fetchPublicMarketData(`${API_BASE}/klines/${symbol}?interval=${encodeURIComponent(tf)}&limit=120`, {signal: controller.signal}, 15000)
+          if (!response.ok) return null
+          const parsed = parseKlines(await response.json())
+          return parsed ? {tf, candles: parsed} : null
+        } catch { return null }
+      }))
+      if (!controller.signal.aborted) setMtf(rows.filter((row): row is {tf: string; candles: Kline[]} => row !== null))
+    }
+    void load()
+    const id = window.setInterval(() => void load(), 90_000)
+    return () => { controller.abort(); window.clearInterval(id) }
+  }, [symbol, interval])
   useEffect(() => {
     const run = () => {
-      const {candles: list, price: now, analysis: plan, decision: verdict} = latest.current
-      const next = buildInsights({candles: list ?? [], price: now, analysis: plan as never, decision: verdict as never})
+      const now = latest.current
+      const next = buildInsights({candles: now.candles ?? [], price: now.price, analysis: now.analysis as never, decision: now.decision as never, mtf: now.mtf, position: now.posInput})
       setResult(next)
-      publishEngineNote(`${symbol}:${interval}`, next.ready ? next.summary : '')
+      publishEngineNote(key, next.ready ? next.summary : '')
     }
     run()
     const id = window.setInterval(run, 4000)
-    return () => { window.clearInterval(id); publishEngineNote(`${symbol}:${interval}`, '') }
-  }, [symbol, interval, candles?.length])
+    return () => { window.clearInterval(id); publishEngineNote(key, '') }
+  }, [key, candles?.length, mtf, Boolean(posInput)])
   if (!result?.ready) return null
+  const conf = result.confidence, total = Math.max(1, conf.total)
+  const dirWord = conf.dir === 'up' ? tx('yükseliş', 'bullish') : conf.dir === 'down' ? tx('düşüş', 'bearish') : tx('net yön yok', 'no clear direction')
+  const headline = conf.dir === 'up' ? conf.up : conf.dir === 'down' ? conf.down : conf.neutral
+  const alerts = result.advice.filter(item => item.tone === 'warn' || item.tone === 'down').length
   return <div className="sqtInsight" data-open={openCard || undefined}>
     <button type="button" className="sqtInsightBtn" data-tone={result.verdict.tone} aria-expanded={openCard} onClick={() => setOpenCard(value => !value)}>
-      <Sparkles aria-hidden="true"/><span>{tx('Akıllı yorum', 'Smart read')}</span><b>{result.verdict.text}</b><ChevronDown aria-hidden="true" data-open={openCard || undefined}/>
+      <Sparkles aria-hidden="true"/><span>{tx('Akıllı yorum', 'Smart read')}</span><b>{result.verdict.text}</b>
+      {conf.dir !== 'flat' && <em className="sqtInsightPct" data-tone={result.verdict.tone}>%{conf.pct}</em>}
+      {alerts > 0 && <i className="sqtInsightDot" aria-label={tx(`${alerts} uyarı`, `${alerts} alerts`)}>{alerts}</i>}
+      <ChevronDown aria-hidden="true" data-open={openCard || undefined}/>
     </button>
     {openCard && <div className="sqtInsightCard" role="region" aria-label={tx('Akıllı yorum', 'Smart read')}>
-      <ul>{result.items.map(item => <li key={item.id} data-tone={item.tone}><i aria-hidden="true"/><div><b>{item.title}</b><span>{item.text}</span></div></li>)}</ul>
-      <footer>{tx('Canlı mumlardan otomatik üretilir; yatırım tavsiyesi değildir. Daha derin yorum için “Kais AI’a Sor”: bu özet soruya eklenir.', 'Generated automatically from live candles; not investment advice. For a deeper read use “Ask Kais AI”: this summary is attached to the question.')}</footer>
+      <section className="sqtInsightConf" data-tone={result.verdict.tone}>
+        <div className="sqtInsightBar" aria-hidden="true"><i data-k="up" style={{flexGrow: conf.up}}/><i data-k="neutral" style={{flexGrow: conf.neutral}}/><i data-k="down" style={{flexGrow: conf.down}}/></div>
+        <p><b>{tx(`${conf.total} sinyalden ${headline}`, `${headline} of ${conf.total} signals`)}</b> {dirWord}{conf.dir !== 'flat' ? ` · ${tx('güç', 'strength')} %${conf.pct}` : ''}</p>
+        <small>{tx(`${conf.up} yükseliş · ${conf.neutral} nötr · ${conf.down} düşüş`, `${conf.up} bullish · ${conf.neutral} neutral · ${conf.down} bearish`)}</small>
+      </section>
+      {result.mtf.some(row => row.bias) && <div className="sqtInsightTf" role="list" aria-label={tx('Üst zaman dilimleri', 'Higher timeframes')}>
+        {result.mtf.map(row => <span key={row.tf} role="listitem" data-bias={row.bias ?? 'none'}><b>{tfLabel(row.tf)}</b><i aria-hidden="true">{row.bias === 'up' ? '▲' : row.bias === 'down' ? '▼' : row.bias === 'flat' ? '■' : '–'}</i></span>)}
+      </div>}
+      {result.advice.length > 0 && <ul className="sqtInsightAdvice" aria-label={tx('Öneri ve uyarılar', 'Suggestions and alerts')}>{result.advice.map(item => <li key={item.id} data-tone={item.tone}><TriangleAlert aria-hidden="true"/><div><b>{item.title}</b><span>{item.text}</span></div></li>)}</ul>}
+      {aiNote && <section className="sqtInsightAi"><header><Sparkles aria-hidden="true"/><b>{tx('Kais AI yorumu', 'Kais AI read')}</b><small>{new Date(aiNote.at).toLocaleTimeString(currentLang() === 'en' ? 'en-GB' : 'tr-TR', {hour: '2-digit', minute: '2-digit'})}</small></header><p>{aiPreview(aiNote.text)}</p></section>}
+      <button type="button" className="sqtInsightAsk" onClick={() => { setOpenCard(false); window.dispatchEvent(new CustomEvent(OPEN_CHART_AI_EVENT)) }}><Sparkles aria-hidden="true"/>{aiNote ? tx('Kais AI ile yeniden yorumlat', 'Ask Kais AI again') : tx('Kais AI ile derinleştir', 'Go deeper with Kais AI')}</button>
+      <ul className="sqtInsightList">{result.items.map(item => <li key={item.id} data-tone={item.tone}><i aria-hidden="true"/><div><b>{item.title}</b><span>{item.text}</span></div></li>)}</ul>
+      <footer>{tx('Canlı mumlardan otomatik üretilir; yatırım tavsiyesi değildir. “Kais AI ile derinleştir” grafiği yakalar ve bu özeti soruya ekler.', 'Generated automatically from live candles; not investment advice. “Go deeper” captures the chart and attaches this summary to the question.')}</footer>
     </div>}
   </div>
 }

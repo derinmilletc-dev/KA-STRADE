@@ -551,3 +551,52 @@ html body .masterReferenceAnalysis .sqtSlideFoot button[data-on="true"] { color:
 .masterReferenceAnalysis .sqtInsightCard li b { display: block; font-size: 11px; letter-spacing: .04em; color: #8fa4ad; }
 .masterReferenceAnalysis .sqtInsightCard li span { display: block; font-size: 12.5px; line-height: 1.4; color: #e2edf2; }
 .masterReferenceAnalysis .sqtInsightCard footer { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .08); font-size: 10.5px; line-height: 1.4; color: #6f8590; }
+
+/* ---------- Akıllı yorum v2 ---------- */
+.masterReferenceAnalysis .sqtInsightPct { font-style: normal; padding: 1px 7px; border-radius: 99px; font-size: 10.5px; font-weight: 800; background: rgba(255, 255, 255, .08); color: #cfe0e8; }
+.masterReferenceAnalysis .sqtInsightPct[data-tone="up"] { background: #0f3a2d; color: #3ee0a0; }
+.masterReferenceAnalysis .sqtInsightPct[data-tone="down"] { background: #3a1820; color: #ff8d9a; }
+.masterReferenceAnalysis .sqtInsightDot { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: #f2c46d; color: #1b1405; font-style: normal; font-size: 10px; font-weight: 800; }
+.masterReferenceAnalysis .sqtInsightCard { width: 400px; display: grid; gap: 10px; }
+.masterReferenceAnalysis .sqtInsightConf { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .06); }
+.masterReferenceAnalysis .sqtInsightBar { display: flex; gap: 3px; height: 8px; }
+.masterReferenceAnalysis .sqtInsightBar > i { flex-basis: 0; min-width: 0; border-radius: 99px; background: #3a4a56; }
+.masterReferenceAnalysis .sqtInsightBar > i[data-k="up"] { background: #1fc88a; }
+.masterReferenceAnalysis .sqtInsightBar > i[data-k="down"] { background: #e0586a; }
+.masterReferenceAnalysis .sqtInsightBar > i[style*="flex-grow: 0"] { display: none; }
+.masterReferenceAnalysis .sqtInsightConf p { margin: 4px 0 0; font-size: 13px; color: #e2edf2; }
+.masterReferenceAnalysis .sqtInsightConf p b { font-weight: 800; }
+.masterReferenceAnalysis .sqtInsightConf[data-tone="up"] p b { color: #3ee0a0; }
+.masterReferenceAnalysis .sqtInsightConf[data-tone="down"] p b { color: #ff8d9a; }
+.masterReferenceAnalysis .sqtInsightConf small { font-size: 10.5px; color: #7f94a0; }
+.masterReferenceAnalysis .sqtInsightTf { display: flex; gap: 6px; flex-wrap: wrap; }
+.masterReferenceAnalysis .sqtInsightTf > span { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px; font-size: 11.5px; background: rgba(255, 255, 255, .05); color: #9db1bb; }
+.masterReferenceAnalysis .sqtInsightTf > span b { font-weight: 700; color: #cfe0e8; }
+.masterReferenceAnalysis .sqtInsightTf > span[data-bias="up"] { background: #0f3a2d; color: #3ee0a0; }
+.masterReferenceAnalysis .sqtInsightTf > span[data-bias="down"] { background: #3a1820; color: #ff8d9a; }
+.masterReferenceAnalysis .sqtInsightTf > span[data-bias="up"] b, .masterReferenceAnalysis .sqtInsightTf > span[data-bias="down"] b { color: inherit; }
+.masterReferenceAnalysis .sqtInsightAdvice { list-style: none; margin: 0; padding: 8px 10px; display: grid; gap: 8px; border-radius: 12px; background: #2b2412aa; border: 1px solid #6b552066; }
+.masterReferenceAnalysis .sqtInsightAdvice li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: start; }
+.masterReferenceAnalysis .sqtInsightAdvice li svg { width: 15px; height: 15px; margin-top: 2px; color: #f2c46d; }
+.masterReferenceAnalysis .sqtInsightAdvice li[data-tone="up"] svg { color: #3ee0a0; }
+.masterReferenceAnalysis .sqtInsightAdvice li[data-tone="down"] svg { color: #ff8d9a; }
+.masterReferenceAnalysis .sqtInsightAdvice li b { display: block; font-size: 10.5px; letter-spacing: .05em; color: #c9ab63; }
+.masterReferenceAnalysis .sqtInsightAdvice li span { display: block; font-size: 12.5px; line-height: 1.4; color: #f3ead2; }
+.masterReferenceAnalysis .sqtInsightList { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.masterReferenceAnalysis .sqtInsightList li { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 10px; align-items: start; }
+.masterReferenceAnalysis .sqtInsightList li > i { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: #7fd4ee; }
+.masterReferenceAnalysis .sqtInsightList li[data-tone="up"] > i { background: #3ee0a0; }
+.masterReferenceAnalysis .sqtInsightList li[data-tone="down"] > i { background: #ff6577; }
+.masterReferenceAnalysis .sqtInsightList li[data-tone="warn"] > i { background: #f2c46d; }
+.masterReferenceAnalysis .sqtInsightList li b { display: block; font-size: 11px; letter-spacing: .04em; color: #8fa4ad; }
+.masterReferenceAnalysis .sqtInsightList li span { display: block; font-size: 12.5px; line-height: 1.4; color: #e2edf2; }
+.masterReferenceAnalysis .sqtInsightAi { padding: 10px 12px; border-radius: 12px; background: #11222f; border: 1px solid #2a6a8566; }
+.masterReferenceAnalysis .sqtInsightAi > header { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.masterReferenceAnalysis .sqtInsightAi > header svg { width: 13px; height: 13px; color: #7fd4ee; }
+.masterReferenceAnalysis .sqtInsightAi > header b { font-size: 11.5px; color: #cfe0e8; }
+.masterReferenceAnalysis .sqtInsightAi > header small { margin-left: auto; font-size: 10px; color: #7f94a0; }
+.masterReferenceAnalysis .sqtInsightAi p { margin: 0; font-size: 12.5px; line-height: 1.45; color: #dbe9f0; }
+.masterReferenceAnalysis .sqtInsightAsk { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; border-radius: 12px; border: 1px solid #2a6a85; background: linear-gradient(180deg, #153646, #102a38); color: #bfe9f7; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.masterReferenceAnalysis .sqtInsightAsk:hover { background: linear-gradient(180deg, #1b4559, #143445); }
+.masterReferenceAnalysis .sqtInsightAsk svg { width: 14px; height: 14px; }
+.masterReferenceAnalysis .sqtInsightCard { max-height: min(72vh, 560px); }
