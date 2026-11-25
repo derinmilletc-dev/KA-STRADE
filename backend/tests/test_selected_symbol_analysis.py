@@ -28,6 +28,9 @@ def public_analysis_routes(fetch):
         "ALLOWED_INTERVALS": {"1m", "5m", "15m", "30m", "1h", "4h", "1d"},
         "INTERVAL_SECONDS": {"1m": 60, "5m": 300, "15m": 900, "30m": 1800,
                              "1h": 3600, "4h": 14400, "1d": 86400},
+        "CHART_INTERVAL_SECONDS": {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400,
+                                   "3m": 180, "2h": 7200, "6h": 21600, "8h": 28800, "12h": 43200, "1w": 604800, "1M": 2592000},
+        "CHART_MIN_ANALYSIS_CANDLES": 30,
         "CANDLE_CACHE": {}, "CANDLE_INFLIGHT": {}, "market_data_request": fetch,
     }
     exec(compile(ast.Module(body=nodes, type_ignores=[]), "<public-analysis-routes>", "exec"), namespace)
