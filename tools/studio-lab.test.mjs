@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import './register-ts-resolve.mjs'
 
-const {PRESETS, allSignals, ruleSignals, sanitizeRule, sanitizeRules} = await import('../studio-rules.ts')
+const {PRESETS, allSignals, ruleSignals, sanitizeRule, sanitizeRules, ruleText, ruleTextEn} = await import('../studio-rules.ts')
 const {runBacktest, cleanStrategy} = await import('../studio-backtest.ts')
 const {volumeProfile} = await import('../studio-volume-profile.ts')
 
@@ -176,4 +176,11 @@ test('kayıtlı stratejiler temizlenir, aynı ad güncellenir, üst sınır uygu
   assert.deepEqual(sanitizeSaved([{id: 'x', name: 'k', strategy: {entry: [{left: 1}]}}, null, 5]), [])
   assert.equal(sanitizeStrategy({entry: [crossDown100], stopPct: -5}).stopPct, 3)
   assert.equal(removeSaved(list, 'id11').some(item => item.id === 'id11'), false)
+})
+
+test('kural cümlesi İngilizce ve Türkçe üretilir', () => {
+  const rule = {left: close, op: 'crossUp', right: {kind: 'ema', period: 50}}
+  assert.equal(ruleTextEn(rule), 'Close crosses above EMA(50)')
+  assert.equal(ruleText(rule), 'Kapanış EMA(50) yukarı keser')
+  assert.equal(ruleTextEn({left: {kind: 'hh', period: 20}, op: '<', right: {kind: 'macdsig'}}), 'Highest(20) is below MACD signal')
 })

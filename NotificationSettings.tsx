@@ -63,9 +63,9 @@ export default function NotificationSettings() {
       {(permission === 'denied' || phone === 'denied') && <details className="nsHelp" open>
         <summary><Info/>Bildirimler engelli, nasıl açarım?</summary>
         <ol>
-          <li>Adres çubuğunun solundaki <b>kilit</b> (veya ayar) simgesine bas.</li>
-          <li><b>Bildirimler</b> satırını <b>İzin ver</b> yap.</li>
-          <li>Sayfayı yenile ve yukarıdaki anahtarı tekrar aç.</li>
+          <li translate="no">{en ? <>Tap the <b>lock</b> (or settings) icon to the left of the address bar.</> : <>Adres çubuğunun solundaki <b>kilit</b> (veya ayar) simgesine bas.</>}</li>
+          <li translate="no">{en ? <>Set <b>Notifications</b> to <b>Allow</b>.</> : <><b>Bildirimler</b> satırını <b>İzin ver</b> yap.</>}</li>
+          <li translate="no">{en ? <>Reload the page and turn the switch above on again.</> : <>Sayfayı yenile ve yukarıdaki anahtarı tekrar aç.</>}</li>
         </ol>
         <button type="button" className="nsReload" onClick={() => window.location.reload()}>Sayfayı yenile</button>
       </details>}
