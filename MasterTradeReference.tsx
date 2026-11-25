@@ -33,7 +33,7 @@ import {computeIndicators, overlayExtent, sanitizeIndicators, MAX_ACTIVE_INDICAT
 import StudioLab from './StudioLab'
 import {detectPatterns} from './studio-patterns'
 import {extentOf, mergeExtents, rebaseCompare, returnCorrelation, type CompareCandle} from './studio-compare'
-import {ChartTypePicker, ClosePath, CompareLine, IndicatorLegend, IndicatorPicker, LabToggles, PatternMarkers, VolumeProfileLayer, PriceOverlays, SubPanes} from './StudioIndicatorLayers'
+import {StudioQuickBar, ChartTypePicker, ClosePath, CompareLine, IndicatorLegend, IndicatorPicker, LabToggles, PatternMarkers, VolumeProfileLayer, PriceOverlays, SubPanes} from './StudioIndicatorLayers'
 import {ChannelIcon, FibIcon, isProDrawing, MeasureIcon, ProShapes, RectIcon, TextIcon, TextPrompt, type ProDrawing} from './StudioDrawingShapes'
 import {advanceDraft, draftPreview} from './studio-draw-geometry'
 import './master-trade-reference.css'
@@ -166,6 +166,9 @@ function RefErrorNotice({message}: {message: string}) {
   </div>
 }
 
+const SHORT_LEVELS: Record<string, string> = {'DİRENÇ': 'DİR', 'DESTEK': 'DST', 'RESISTANCE': 'DİR', 'SUPPORT': 'DST', 'GİRİŞ': 'GİR', 'ENTRY': 'GİR', 'TRIGGER': 'TETİK'}
+// Küçük etiketlerde 1000 üstü fiyatlar kuruşsuz gösterilir (59.470); okunurluk için.
+const compactPrice = (value: number, full: (value: number) => string) => Math.abs(value) >= 1000 ? Math.round(value).toLocaleString('tr-TR') : full(value)
 function ReferenceChart({candles: sourceCandles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone, recoverSymbol, onRecover, position, ohlcExtra, gridLines = [], tools, compare}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void; recoverSymbol?: string | null; onRecover?: () => void; position?: LivePosition | null; ohlcExtra?: ReactNode; gridLines?: GridChartLine[]; tools?: ChartTools; compare?: {symbol: string; candles: readonly CompareCandle[]} | null}) {
   const candles = useMemo(() => convertCandles(sourceCandles, prefs.chartType), [sourceCandles, prefs.chartType])
   const [hover, setHover] = useState<number | null>(null)
@@ -213,7 +216,9 @@ function ReferenceChart({candles: sourceCandles, symbol, interval, analysis, tri
   }, [])
   // Telefonda sağdaki fiyat sütunu daha dar; grafik alanı genişler.
   const narrow = size.width < 560
-  const plotWidth = Math.max(30, size.width - (narrow ? 120 : 176))
+  // Yatay telefon (alçak ve geniş grafik): fiyat sütunu ve etiketler küçülür, mumlara yer açılır.
+  const compact = size.width > size.height * 1.4 && size.height < 440
+  const plotWidth = Math.max(30, size.width - (narrow ? 120 : compact ? 104 : 176))
   const axisPrice = (value: number) => analysisPrice(value)
   const plotHeight = Math.max(1, size.height - 26)
   const priceHeight = plotHeight * .79
@@ -259,6 +264,7 @@ function ReferenceChart({candles: sourceCandles, symbol, interval, analysis, tri
   const x = (index: number) => 10 + (index + .5) / visible.length * (plotWidth - 20)
   const bodyWidth = Math.max(1, Math.min(14, (plotWidth - 20) / visible.length * .7))
   const maximumVolume = Math.max(...visible.map(candle => candle.volume), 1)
+  const volumeShare = compact ? .09 : .15
   const lineLike = prefs.chartType === 'line' || prefs.chartType === 'area'
   // Çizimler fiyat+zaman olarak saklanır; ekranda mum aralığına göre yerleştirilir.
   const step = visible.length > 1 ? visible[visible.length - 1].time - visible[visible.length - 2].time || 60 : 60
@@ -345,7 +351,7 @@ function ReferenceChart({candles: sourceCandles, symbol, interval, analysis, tri
             return <g key={index}>{prefs.grid && <line x1="0" x2={plotWidth} y1={tickY} y2={tickY}/>}{prefs.axis && !labels.some(label => Math.abs(label.y - tickY) <= 21) && <text className="refPriceTick" data-price-y={tickY} x={plotWidth + 10} y={tickY} dominantBaseline="middle">{axisPrice(range.high - tickY / priceHeight * (range.high - range.low))}</text>}</g>
           })}{prefs.grid && Array.from({length: 6}, (_, index) => <line key={`v${index}`} x1={index * plotWidth / 5} x2={index * plotWidth / 5} y1="0" y2={plotHeight}/>)}</g>
           {(prefs.chartType === 'line' || prefs.chartType === 'area') && <ClosePath visible={visible} xOf={x} yOf={y} fill={prefs.chartType === 'area'} baseline={priceHeight}/>}
-          {visible.map((candle, index) => <g key={candle.time} className={`refCandle ${candle.close >= candle.open ? 'up' : 'down'}${lineLike ? ' refCandle--flat' : ''}`}>{!lineLike && <><line x1={x(index)} x2={x(index)} y1={y(candle.high)} y2={y(candle.low)} vectorEffect="non-scaling-stroke"/><rect x={x(index) - bodyWidth / 2} y={y(Math.max(candle.open, candle.close))} width={bodyWidth} height={Math.max(1, Math.abs(y(candle.open) - y(candle.close)))}/></>}{volumeVisible && <rect className="refVolume" x={x(index) - bodyWidth / 2} y={plotHeight - candle.volume / maximumVolume * plotHeight * .15} width={bodyWidth} height={candle.volume / maximumVolume * plotHeight * .15}/>}</g>)}
+          {visible.map((candle, index) => <g key={candle.time} className={`refCandle ${candle.close >= candle.open ? 'up' : 'down'}${lineLike ? ' refCandle--flat' : ''}`}>{!lineLike && <><line x1={x(index)} x2={x(index)} y1={y(candle.high)} y2={y(candle.low)} vectorEffect="non-scaling-stroke"/><rect x={x(index) - bodyWidth / 2} y={y(Math.max(candle.open, candle.close))} width={bodyWidth} height={Math.max(1, Math.abs(y(candle.open) - y(candle.close)))}/></>}{volumeVisible && <rect className="refVolume" x={x(index) - bodyWidth / 2} y={plotHeight - candle.volume / maximumVolume * plotHeight * volumeShare} width={bodyWidth} height={candle.volume / maximumVolume * plotHeight * volumeShare}/>}</g>)}
           {prefs.indicators.length > 0 && <PriceOverlays set={indicatorSet} from={windowStart} count={visible.length} xOf={x} yOf={y} plotWidth={plotWidth} priceHeight={priceHeight}/>}
           {compareValues && compare && <CompareLine values={compareValues} xOf={x} yOf={y} label={compare.symbol}/>}
           {patternHits.length > 0 && <PatternMarkers hits={patternHits} from={windowStart} xOf={x} yOf={y} candles={candles}/>}
@@ -413,7 +419,7 @@ function ReferenceChart({candles: sourceCandles, symbol, interval, analysis, tri
         {/* Performans: etiketler fiyata göre değil sabit sırayla ve sabit anahtarla çizilir. Konumları zaten
             mutlak (top) olduğu için görünüm aynıdır; ama canlı fiyat her tikte etiketleri söküp yeniden takmaz.
             Sökme/takma, sayfadaki :has() kuralları yüzünden tüm sayfanın stilini yeniden hesaplatıyordu. */}
-        <div className="masterTradeChartPills">{[...labels].sort((left, right) => `${left.tone}-${left.label}`.localeCompare(`${right.tone}-${right.label}`)).map(label => <span key={`${label.tone}-${label.label}`} className={`level-${label.tone}`} data-edge={label.edge} data-price-y={label.priceY} data-label-y={label.y} style={{top: label.y - 11}} title={`${label.label} ${analysisPrice(label.value)}`}>{label.edge === 'above' ? '↑ ' : label.edge === 'below' ? '↓ ' : ''}{label.label}{label.label ? ' ' : ''}{axisPrice(label.value)}</span>)}</div>
+        <div className="masterTradeChartPills" data-compact={compact || undefined}>{[...labels].sort((left, right) => `${left.tone}-${left.label}`.localeCompare(`${right.tone}-${right.label}`)).map(label => <span key={`${label.tone}-${label.label}`} className={`level-${label.tone}`} data-edge={label.edge} data-price-y={label.priceY} data-label-y={label.y} style={{top: label.y - 11}} title={`${label.label} ${analysisPrice(label.value)}`}>{label.edge === 'above' ? '↑ ' : label.edge === 'below' ? '↓ ' : ''}{compact ? (SHORT_LEVELS[label.label] ?? label.label) : label.label}{label.label ? ' ' : ''}{compact ? compactPrice(label.value, axisPrice) : axisPrice(label.value)}</span>)}</div>
       </>}
     </div>
     {range && !dataIssue && <SubPanes set={indicatorSet} enabled={prefs.indicators} from={windowStart} count={visible.length} xOf={x} width={size.width} plotWidth={plotWidth} hover={hover}/>}
@@ -833,9 +839,10 @@ export default function MasterTradeReference(props: Props) {
                   <label><input type="checkbox" checked={props.volumeVisible} onChange={props.onVolume}/>Hacim çubukları</label>
                   <label><input type="checkbox" checked={props.levelsVisible} onChange={props.onLevels}/>Seviye etiketleri</label>
                   <label><input type="checkbox" checked={prefs.axis} onChange={() => updatePrefs({axis: !prefs.axis})}/>Fiyat ekseni yazıları</label>
+                  {terminal && <button type="button" className="kfsSettingsShot" disabled={downloading} onClick={() => void downloadChart()}><Camera/>Görüntüyü indir</button>}
                 </div>
               </details>
-              <button type="button" aria-label="Grafik görüntüsünü indir" title="Grafik görüntüsünü indir" disabled={downloading} onClick={() => void downloadChart()}><Camera/></button>
+              <button type="button" className="kfsShotBtn" aria-label="Grafik görüntüsünü indir" title="Grafik görüntüsünü indir" disabled={downloading} onClick={() => void downloadChart()}><Camera/></button>
             </div>
             <div className="refOrderTools">{['LİMİT', 'PİYASA'].map(label => <button type="button" key={label} title="Emirler Canlı İşlem sekmesinden verilir" onClick={orderTab}>{label}</button>)}<button type="button" disabled={props.refreshing} onClick={props.onRefresh}><RefreshCw/>YENİLE</button></div>
             {terminal && <div className="kfsActions">
@@ -849,7 +856,7 @@ export default function MasterTradeReference(props: Props) {
               hasDrawings={symbolDrawings.length > 0} hidden={drawingsHidden} onToggleHidden={() => setDrawingsHidden(value => !value)}
               canUndo={ownHistory.past.length > 0} canRedo={ownHistory.future.length > 0} onUndo={undoDrawing} onRedo={redoDrawing} onClear={clearDrawings}/>}
             <div className="refSplit" data-on={prefs.split && !replayActive ? 'true' : 'false'}>
-            <ReferenceChart {...props} compare={compareOn && compareData.candles.length ? {symbol: prefs.compare, candles: compareData.candles} : null} gridLines={gridLines} tools={chartTools} position={livePosition} ohlcExtra={terminal ? <StudioPositionTabs positions={props.positions ?? []} symbol={props.symbol} price={liveChart.price ?? props.price} book={liveBook} onSelect={selectOpenPosition}/> : undefined} candles={shownCandles} price={shownPrice ?? liveChart.price ?? props.price} live={liveChart.live && !replayActive} premium={premium} prefs={prefs}
+            <ReferenceChart {...props} compare={compareOn && compareData.candles.length ? {symbol: prefs.compare, candles: compareData.candles} : null} gridLines={gridLines} tools={chartTools} position={livePosition} ohlcExtra={terminal ? <><StudioQuickBar chartType={prefs.chartType} onChartType={chartType => updatePrefs({chartType})} indicators={prefs.indicators} onRemove={toggleIndicator} onAdd={() => { const menu = document.querySelector<HTMLDetailsElement>('.masterReferenceAnalysis .refIndicators'); if (menu) { menu.open = true } }} replayActive={replayActive} replayEnabled={canReplay(liveChart.candles.length)} onReplay={() => setReplay(current => current ? null : {index: replayStart(liveChart.candles.length), playing: false, speed: 1})}/><StudioPositionTabs positions={props.positions ?? []} symbol={props.symbol} price={liveChart.price ?? props.price} book={liveBook} onSelect={selectOpenPosition}/></> : undefined} candles={shownCandles} price={shownPrice ?? liveChart.price ?? props.price} live={liveChart.live && !replayActive} premium={premium} prefs={prefs}
               drawings={drawingsHidden || prefs.chartType === 'renko' ? [] : symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
               recoverSymbol={previousSymbol !== props.symbol ? previousSymbol : null} onRecover={() => { if (previousSymbol) props.onMarket(previousSymbol) }}
               onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}

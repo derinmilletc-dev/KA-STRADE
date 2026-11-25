@@ -196,3 +196,45 @@ html body #root .labPresets { min-height: 44px; align-items: flex-start; }
 @media (max-width: 767px) {
   html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart:not([data-fs="on"]) .refToolbar .refDrawingTools { display: none !important; }
 }
+
+/* Yatay telefon: kompakt seviye etiketleri */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .masterTradeChartPills[data-compact] { width: 98px !important; right: 4px !important; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .masterTradeChartPills[data-compact] span { height: 18px !important; line-height: 18px !important; padding: 0 5px !important; font-size: 10px !important; letter-spacing: 0 !important; border-radius: 9px !important; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: clip; }
+
+/* Yatay telefon (alçak ekran): hızlı AL kutusu küçük, sağa yaslı; grafik sürüklenirken silikleşir. Grid düğmeleri küçülür. */
+@media (orientation: landscape) and (max-height: 480px) {
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .sqtLayer { --sqt-bottom: 30px; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .sqtDock { left: auto; right: 112px; transform: none; padding: 3px; gap: 4px; opacity: .94; transition: opacity .18s ease; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .sqtDock .sqtSide { height: 34px; min-width: 88px; padding: 0 10px; gap: 6px; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .sqtDock .sqtTx b { font-size: 12.5px; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .sqtDock .sqtTx small { font-size: 9.5px; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .sqtDock .sqtMid { min-width: 76px; padding: 0 6px; gap: 2px; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .sqtDock .sqtMid b { font-size: 11px; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart:has(svg[data-dragging="true"]) :is(.sqtDock, .sqtCloseDock, .sqgChipRow) { opacity: .12; pointer-events: none; }
+  html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .sqgChipRow { transform: scale(.82); transform-origin: left bottom; transition: opacity .18s ease; }
+}
+
+/* Daha fazla araç menüsü: gruplu, etiketli, 2 sütun (telefonda dokunması kolay) */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsMoreMenu { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 6px; width: min(336px, 58vw); border-radius: 14px; align-content: start; grid-auto-rows: min-content; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsMoreMenu .kfsMenuHead { grid-column: 1 / -1; padding: 4px 4px 0; font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: #6f8a8d; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsMoreMenu .kfsMenuHead:first-child { padding-top: 0; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsMoreMenu button.kfsTool { width: 100%; height: 38px; display: flex; align-items: center; justify-content: flex-start; gap: 8px; padding: 0 8px; border-radius: 10px; font-size: 12px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsMoreMenu button.kfsTool svg { flex: none; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsMoreMenu .kfsToolText { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Yatay tam ekran hızlı çubuğu */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsQuickBar { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsQuickBar > * { flex: none; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsQuickType, html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsQuickBtn { height: 28px; min-height: 28px; padding: 0 10px; border-radius: 14px; font-size: 11px; font-weight: 600; width: auto; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsQuickBtn[aria-pressed="true"] { background: rgba(0,228,164,.16); border-color: rgba(0,228,164,.5); color: #00e4a4; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsQuickChip { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 4px 0 9px; border-radius: 14px; font-size: 11px; font-weight: 600; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); white-space: nowrap; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsQuickChip i { width: 8px; height: 8px; border-radius: 3px; background: var(--ind); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsQuickChip button { width: 24px; height: 24px; min-height: 0; padding: 0; border-radius: 12px; font-size: 15px; line-height: 1; background: transparent; border: 0; color: #9fb3b6; }
+@media (orientation: landscape) and (max-height: 480px) { html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refIndLegend { display: none; } }
+
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsRail[data-menu-open="true"] { z-index: 30; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsMoreMenu button.kfsTool { padding: 0 6px; gap: 6px; font-size: 11.5px; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .kfsShotBtn { display: none; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsSettingsShot { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; margin-top: 4px; padding: 0 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsSettingsShot svg { width: 16px; height: 16px; }
+@media (orientation: landscape) and (max-height: 480px) { html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsQuickBar { max-width: 46vw; } html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsQuickType { max-width: 108px; } }

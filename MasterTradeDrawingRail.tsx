@@ -53,7 +53,7 @@ export function DrawingRail(props: Props) {
   const hideTip = () => { clearTimeout(timer.current); setTip(null) }
 
   // Her düğme: aria-label (ekran okuyucu) + özel ipucu (fare/klavye/dokunmatik). `title` kullanılmaz; çift ipucu olmasın.
-  const tool = (label: string, icon: ReactNode, onClick: () => void, extra: {pressed?: boolean; disabled?: boolean; key?: string; menuItem?: boolean} = {}) => (
+  const tool = (label: string, icon: ReactNode, onClick: () => void, extra: {pressed?: boolean; disabled?: boolean; key?: string; menuItem?: boolean; text?: string} = {}) => (
     <button type="button" key={extra.key ?? label} className="kfsTool" aria-label={label} aria-pressed={extra.pressed} disabled={extra.disabled}
       data-menu-item={extra.menuItem ? 'true' : undefined}
       onPointerEnter={event => { if (event.pointerType === 'mouse') showTip(event.currentTarget, label, false) }}
@@ -65,7 +65,7 @@ export function DrawingRail(props: Props) {
         const pointerType = (event.nativeEvent as PointerEvent).pointerType
         if (pointerType && pointerType !== 'mouse') showTip(event.currentTarget, label, true)
         onClick()
-      }}>{icon}</button>
+      }}>{icon}{extra.text && <span className="kfsToolText">{extra.text}</span>}</button>
   )
 
   const pick = (mode: Exclude<DrawMode, 'none'>) => () => { setMenu(false); props.onPick(mode) }
@@ -90,14 +90,17 @@ export function DrawingRail(props: Props) {
           onPointerLeave={event => { if (event.pointerType === 'mouse') hideTip() }}
           onClick={() => { hideTip(); setMenu(value => !value) }}><MoreHorizontal aria-hidden="true"/></button>
         {menu && <div className="kfsMoreMenu" role="menu" aria-label="More tools">
-          {tool('Fibonacci', <FibIcon/>, pick('fib'), {pressed: props.drawMode === 'fib', menuItem: true})}
-          {tool('Rectangle', <RectIcon/>, pick('rect'), {pressed: props.drawMode === 'rect', menuItem: true})}
-          {tool('Parallel channel', <ChannelIcon/>, pick('channel'), {pressed: props.drawMode === 'channel', menuItem: true})}
-          {tool('Measure', <MeasureIcon/>, pick('measure'), {pressed: props.drawMode === 'measure', menuItem: true})}
-          {tool('Text note', <TextIcon/>, pick('text'), {pressed: props.drawMode === 'text', menuItem: true})}
-          {tool('Price alert', <Bell aria-hidden="true"/>, pick('alarm'), {pressed: props.drawMode === 'alarm', menuItem: true})}
-          {tool(props.hidden ? 'Show drawings' : 'Hide drawings', props.hidden ? <EyeOff aria-hidden="true"/> : <Eye aria-hidden="true"/>, () => { setMenu(false); props.onToggleHidden() }, {disabled: !props.hasDrawings && !props.hidden, menuItem: true, key: 'visibility'})}
-          {tool('Clear all drawings', <Trash2 aria-hidden="true"/>, () => { setMenu(false); props.onClear() }, {disabled: !props.hasDrawings, menuItem: true})}
+          <small className="kfsMenuHead">Fib ve ölçüm</small>
+          {tool('Fibonacci', <FibIcon/>, pick('fib'), {pressed: props.drawMode === 'fib', menuItem: true, text: 'Fibonacci'})}
+          {tool('Measure', <MeasureIcon/>, pick('measure'), {pressed: props.drawMode === 'measure', menuItem: true, text: 'Ölçüm'})}
+          <small className="kfsMenuHead">Şekiller</small>
+          {tool('Parallel channel', <ChannelIcon/>, pick('channel'), {pressed: props.drawMode === 'channel', menuItem: true, text: 'Kanal'})}
+          {tool('Rectangle', <RectIcon/>, pick('rect'), {pressed: props.drawMode === 'rect', menuItem: true, text: 'Dikdörtgen'})}
+          {tool('Text note', <TextIcon/>, pick('text'), {pressed: props.drawMode === 'text', menuItem: true, text: 'Not'})}
+          <small className="kfsMenuHead">Diğer</small>
+          {tool('Price alert', <Bell aria-hidden="true"/>, pick('alarm'), {pressed: props.drawMode === 'alarm', menuItem: true, text: 'Alarm'})}
+          {tool(props.hidden ? 'Show drawings' : 'Hide drawings', props.hidden ? <EyeOff aria-hidden="true"/> : <Eye aria-hidden="true"/>, () => { setMenu(false); props.onToggleHidden() }, {disabled: !props.hasDrawings && !props.hidden, menuItem: true, key: 'visibility', text: props.hidden ? 'Göster' : 'Gizle'})}
+          {tool('Clear all drawings', <Trash2 aria-hidden="true"/>, () => { setMenu(false); props.onClear() }, {disabled: !props.hasDrawings, menuItem: true, text: 'Temizle'})}
         </div>}
       </div>
     </div>
