@@ -25,8 +25,12 @@ import StudioQuickTrade, {StudioPositionTabs} from './StudioQuickTrade'
 import type {ChartTools, GridChartLine} from './studio-grid'
 import {drawingId, readDrawings, sanitizeDrawings, saveDrawings, type ChartPoint, type DrawMode, type Drawing} from './chart-drawings'
 import {fetchRemote, mergeDrawings, pushRemote, readStamp, writeStamp, type SyncRecord} from './studio-drawing-sync'
+import {ReplayBar, ReplayToggle, SplitPicker, useKlines} from './StudioSplitReplay'
+import {canReplay, clampReplay, replaySlice, replayStart, sanitizeSpeed, speedMs, stepReplay, type ReplayState} from './studio-replay'
+import {CHART_TYPES, convertCandles, sanitizeChartType, type ChartType} from './studio-chart-types'
+import {alarmDiff, applyServerState, createServerAlarm, deleteServerAlarm, fetchServerState} from './studio-alarm-sync'
 import {computeIndicators, overlayExtent, sanitizeIndicators, MAX_ACTIVE_INDICATORS, type IndicatorId} from './studio-indicators'
-import {IndicatorLegend, IndicatorPicker, PriceOverlays, SubPanes} from './StudioIndicatorLayers'
+import {ChartTypePicker, ClosePath, IndicatorLegend, IndicatorPicker, PriceOverlays, SubPanes} from './StudioIndicatorLayers'
 import {ChannelIcon, FibIcon, isProDrawing, MeasureIcon, ProShapes, RectIcon, TextIcon, TextPrompt, type ProDrawing} from './StudioDrawingShapes'
 import {advanceDraft, draftPreview} from './studio-draw-geometry'
 import './master-trade-reference.css'
@@ -97,15 +101,15 @@ const DRAW_HINTS: Partial<Record<DrawMode, string>> = {
   fib: 'Hareketin başlangıcına, sonra ucuna tıkla.', rect: 'İki köşeye tıkla.', measure: 'Ölçmek için iki noktaya tıkla.',
   channel: 'Önce iki nokta (ana çizgi), sonra paralel çizginin geçeceği üçüncü noktaya tıkla.', text: 'Notu koymak istediğin noktaya tıkla.',
 }
-type ChartPrefs = {grid: boolean; axis: boolean; crosshair: boolean; indicators: IndicatorId[]}
+type ChartPrefs = {grid: boolean; axis: boolean; crosshair: boolean; indicators: IndicatorId[]; chartType: ChartType; split: boolean; splitInterval: string}
 const CHART_PREFS_KEY = 'kaistrade-chart-prefs'
 function readChartPrefs(): ChartPrefs {
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(CHART_PREFS_KEY) ?? '{}')
     const value = typeof saved === 'object' && saved !== null ? saved as Record<string, unknown> : {}
-    return {grid: value.grid !== false, axis: value.axis !== false, crosshair: value.crosshair === true, indicators: sanitizeIndicators(value.indicators).slice(0, MAX_ACTIVE_INDICATORS)}
+    return {grid: value.grid !== false, axis: value.axis !== false, crosshair: value.crosshair === true, indicators: sanitizeIndicators(value.indicators).slice(0, MAX_ACTIVE_INDICATORS), chartType: sanitizeChartType(value.chartType), split: value.split === true, splitInterval: typeof value.splitInterval === 'string' && (TRADING_TIMEFRAMES as readonly string[]).includes(value.splitInterval) ? value.splitInterval : '1h'}
   } catch {
-    return {grid: true, axis: true, crosshair: false, indicators: []}
+    return {grid: true, axis: true, crosshair: false, indicators: [], chartType: 'candles', split: false, splitInterval: '1h'}
   }
 }
 function saveChartPrefs(prefs: ChartPrefs) {
@@ -159,7 +163,8 @@ function RefErrorNotice({message}: {message: string}) {
   </div>
 }
 
-function ReferenceChart({candles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone, recoverSymbol, onRecover, position, ohlcExtra, gridLines = [], tools}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void; recoverSymbol?: string | null; onRecover?: () => void; position?: LivePosition | null; ohlcExtra?: ReactNode; gridLines?: GridChartLine[]; tools?: ChartTools}) {
+function ReferenceChart({candles: sourceCandles, symbol, interval, analysis, trigger, price, levelsVisible, volumeVisible, dataIssue, refreshing, premium, prefs, live, drawings, drawMode, onDraw, onErase, onDrawDone, recoverSymbol, onRecover, position, ohlcExtra, gridLines = [], tools}: Pick<Props, 'candles' | 'symbol' | 'interval' | 'analysis' | 'trigger' | 'price' | 'levelsVisible' | 'volumeVisible' | 'dataIssue' | 'refreshing'> & {premium: boolean; prefs: ChartPrefs; live: boolean; drawings: Drawing[]; drawMode: DrawMode; onDraw: (drawing: Drawing) => void; onErase: (id: string) => void; onDrawDone: () => void; recoverSymbol?: string | null; onRecover?: () => void; position?: LivePosition | null; ohlcExtra?: ReactNode; gridLines?: GridChartLine[]; tools?: ChartTools}) {
+  const candles = useMemo(() => convertCandles(sourceCandles, prefs.chartType), [sourceCandles, prefs.chartType])
   const [hover, setHover] = useState<number | null>(null)
   const [lineDrag, setLineDrag] = useState<{id: string; price: number} | null>(null)
   const [hoverY, setHoverY] = useState<number | null>(null)
@@ -248,11 +253,12 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
   const x = (index: number) => 10 + (index + .5) / visible.length * (plotWidth - 20)
   const bodyWidth = Math.max(1, Math.min(14, (plotWidth - 20) / visible.length * .7))
   const maximumVolume = Math.max(...visible.map(candle => candle.volume), 1)
+  const lineLike = prefs.chartType === 'line' || prefs.chartType === 'area'
   // Çizimler fiyat+zaman olarak saklanır; ekranda mum aralığına göre yerleştirilir.
   const step = visible.length > 1 ? visible[visible.length - 1].time - visible[visible.length - 2].time || 60 : 60
   const timeX = (time: number) => visible.length ? x((time - visible[0].time) / step) : 0
   const pointAt = (viewX: number, viewY: number): ChartPoint | null => {
-    if (!range || !visible.length || viewY < 0 || viewY > priceHeight || viewX < 0 || viewX > plotWidth) return null
+    if (prefs.chartType === 'renko' || !range || !visible.length || viewY < 0 || viewY > priceHeight || viewX < 0 || viewX > plotWidth) return null
     const index = (viewX - 10) / (plotWidth - 20) * visible.length - .5
     return {time: visible[0].time + index * step, price: range.high - viewY / priceHeight * (range.high - range.low)}
   }
@@ -332,7 +338,8 @@ function ReferenceChart({candles, symbol, interval, analysis, trigger, price, le
             const tickY = 11 + index / 6 * (priceHeight - 22)
             return <g key={index}>{prefs.grid && <line x1="0" x2={plotWidth} y1={tickY} y2={tickY}/>}{prefs.axis && !labels.some(label => Math.abs(label.y - tickY) <= 21) && <text className="refPriceTick" data-price-y={tickY} x={plotWidth + 10} y={tickY} dominantBaseline="middle">{axisPrice(range.high - tickY / priceHeight * (range.high - range.low))}</text>}</g>
           })}{prefs.grid && Array.from({length: 6}, (_, index) => <line key={`v${index}`} x1={index * plotWidth / 5} x2={index * plotWidth / 5} y1="0" y2={plotHeight}/>)}</g>
-          {visible.map((candle, index) => <g key={candle.time} className={`refCandle ${candle.close >= candle.open ? 'up' : 'down'}`}><line x1={x(index)} x2={x(index)} y1={y(candle.high)} y2={y(candle.low)} vectorEffect="non-scaling-stroke"/><rect x={x(index) - bodyWidth / 2} y={y(Math.max(candle.open, candle.close))} width={bodyWidth} height={Math.max(1, Math.abs(y(candle.open) - y(candle.close)))}/>{volumeVisible && <rect className="refVolume" x={x(index) - bodyWidth / 2} y={plotHeight - candle.volume / maximumVolume * plotHeight * .15} width={bodyWidth} height={candle.volume / maximumVolume * plotHeight * .15}/>}</g>)}
+          {(prefs.chartType === 'line' || prefs.chartType === 'area') && <ClosePath visible={visible} xOf={x} yOf={y} fill={prefs.chartType === 'area'} baseline={priceHeight}/>}
+          {visible.map((candle, index) => <g key={candle.time} className={`refCandle ${candle.close >= candle.open ? 'up' : 'down'}${lineLike ? ' refCandle--flat' : ''}`}>{!lineLike && <><line x1={x(index)} x2={x(index)} y1={y(candle.high)} y2={y(candle.low)} vectorEffect="non-scaling-stroke"/><rect x={x(index) - bodyWidth / 2} y={y(Math.max(candle.open, candle.close))} width={bodyWidth} height={Math.max(1, Math.abs(y(candle.open) - y(candle.close)))}/></>}{volumeVisible && <rect className="refVolume" x={x(index) - bodyWidth / 2} y={plotHeight - candle.volume / maximumVolume * plotHeight * .15} width={bodyWidth} height={candle.volume / maximumVolume * plotHeight * .15}/>}</g>)}
           {prefs.indicators.length > 0 && <PriceOverlays set={indicatorSet} from={windowStart} count={visible.length} xOf={x} yOf={y} plotWidth={plotWidth} priceHeight={priceHeight}/>}
           <g className="masterTradeChartLabels">{([] as typeof labels).map(label => <g key={`${label.label}-${label.value}`} data-level={label.label} className={`chartLevel level-${label.tone}`}><line x1="0" x2={plotWidth} y1={label.priceY} y2={label.priceY}/>{Math.abs(label.y - label.priceY) > 1 && <path d={`M ${plotWidth + 2} ${label.priceY} L ${plotWidth + 8} ${label.y}`} className="masterTradeLabelLeader"/>}</g>)}</g>
           <g className="refTimeAxis">{Array.from({length: narrow ? 4 : 6}, (_, index) => {const last = narrow ? 3 : 5; const candle = visible[Math.round(index / last * (visible.length - 1))]; return <text key={index} x={10 + index / last * (plotWidth - 20)} y={size.height - 6} textAnchor={index === 0 ? 'start' : index === last ? 'end' : 'middle'}>{candleTime(candle.time)}</text>})}</g>
@@ -434,6 +441,13 @@ function placeIndicatorMenu(details: HTMLDetailsElement) {
   if (rect.bottom > window.innerHeight - margin && details.getBoundingClientRect().top - rect.height - margin > 0) details.dataset.side = 'top'
 }
 
+// Yan yana ikinci grafik: aynı sembol, farklı zaman dilimi. Çizim ve emir araçları yok; yalnız okunur görünüm.
+function SecondChart({base, prefs, premium}: {base: Props; prefs: ChartPrefs; premium: boolean}) {
+  const data = useKlines(base.symbol, prefs.splitInterval, true)
+  return <ReferenceChart candles={data.candles} symbol={base.symbol} interval={prefs.splitInterval} analysis={null} trigger={base.trigger} price={data.candles[data.candles.length - 1]?.close ?? null} levelsVisible={false} volumeVisible={base.volumeVisible}
+    dataIssue={data.error} refreshing={!data.candles.length && !data.error} premium={premium} prefs={prefs} live={false} drawings={[]} drawMode="none" onDraw={() => undefined} onErase={() => undefined} onDrawDone={() => undefined}/>
+}
+
 export default function MasterTradeReference(props: Props) {
   const {premium, ready, userId, openUpgrade} = useMemberAccess()
   const demo = props.demo === true
@@ -441,6 +455,19 @@ export default function MasterTradeReference(props: Props) {
   const [prefs, setPrefs] = useState<ChartPrefs>(readChartPrefs)
   const [downloading, setDownloading] = useState(false)
   const liveChart = useLiveCandles(props.symbol, props.interval, props.candles)
+  // Bar replay: geçmişi mum mum aç. Yalnız ekrandaki mum listesini keser; veri, analiz ve emirlere dokunmaz.
+  const [replay, setReplay] = useState<ReplayState | null>(null)
+  useEffect(() => { setReplay(null) }, [props.symbol, props.interval])
+  const replayActive = replay !== null && canReplay(liveChart.candles.length)
+  const shownCandles = replayActive && replay ? replaySlice(liveChart.candles, replay.index) : liveChart.candles
+  const shownPrice = replayActive ? shownCandles[shownCandles.length - 1]?.close : undefined
+  const playing = replay?.playing === true
+  const replaySpeed = replay?.speed ?? 1
+  useEffect(() => {
+    if (!playing) return
+    const timer = window.setInterval(() => setReplay(current => current ? stepReplay(current, 1, liveChart.candles.length) : current), speedMs(replaySpeed))
+    return () => window.clearInterval(timer)
+  }, [playing, replaySpeed, liveChart.candles.length])
   // Gerçek hesapta açık işlem varken kapanış fiyatı (en iyi alış/satış) anlık izlenir; demo hesap ayrı bir piyasa olduğu için kullanılmaz.
   const liveBook = useFuturesBook(props.symbol, !demo && (props.positions ?? []).some(item => item.symbol === props.symbol && Math.abs(Number(item.quantity) || 0) > 0))
   const [drawMode, setDrawMode] = useState<DrawMode>('none')
@@ -468,11 +495,29 @@ export default function MasterTradeReference(props: Props) {
     window.clearTimeout(syncTimer.current)
     syncTimer.current = window.setTimeout(() => flushSync(), 900)
   }
+  const writeList = (symbol: string, next: Drawing[]) => {
+    setDrawings(current => current.symbol === symbol || symbol === props.symbol ? {symbol, list: next} : current); saveDrawings(symbol, next)
+    const stamp = Math.max(Date.now(), readStamp(symbol) + 1)
+    writeStamp(symbol, stamp)
+    queueSync(symbol, {drawings: next, updatedAt: stamp})
+  }
+  // Sunucu alarmı: çizgiye kurulan alarm sunucuda da açılır (sayfa kapalıyken izler, telefona bildirim yollar). Sunucu yoksa yerel alarm çalışmaya devam eder.
+  const alarmOff = useRef(false)
+  const openServerAlarms = (symbol: string, lines: ReturnType<typeof alarmDiff>['create']) => {
+    for (const line of lines) {
+      void createServerAlarm(symbol, line.price).then(serverId => {
+        if (serverId === null) return
+        const current = readDrawings(symbol)
+        const target = current.find(item => item.id === line.id)
+        if (!target || target.type !== 'hline' || !target.alarm || target.alarm.fired || target.alarm.serverId) { void deleteServerAlarm(serverId); return }
+        writeList(symbol, current.map(item => item.id === line.id && item.type === 'hline' && item.alarm ? {...item, alarm: {...item.alarm, serverId}} : item))
+      })
+    }
+  }
   const storeDrawings = (next: Drawing[]) => {
-    setDrawings({symbol: props.symbol, list: next}); saveDrawings(props.symbol, next)
-    const stamp = Math.max(Date.now(), readStamp(props.symbol) + 1)
-    writeStamp(props.symbol, stamp)
-    queueSync(props.symbol, {drawings: next, updatedAt: stamp})
+    const {create, remove} = alarmDiff(symbolDrawings, next)
+    writeList(props.symbol, next)
+    if (!alarmOff.current) { for (const id of remove) void deleteServerAlarm(id); openServerAlarms(props.symbol, create) }
   }
   useEffect(() => {
     const onHide = () => { if (document.visibilityState === 'hidden') flushSync(true) }
@@ -520,7 +565,7 @@ export default function MasterTradeReference(props: Props) {
   const [drawingsHidden, setDrawingsHidden] = useState(false)
   const clearDrawings = () => { if (window.confirm(`${props.symbol} grafiğindeki tüm çizimler silinsin mi?`)) { changeDrawings([]); setDrawMode('none') } }
   // Yeni çizim aracı seçilince gizli çizimler tekrar görünür; kullanıcı çizdiğini görsün.
-  const pickTool = (mode: DrawMode) => { setDrawingsHidden(false); setDrawMode(current => current === mode ? 'none' : mode) }
+  const pickTool = (mode: DrawMode) => { if (prefs.chartType === 'renko') return; setDrawingsHidden(false); setDrawMode(current => current === mode ? 'none' : mode) }
   // --- Yatay tam ekran: yalnız görünüm. Emir, TP/SL veya pozisyon durumuna dokunmaz. ---
   const [drawerOpen, setDrawerOpen] = useState(false)
   const fullscreen = useLandscapeFullscreen(() => drawMode !== 'none' || document.querySelector('.masterReferenceAnalysis :is(.refChartSettings, .refIndicators)[open], .masterReferenceAnalysis .kfsCoinPicker, .masterReferenceAnalysis .kfsRail[data-menu-open="true"], .masterReferenceAnalysis .kfsDrawer[data-open="true"], .masterReferenceAnalysis :is(.sqtSheet, .sqtPop, .sqtTray, .sqgPanel, .sqtPickHint)') !== null)
@@ -628,6 +673,26 @@ export default function MasterTradeReference(props: Props) {
     setAlarmToast(message); beep()
     try { if (document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification('KaisTrade fiyat alarmı', {body: message}) } catch { /* bildirim gösterilemedi */ }
   }, [alarmPrice])
+  useEffect(() => {
+    // Sunucuda çalan alarmları işle (sayfa kapalıyken çalmış olabilir). Sekme tekrar görününce ve dakikada bir yoklar.
+    const symbol = props.symbol
+    let cancelled = false
+    const check = () => {
+      if (alarmOff.current || document.hidden) return
+      void fetchServerState().then(state => {
+        if (cancelled || state === null) return
+        if (state === 'denied') { alarmOff.current = true; return }
+        const result = applyServerState(readDrawings(symbol), state)
+        if (!result.changed) return
+        writeList(symbol, result.list)
+        if (result.firedLevels.length) { setAlarmToast(result.firedLevels.map(level => `${symbol} fiyatı ${analysisPrice(level)} seviyesine ulaştı`).join(' · ')); beep() }
+      })
+    }
+    check()
+    const timer = window.setInterval(check, 60_000)
+    document.addEventListener('visibilitychange', check)
+    return () => { cancelled = true; window.clearInterval(timer); document.removeEventListener('visibilitychange', check) }
+  }, [props.symbol])
   useEffect(() => { setDrawMode('none') }, [props.symbol])
   useEffect(() => {
     if (drawMode === 'none') return
@@ -730,8 +795,8 @@ export default function MasterTradeReference(props: Props) {
           <div className="refToolbar" aria-label="Market chart controls">
             {terminal && <div className="kfsIdent" aria-busy={props.refreshing && !liveChart.candles.length || undefined}><button type="button" ref={symbolButton} className="kfsSymbolBtn" aria-haspopup="dialog" aria-expanded={coinPicker} aria-label={`${props.symbol} · Piyasa seç`} onClick={() => { if (coinPicker) closeCoinPicker(); else openCoinPicker() }}><b>{props.symbol}</b><ChevronDown aria-hidden="true"/></button><span className="kfsQuote"><strong>{analysisPrice(cardPrice)}</strong><span className="kfsQuoteMeta">{typeof cardChange === 'number' && <em data-tone={cardChange < 0 ? 'negative' : 'positive'}>{cardChange >= 0 ? '+' : ''}{numeric(cardChange, '%', 2)}</em>}{liveChart.live && <span className="refLiveBadge" title="Son mum canlı güncelleniyor"><i/>CANLI</span>}</span></span></div>}
             {terminal && coinPicker && <MasterTradeCoinPicker symbol={props.symbol} rows={props.marketFeed.rows} scores={props.scores} userId={userId} error={props.marketFeed.error} anchor={symbolButton.current} onSelect={pickCoin} onClose={closeCoinPicker}/>}
-            <span className="refChartType" title="Mum grafiği"><BarChart3/><ChevronDown/></span><select aria-label="Zaman dilimi" value={props.interval} onChange={event => props.onInterval(event.target.value)}>{TRADING_TIMEFRAMES.map(range => <option key={range}>{range}</option>)}</select>
-            <details className="refIndicators" onToggle={event => placeIndicatorMenu(event.currentTarget)}><summary aria-label="Göstergeler"><SlidersHorizontal/> <span className="refIndicatorsLabel">Göstergeler</span> <ChevronDown/></summary><div><button type="button" aria-pressed={props.levelsVisible} onClick={props.onLevels}>SEVİYELER</button><button type="button" aria-pressed={props.volumeVisible} onClick={props.onVolume}>HACİM</button><IndicatorPicker enabled={prefs.indicators} onToggle={toggleIndicator}/></div></details>
+            <span className="refChartType" title={`Grafik türü: ${CHART_TYPES.find(item => item.id === prefs.chartType)?.label ?? 'Mum'}`}><BarChart3/><ChevronDown/></span><select aria-label="Zaman dilimi" value={props.interval} onChange={event => props.onInterval(event.target.value)}>{TRADING_TIMEFRAMES.map(range => <option key={range}>{range}</option>)}</select>
+            <details className="refIndicators" onToggle={event => placeIndicatorMenu(event.currentTarget)}><summary aria-label="Göstergeler"><SlidersHorizontal/> <span className="refIndicatorsLabel">Göstergeler</span> <ChevronDown/></summary><div><button type="button" aria-pressed={props.levelsVisible} onClick={props.onLevels}>SEVİYELER</button><button type="button" aria-pressed={props.volumeVisible} onClick={props.onVolume}>HACİM</button><ChartTypePicker value={prefs.chartType} onPick={chartType => updatePrefs({chartType})}/><SplitPicker on={prefs.split} interval={prefs.splitInterval} intervals={TRADING_TIMEFRAMES} onToggle={() => updatePrefs({split: !prefs.split})} onInterval={splitInterval => updatePrefs({splitInterval})}/><ReplayToggle length={liveChart.candles.length} active={replayActive} onToggle={() => setReplay(current => current ? null : {index: replayStart(liveChart.candles.length), playing: false, speed: 1})}/><IndicatorPicker enabled={prefs.indicators} onToggle={toggleIndicator}/></div></details>
             {props.chartAiControl}
             <button type="button" className="refTradeBtn" aria-label={`${props.symbol} ile işlem aç`} title="Manuel işlem ekranını bu coinle açar" onClick={openTrade}><Zap aria-hidden="true"/><span>İşlem<span className="refLabelExtra"> aç</span></span></button>
             <div className="refDrawingTools">
@@ -770,11 +835,19 @@ export default function MasterTradeReference(props: Props) {
             {terminal && <DrawingRail drawMode={drawMode} onPick={pickTool} crosshair={prefs.crosshair} onCrosshair={() => updatePrefs({crosshair: !prefs.crosshair})}
               hasDrawings={symbolDrawings.length > 0} hidden={drawingsHidden} onToggleHidden={() => setDrawingsHidden(value => !value)}
               canUndo={ownHistory.past.length > 0} canRedo={ownHistory.future.length > 0} onUndo={undoDrawing} onRedo={redoDrawing} onClear={clearDrawings}/>}
-            <ReferenceChart {...props} gridLines={gridLines} tools={chartTools} position={livePosition} ohlcExtra={terminal ? <StudioPositionTabs positions={props.positions ?? []} symbol={props.symbol} price={liveChart.price ?? props.price} book={liveBook} onSelect={selectOpenPosition}/> : undefined} candles={liveChart.candles} price={liveChart.price ?? props.price} live={liveChart.live} premium={premium} prefs={prefs}
-              drawings={drawingsHidden ? [] : symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
+            <div className="refSplit" data-on={prefs.split && !replayActive ? 'true' : 'false'}>
+            <ReferenceChart {...props} gridLines={gridLines} tools={chartTools} position={livePosition} ohlcExtra={terminal ? <StudioPositionTabs positions={props.positions ?? []} symbol={props.symbol} price={liveChart.price ?? props.price} book={liveBook} onSelect={selectOpenPosition}/> : undefined} candles={shownCandles} price={shownPrice ?? liveChart.price ?? props.price} live={liveChart.live && !replayActive} premium={premium} prefs={prefs}
+              drawings={drawingsHidden || prefs.chartType === 'renko' ? [] : symbolDrawings} drawMode={drawMode} onDraw={drawing => changeDrawings([...symbolDrawings, drawing])}
               recoverSymbol={previousSymbol !== props.symbol ? previousSymbol : null} onRecover={() => { if (previousSymbol) props.onMarket(previousSymbol) }}
               onErase={id => { const next = symbolDrawings.filter(item => item.id !== id); changeDrawings(next); if (!next.length) setDrawMode('none') }}
               onDrawDone={() => setDrawMode('none')}/>
+              {prefs.split && !replayActive && <SecondChart base={props} prefs={prefs} premium={premium}/>}
+              {replayActive && replay && <ReplayBar state={replay} length={liveChart.candles.length}
+                onPlay={() => setReplay(current => current ? (current.index >= liveChart.candles.length - 1 ? {...current, index: replayStart(liveChart.candles.length), playing: true} : {...current, playing: !current.playing}) : current)}
+                onStep={delta => setReplay(current => current ? stepReplay({...current, playing: false}, delta, liveChart.candles.length) : current)}
+                onSeek={index => setReplay(current => current ? {...current, index: clampReplay(index, liveChart.candles.length), playing: false} : current)}
+                onSpeed={speed => setReplay(current => current ? {...current, speed: sanitizeSpeed(speed)} : current)} onExit={() => setReplay(null)}/>}
+            </div>
             {terminal && <AnalysisDrawer id="kfsAnalysisDrawer" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
               <div className="kfsTiles"><IndicatorTiles analysis={analysis} decision={decision} candles={liveChart.candles} opportunity={false}/></div>
             </AnalysisDrawer>}

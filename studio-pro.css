@@ -76,3 +76,34 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
 
 /* Göstergeler açılır menüsü uzun listeyi kaydırır; küçük ekranda taşmaz. */
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refIndicators.refIndicators > div { max-height: min(72dvh, 460px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* Grafik türü seçici ve çizgi/alan grafiği */
+.masterReferenceAnalysis .refTypePicker { display: grid; gap: 6px; margin-top: 4px; padding-bottom: 8px; min-width: 220px; }
+.masterReferenceAnalysis .refTypePicker > small { color: #8ca6a8; font-size: 10px; letter-spacing: .08em; }
+.masterReferenceAnalysis .refTypePicker > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.masterReferenceAnalysis .refTypePicker button { min-height: 40px; padding: 8px 12px; border-radius: 10px; }
+.masterReferenceAnalysis .refTypePicker button[aria-pressed="true"] { background: rgba(0,228,164,.16); border-color: rgba(0,228,164,.5); color: #00e4a4; }
+.masterReferenceAnalysis .refTypePicker p { margin: 0; font-size: 11px; color: #8ca6a8; }
+.masterReferenceAnalysis .refClosePath polyline { stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.masterReferenceAnalysis .refClosePath[data-tone="up"] { stroke: #00e4a4; color: #00e4a4; }
+.masterReferenceAnalysis .refClosePath[data-tone="down"] { stroke: #ff6474; color: #ff6474; }
+.masterReferenceAnalysis .refClosePath stop { stop-color: currentColor; }
+.masterReferenceAnalysis .refClosePath polygon { stroke: none; }
+.masterReferenceAnalysis .refCandle--flat { stroke: none; }
+
+/* Yan yana ikinci grafik ve bar replay */
+.masterReferenceAnalysis .refSplit[data-on="false"] { display: contents; }
+.masterReferenceAnalysis .refSplit[data-on="true"] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; min-width: 0; }
+@media (max-width: 760px), (orientation: portrait) { .masterReferenceAnalysis .refSplit[data-on="true"] { grid-template-columns: minmax(0, 1fr); } }
+.masterReferenceAnalysis .refSplitPicker, .masterReferenceAnalysis .refReplayToggle { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.1); min-width: 220px; }
+.masterReferenceAnalysis .refSplitPicker > small { color: #8ca6a8; font-size: 10px; letter-spacing: .08em; }
+.masterReferenceAnalysis .refReplayToggle > small { color: #8ca6a8; font-size: 11px; }
+.masterReferenceAnalysis .refSplitPicker > div { display: flex; gap: 6px; }
+.masterReferenceAnalysis .refSplitPicker button, .masterReferenceAnalysis .refReplayToggle button { min-height: 40px; padding: 8px 12px; border-radius: 10px; }
+.masterReferenceAnalysis .refSplitPicker select { min-height: 40px; border-radius: 10px; }
+.masterReferenceAnalysis .refSplitPicker button[aria-pressed="true"], .masterReferenceAnalysis .refReplayToggle button[aria-pressed="true"] { background: rgba(0,228,164,.16); border-color: rgba(0,228,164,.5); color: #00e4a4; }
+.masterReferenceAnalysis .refReplayToggle button:disabled { opacity: .45; }
+.masterReferenceAnalysis .refReplayBar { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 12px; background: rgba(8,16,18,.92); border: 1px solid rgba(0,228,164,.35); position: sticky; bottom: 6px; z-index: 6; }
+.masterReferenceAnalysis .refReplayBar button, .masterReferenceAnalysis .refReplayBar select { min-width: 40px; min-height: 40px; border-radius: 10px; }
+.masterReferenceAnalysis .refReplayBar input[type="range"] { flex: 1; min-width: 60px; accent-color: #00e4a4; }
+.masterReferenceAnalysis .refReplayPlay[aria-pressed="true"] { background: rgba(0,228,164,.18); }

@@ -1,5 +1,6 @@
 import {useId} from 'react'
 import {INDICATORS, MAX_ACTIVE_INDICATORS, type IndicatorId, type IndicatorSet, type Series} from './studio-indicators'
+import {CHART_TYPES, type ChartCandle, type ChartType} from './studio-chart-types'
 import {bandPaths, segmentPaths, symmetricExtent, valueText} from './studio-overlay-paths'
 
 // Grafik üstü ve alt panel gösterge katmanları. Yalnız görünüm: emir, analiz ya da veri akışına dokunmaz.
@@ -102,5 +103,28 @@ export function IndicatorPicker({enabled, onToggle}: {enabled: readonly Indicato
         <i aria-hidden="true"/><span>{item.label}</span><em>{item.pane === 'sub' ? 'alt panel' : 'grafikte'}</em>
       </button>
     })}
+  </div>
+}
+
+// Çizgi / alan grafiği: kapanışları birleştirir. Mumların hacim çubukları ayrıca çizilmeye devam eder.
+export function ClosePath({visible, xOf, yOf, fill, baseline}: {visible: readonly ChartCandle[]; xOf: (index: number) => number; yOf: (value: number) => number; fill: boolean; baseline: number}) {
+  const gradient = useId()
+  if (visible.length < 2) return null
+  const points = visible.map((candle, index) => `${xOf(index).toFixed(2)},${yOf(candle.close).toFixed(2)}`)
+  const rising = visible[visible.length - 1].close >= visible[0].close
+  return <g className="refClosePath" data-tone={rising ? 'up' : 'down'} aria-hidden="true">
+    {fill && <>
+      <defs><linearGradient id={gradient} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopOpacity=".32"/><stop offset="1" stopOpacity="0"/></linearGradient></defs>
+      <polygon points={`${xOf(0).toFixed(2)},${baseline} ${points.join(' ')} ${xOf(visible.length - 1).toFixed(2)},${baseline}`} fill={`url(#${gradient})`}/>
+    </>}
+    <polyline points={points.join(' ')} fill="none" vectorEffect="non-scaling-stroke"/>
+  </g>
+}
+
+export function ChartTypePicker({value, onPick}: {value: ChartType; onPick: (type: ChartType) => void}) {
+  return <div className="refTypePicker" role="group" aria-label="Grafik türü">
+    <small>GRAFİK TÜRÜ</small>
+    <div>{CHART_TYPES.map(item => <button type="button" key={item.id} aria-pressed={value === item.id} title={item.hint} onClick={() => onPick(item.id)}>{item.label}</button>)}</div>
+    {value === 'renko' && <p>Renko zamandan bağımsızdır; çizim araçları bu türde kapalıdır.</p>}
   </div>
 }
