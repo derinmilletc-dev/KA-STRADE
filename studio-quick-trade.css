@@ -438,3 +438,19 @@
   .masterReferenceAnalysis .sqtSlideFoot > span { margin-left: auto; font-size: 9.5px; line-height: 1.1; }
   .masterReferenceAnalysis .sqtSlide[data-over="false"] .sqtSlideFoot { display: none; }
 }
+
+/* Çerçevesiz teminat/kaldıraç: değer büyük rakam, kaydırıcı ince çizgi. */
+html body .masterReferenceAnalysis .sqtSlide .sqtNum { border: 0 !important; background: transparent !important; box-shadow: none !important; padding: 0 !important; height: auto !important; min-width: 0 !important; width: auto !important; gap: 5px; }
+html body .masterReferenceAnalysis .sqtSlide .sqtNum input { border: 0 !important; background: transparent !important; box-shadow: none !important; outline: 0 !important; border-radius: 0 !important; padding: 0 !important; margin: 0 !important; height: auto !important; width: 7ch !important; flex: none; font-size: 18px; font-weight: 800; color: #e8f1f5; text-align: right; caret-color: #3ee0a0; }
+html body .masterReferenceAnalysis .sqtSlide .sqtNum input:focus { color: #3ee0a0; }
+html body .masterReferenceAnalysis .sqtSlide .sqtNum em { font-size: 11px; color: #7f94a0; }
+html body .masterReferenceAnalysis .sqtSlide[data-over="true"] .sqtNum input { color: #ff8a97; }
+html body .masterReferenceAnalysis .sqtSlide input.sqtRange { border: 0 !important; background: transparent !important; box-shadow: none !important; outline: 0 !important; padding: 0 !important; margin: 0 !important; border-radius: 0 !important; }
+html body .masterReferenceAnalysis .sqtSlide input.sqtRange:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(62,224,160,.25); }
+html body .masterReferenceAnalysis .sqtSlideFoot button { background: transparent !important; border: 0 !important; color: #7f94a0; font-weight: 600; flex: 0 1 auto; padding: 0 10px; }
+html body .masterReferenceAnalysis .sqtSlideFoot button[data-on="true"] { color: #3ee0a0; background: rgba(62,224,160,.12) !important; }
+@media (max-height: 620px) and (min-width: 640px) {
+  html body .masterReferenceAnalysis .sqtSlide .sqtNum { width: auto !important; }
+  html body .masterReferenceAnalysis .sqtSlide { grid-template-columns: auto minmax(40px, 1fr) auto; }
+  html body .masterReferenceAnalysis .sqtSlide .sqtNum input { font-size: 16px; width: 6ch !important; }
+}
