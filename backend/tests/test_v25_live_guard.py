@@ -1268,7 +1268,7 @@ class V25LiveGuardCoreTests(unittest.TestCase):
         )
 
     def test_hard_total_exposure_and_active_plan_gates_fail_closed(self):
-        self.assertEqual(HARD_MAX_TOTAL_EXPOSURE_USDT, 1000.0)
+        self.assertEqual(HARD_MAX_TOTAL_EXPOSURE_USDT, 500_000.0)
         kwargs = dict(
             symbol="BTCUSDT",
             signal={"direction": "LONG", "confidence": 100, "radar": {"trap_score": 1}},
@@ -1285,7 +1285,7 @@ class V25LiveGuardCoreTests(unittest.TestCase):
 
     def test_restore_sanitizer_cannot_exceed_hard_caps(self):
         policy = sanitize_execution_policy({
-            "max_margin_per_trade": 9999,
+            "max_margin_per_trade": HARD_MAX_MARGIN_USDT + 999,
             "max_leverage": 125,
             "max_positions": 999,
             "daily_loss_limit": 9999,
