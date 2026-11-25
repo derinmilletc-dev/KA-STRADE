@@ -31,6 +31,17 @@ export function ema(values: readonly number[], period: number): Series {
   return out
 }
 
+/** Wilder ATR (ortalama gerçek aralık). Isınma değerleri null. */
+export function atr(candles: readonly IndicatorCandle[], period = 14): Series {
+  const out: Series = new Array(candles.length).fill(null)
+  if (candles.length <= period) return out
+  const tr = candles.map((c, i) => i === 0 ? c.high - c.low : Math.max(c.high - c.low, Math.abs(c.high - candles[i - 1].close), Math.abs(c.low - candles[i - 1].close)))
+  let prev = tr.slice(1, period + 1).reduce((sum, v) => sum + v, 0) / period
+  out[period] = prev
+  for (let i = period + 1; i < candles.length; i++) { prev = (prev * (period - 1) + tr[i]) / period; out[i] = prev }
+  return out
+}
+
 export type BollingerBands = {mid: Series; upper: Series; lower: Series}
 export function bollinger(values: readonly number[], period = 20, mult = 2): BollingerBands {
   const mid = sma(values, period)
