@@ -96,6 +96,14 @@ class CancelEntryPayload(ClosePayload):
     order_id: str = Field(min_length=3, max_length=80)
 
 
+class ReplaceEntryPayload(ClosePayload):
+    product_id: str = Field(default="", max_length=40)
+    order_id: str = Field(min_length=3, max_length=80)
+    stop_price: str | None = Field(default=None, max_length=30)
+    take_profit_price: str | None = Field(default=None, max_length=30)
+    profit_usd: str | None = Field(default=None, max_length=20)
+
+
 class CleanupPayload(BaseModel):
     confirm: str = Field(max_length=80)
     request_id: str = Field(min_length=8, max_length=64)
@@ -267,6 +275,20 @@ async def cancel_entry(payload: CancelEntryPayload, request: Request) -> Any:
         return await flow.cancel_entry(client, pool, user_id, await user_limits.effective(pool, user_id), payload.order_id)
 
     return await _guarded(request, "cancel_entry", work, claim=payload.request_id)
+
+
+@router.post("/replace-entry")
+async def replace_entry(payload: ReplaceEntryPayload, request: Request) -> Any:
+    _member(request)
+    _check_confirm(payload.confirm, CHANGE_CONFIRMATION)
+
+    async def work(client: CoinbaseTradingClient, pool: Any, user_id: str) -> Any:
+        return await flow.replace_entry(
+            client, pool, user_id, await user_limits.effective(pool, user_id), payload.order_id,
+            stop_price=payload.stop_price, take_profit_price=payload.take_profit_price, profit_usd=payload.profit_usd,
+        )
+
+    return await _guarded(request, "replace_entry", work, claim=payload.request_id)
 
 
 @router.post("/reconcile")

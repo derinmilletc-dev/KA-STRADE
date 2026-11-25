@@ -521,6 +521,50 @@ class RestingTests(FlowBase):
         err = self.fails(lambda: run(flow.cancel_entry(self.client, self.pool, "u1", self.limits, "someone-elses-order", sleep=nosleep)))
         self.assertEqual(err.code, "NOT_OUR_ORDER")
 
+    def replace(self, order_id, **kw):
+        return run(flow.replace_entry(self.client, self.pool, "u1", self.limits, order_id, sleep=nosleep, **kw))
+
+    def test_replace_entry_moves_stop_and_target_with_verified_cancel(self):
+        first = self.rest()
+        out = self.replace(first["entry_order_id"], stop_price="2950", take_profit_price="3150")
+        self.assertEqual(out["status"], "replaced")
+        self.assertEqual(self.ex.orders[first["entry_order_id"]]["status"], "CANCELLED")
+        body = self.ex.posts()[-1][2]
+        self.assertEqual(body["attached_order_configuration"]["trigger_bracket_gtc"], {"limit_price": "3150", "stop_trigger_price": "2950"})
+        self.assertEqual(body["order_configuration"]["limit_limit_gtc"]["limit_price"], "2995")
+        pending = run(flow.pending_entries(self.client))
+        self.assertEqual(len(pending), 1)
+        self.assertNotEqual(pending[0]["order_id"], first["entry_order_id"])
+
+    def test_replace_entry_profit_usd_sets_target_price(self):
+        first = self.rest()
+        out = self.replace(first["entry_order_id"], profit_usd="5")
+        self.assertEqual(out["status"], "replaced")
+        tp = Decimal(self.ex.posts()[-1][2]["attached_order_configuration"]["trigger_bracket_gtc"]["limit_price"])
+        self.assertGreater(tp, Decimal("2995"))
+
+    def test_replace_entry_rejects_wrong_side_levels_without_cancelling(self):
+        first = self.rest()
+        for kw in ({"stop_price": "3000"}, {"take_profit_price": "2900"}, {}, {"profit_usd": "5", "take_profit_price": "3100"}):
+            err = self.fails(lambda kw=kw: self.replace(first["entry_order_id"], **kw))
+            self.assertEqual(err.code, "BAD_REQUEST")
+        self.assertEqual(self.ex.orders[first["entry_order_id"]]["status"], "OPEN")
+        err = self.fails(lambda: self.replace("someone-elses-order", stop_price="2950"))
+        self.assertEqual(err.code, "NOT_OUR_ORDER")
+
+    def test_replace_entry_reports_clearly_when_new_order_is_rejected(self):
+        first = self.rest()
+        self.ex.rest_mode = "reject"
+        err = self.fails(lambda: self.replace(first["entry_order_id"], stop_price="2950"))
+        self.assertIn("iptal edildi", err.message)
+        self.assertEqual(run(flow.pending_entries(self.client)), [])
+
+    def test_reconcile_lists_plan_for_pending_orders(self):
+        self.rest()
+        out = run(flow.reconcile_flow(self.client, self.pool, "u1", self.limits, sleep=nosleep))
+        plan = out["pending"][0]["plan"]
+        self.assertEqual((plan["entry_limit_price"], plan["stop_price"], plan["take_profit_price"]), ("2995", "2940", "3100"))
+
     def test_exchange_rejects_resting_order(self):
         self.ex.rest_mode = "reject"
         err = self.fails(lambda: self.rest())

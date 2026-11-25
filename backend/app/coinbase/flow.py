@@ -557,9 +557,18 @@ async def reconcile_flow(
         if tp_note:
             notes.append(f"{item['product_id']}: {tp_note}")
     pending = await pending_entries(client)
-    return {"fixed": fixed, "notes": notes, "pending": [
-        {k: (str(v) if v is not None and not isinstance(v, str) else v) for k, v in row.items()} for row in pending
-    ]}
+    rows: list[dict[str, Any]] = []
+    for row in pending:
+        item = {k: (str(v) if v is not None and not isinstance(v, str) else v) for k, v in row.items()}
+        try:
+            plan = await journal.rest_plan(pool, user_id, str(row.get("product_id") or ""))
+        except Exception:  # noqa: BLE001 - yalnız gösterim; hata emir akışını etkilemez
+            plan = None
+        if plan:
+            item["plan"] = {key: (str(plan[key]) if plan.get(key) is not None else None) for key in (
+                "entry_limit_price", "stop_price", "take_profit_price", "contracts", "notional_usd", "leverage", "margin_usd")}
+        rows.append(item)
+    return {"fixed": fixed, "notes": notes, "pending": rows}
 
 
 async def cancel_entry(client: CoinbaseTradingClient, pool: Any, user_id: str, limits: Limits, order_id: str, *, sleep: Sleep = asyncio.sleep) -> dict[str, Any]:
@@ -572,6 +581,67 @@ async def cancel_entry(client: CoinbaseTradingClient, pool: Any, user_id: str, l
     await journal.record(pool, user_id, "cancel_entry", "cancelled", order_id=order_id)
     result = await reconcile_flow(client, pool, user_id, limits, sleep=sleep)  # iptal yarışında kısmen dolmuş olabilir
     return {"status": "cancelled", "order_id": order_id, **result, "message": "Bekleyen emir iptal edildi."}
+
+
+async def replace_entry(
+    client: CoinbaseTradingClient, pool: Any, user_id: str, limits: Limits, order_id: str,
+    *, stop_price: Any = None, take_profit_price: Any = None, profit_usd: Any = None, sleep: Sleep = asyncio.sleep,
+) -> dict[str, Any]:
+    """Bekleyen limit girişin stop/hedefini değiştirir. Coinbase'de bu seviyeler emre EKLİ olduğu için emir iptal edilir
+    (iptal DOĞRULANIR) ve aynı fiyat/miktarla, yeni seviyelerle ve tam ön kontrolle yeniden verilir. İptal sırasında emir
+    (kısmen) dolduysa hiçbir şey yeniden verilmez; korumasız kalan pozisyon `reconcile` ile korunur."""
+    pending = {o["order_id"]: o for o in await pending_entries(client)}
+    order = pending.get(order_id)
+    if order is None:
+        raise CoinbaseError("NOT_OUR_ORDER", "Bu, bekleyen bir Kais giriş emri değil (ya da zaten dolmuş/iptal olmuş).", http_status=409)
+    product_id = str(order.get("product_id") or "")
+    plan = await journal.rest_plan(pool, user_id, product_id)
+    if plan is None or not plan.get("entry_limit_price") or not plan.get("contracts"):
+        raise CoinbaseError("NO_PLAN", "Bu emrin kayıtlı planı bulunamadı; seviyeler değiştirilemedi. Emri iptal edip yeniden ver.", http_status=409)
+    if (stop_price in (None, "")) + (take_profit_price in (None, "")) + (profit_usd in (None, "")) == 3:
+        raise CoinbaseError("BAD_REQUEST", "Değiştirilecek stop, hedef veya kâr tutarı yok.", http_status=422)
+    if profit_usd not in (None, "") and take_profit_price not in (None, ""):
+        raise CoinbaseError("BAD_REQUEST", "Kâr tutarı ile hedef fiyatı birlikte verilemez.", http_status=422)
+    side, contracts = str(plan["side"]), int(plan["contracts"])
+    entry = to_decimal(plan["entry_limit_price"], "giriş fiyatı")
+    new_stop = to_decimal(stop_price, "stop fiyatı") if stop_price not in (None, "") else Decimal(plan["stop_price"])
+    if profit_usd not in (None, ""):
+        usd = to_decimal(profit_usd, "kâr tutarı")
+        if usd <= 0:
+            raise CoinbaseError("BAD_REQUEST", "Kâr hedefi 0'dan büyük bir USD tutarı olmalı.", http_status=422)
+        product = await order_api.get_product(client, product_id)
+        new_tp = target_price(side, entry, contracts, product["contract_size"], usd, None, product["price_increment"])
+    elif take_profit_price not in (None, ""):
+        new_tp = to_decimal(take_profit_price, "hedef fiyatı")
+    else:
+        new_tp = Decimal(plan["take_profit_price"]) if plan.get("take_profit_price") else None
+    if new_tp is None:
+        raise CoinbaseError("BAD_REQUEST", "Bekleyen emir için hedef fiyatı zorunlu.", http_status=422)
+    long_side = side == "BUY"
+    if (long_side and not new_stop < entry < new_tp) or (not long_side and not new_stop > entry > new_tp):
+        raise CoinbaseError("BAD_REQUEST", "Stop giriş fiyatının zarar tarafında, hedef kâr tarafında olmalı.", http_status=422)
+    request = {
+        "product_id": product_id, "side": side, "contracts": contracts, "margin_usd": plan.get("margin_usd") or "1",
+        "entry_limit_price": plan["entry_limit_price"], "stop_price": fmt(new_stop), "take_profit_price": fmt(new_tp),
+        "rest": True, "plan_source": plan.get("plan_source"), "leverage": plan.get("leverage"),
+    }
+    # Eski emir yerindeyken ön kontrol yapılamaz (aynı üründe bekleyen emir engeli): seviye yönleri yukarıda doğrulandı,
+    # iptalden sonra open_position tam ön kontrolü (risk sınırı, marjin vb.) yeniden çalıştırır.
+    stuck = await _cancel_verified(client, [order_id])
+    if stuck:
+        raise _critical("ENTRY_CANCEL_FAILED", f"Bekleyen giriş emri ({order_id}) iptal edilemedi; değişiklik yapılmadı. Coinbase'de kontrol et.", product_id=product_id)
+    await journal.record(pool, user_id, "replace_entry", "cancelled_for_replace", product_id=product_id, order_id=order_id)
+    if _find_position(await service.fetch_positions(client), product_id) is not None:
+        report = await reconcile_flow(client, pool, user_id, limits, sleep=sleep)
+        raise CoinbaseError("ENTRY_FILLED_DURING_EDIT", "Emir değişiklik sırasında doldu; yeni emir verilmedi. Pozisyon eski seviyelerle korunuyor, ekrandan kontrol et.",
+                            http_status=409, extra={"reconcile": report})
+    try:
+        result = await open_position(client, pool, user_id, limits, request, sleep=sleep)
+    except CoinbaseError as exc:
+        await journal.record(pool, user_id, "replace_entry", "replace_failed", product_id=product_id, detail={"error": exc.message})
+        raise CoinbaseError(exc.code, f"Eski bekleyen emir iptal edildi ama yeni seviyelerle emir verilemedi (hiçbir emir açık değil): {exc.message}",
+                            http_status=exc.http_status, extra=exc.extra) from exc
+    return {**result, "status": "replaced", "message": "Bekleyen emir yeni stop/hedefle yeniden verildi. " + str(result.get("message") or "")}
 
 
 # ---------------------------------------------------------------- kapat
