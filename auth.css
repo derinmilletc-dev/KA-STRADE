@@ -1472,3 +1472,18 @@ html body #root main.authLoading.authBoot {
   .authBootBar i { width: 100%; opacity: .6; }
   .authBootSteps li.isActive i { border-top-color: var(--kt-accent); }
 }
+
+/* ===== Giris sayfasi (telefon): kaydirma yok, alt baglantilar resmin ustunde =====
+   Sayfa tam ekran yuksekligine sabitlenir. Olcu birimi --u hem genislige hem yukseklige gore kucuk olani alir:
+   logo + kart + alt baglantilar yaklasik 770 birimdir; kisa ekranlarda her sey orantili kuculur, tasmaz. */
+@media (max-width: 1023px) {
+  html body #root .authRoot:has(.authPageLogin) {
+    --u: min(calc(min(100vw, 480px) / 426), calc(100dvh / 770));
+    height: 100vh; height: 100dvh; min-height: 0 !important; max-height: 100dvh; overflow: hidden;
+    background-image: url("/login-winter-top.webp"), url("/login-winter-bottom.webp"), linear-gradient(180deg, #141113 0, #141113 calc(var(--u) * 400), #55525c calc(var(--u) * 505), #55525c 100%) !important;
+    background-position: center top, center bottom, 0 0 !important;
+  }
+  html body #root .authRoot > main.authPage.authPageLogin { flex: 0 0 auto; min-height: 0 !important; }
+  html body #root .authRoot:has(.authPageLogin) > footer.authFooter { z-index: 2; padding: 0 0 max(calc(var(--u) * 22), env(safe-area-inset-bottom)) !important; }
+  html body #root .authRoot:has(.authPageLogin) > footer.authFooter a { text-shadow: 0 1px 3px rgba(0,0,0,.7), 0 0 10px rgba(0,0,0,.5); }
+}
