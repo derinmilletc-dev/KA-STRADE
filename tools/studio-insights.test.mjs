@@ -2,6 +2,9 @@ import assert from 'node:assert/strict'
 import {test} from 'node:test'
 import './register-ts-resolve.mjs'
 
+let testLang = 'tr'
+globalThis.window = {localStorage: {getItem: () => testLang}}
+
 const {buildInsights, candleRead, publishEngineNote, readEngineNote, withEngineNote, MIN_INSIGHT_CANDLES, structureRead, swings, tfBias, mtfRead, aiPreview, publishAiNote, readAiNote, higherTimeframes} = await import('../studio-insights.ts')
 
 const make = (n, fn) => Array.from({length: n}, (_, i) => { const c = fn(i); return {time: 1_700_000_000 + i * 900, open: c.open ?? c.close, high: c.high ?? c.close + 1, low: c.low ?? c.close - 1, close: c.close, volume: c.volume ?? 100} })
@@ -125,4 +128,14 @@ test('üst zaman dilimleri', () => {
   assert.deepEqual(higherTimeframes('4h'), ['1d'])
   assert.deepEqual(higherTimeframes('1d'), [])
   assert.deepEqual(higherTimeframes('bilinmez'), [])
+})
+
+test('İngilizce arayüzde yorumlar İngilizce', () => {
+  testLang = 'en'
+  try {
+    const result = buildInsights({candles: make(80, i => ({close: 100 + i}))})
+    assert.ok(/bullish/i.test(result.verdict.text))
+    assert.ok(!/yükseliş|düşüş/i.test(result.items.map(item => item.text).join(' ')))
+    assert.ok(/Engine read/.test(result.summary))
+  } finally { testLang = 'tr' }
 })
