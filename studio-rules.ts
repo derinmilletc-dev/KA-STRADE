@@ -50,6 +50,22 @@ export function operandText(operand: Operand): string {
   if (operand.kind === 'll') return `En düşük(${operand.period})`
   return 'period' in operand ? `${operand.kind.toUpperCase()}(${operand.period})` : operand.kind
 }
+const OPERAND_EN: Record<string, string> = {close: 'Close', open: 'Open', high: 'High', low: 'Low', volume: 'Volume'}
+export function operandTextEn(operand: Operand): string {
+  if (operand.kind === 'price') return OPERAND_EN[operand.field]
+  if (operand.kind === 'num') return String(operand.value)
+  if (operand.kind === 'macd') return 'MACD'
+  if (operand.kind === 'macdsig') return 'MACD signal'
+  if (operand.kind === 'bbup') return 'Bollinger upper'
+  if (operand.kind === 'bblow') return 'Bollinger lower'
+  if (operand.kind === 'volsma') return `Volume SMA(${operand.period})`
+  if (operand.kind === 'hh') return `Highest(${operand.period})`
+  if (operand.kind === 'll') return `Lowest(${operand.period})`
+  return 'period' in operand ? `${operand.kind.toUpperCase()}(${operand.period})` : operand.kind
+}
+const OPERATOR_EN: Record<string, string> = {'>': 'is above', '<': 'is below', crossUp: 'crosses above', crossDown: 'crosses below'}
+/** İngilizce kural cümlesi: "Close crosses above EMA(50)". */
+export const ruleTextEn = (rule: Rule) => `${operandTextEn(rule.left)} ${OPERATOR_EN[rule.op] ?? ''} ${operandTextEn(rule.right)}`.replace(/\s+/g, ' ').trim()
 export const ruleText = (rule: Rule) => `${operandText(rule.left)} ${operandText(rule.right)} ${OPERATORS.find(item => item.id === rule.op)?.label ?? ''}`
 
 export function operandSeries(candles: readonly IndicatorCandle[], operand: Operand, cache?: Map<string, Series>): Series {

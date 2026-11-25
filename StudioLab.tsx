@@ -2,10 +2,11 @@ import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {API_BASE} from './api'
 import {fetchPublicMarketData} from './master-trade-request'
 import {useKlines} from './StudioSplitReplay'
+import {currentLang} from './i18n'
 import {barsPerYear, DEFAULT_STRATEGY, runBacktest, splitCheck, type LevelMode, type Side, type SizingMode, type Strategy} from './studio-backtest'
 import {readSaved, removeSaved, upsertSaved, writeSaved, type SavedStrategy} from './studio-strategies'
 import {parseKlines} from './studio-klines'
-import {MAX_RULES, OPERATORS, PRESETS, ruleText, sanitizeOperand, type Operand, type Operator, type Rule} from './studio-rules'
+import {MAX_RULES, OPERATORS, PRESETS, ruleText, ruleTextEn, sanitizeOperand, type Operand, type Operator, type Rule} from './studio-rules'
 import {scanMarkets, type Fetcher, type ScanRow} from './studio-screener'
 
 // Strateji laboratuvarı: kural kur → geçmişte dene (backtest) → kuralı tüm piyasada tara. Hiçbir emir göndermez; yalnız okunur veri.
@@ -189,7 +190,9 @@ export default function StudioLab({symbol, interval, symbols, onPick, onClose, o
           </div>}
         </> : <>
           <button type="button" className="labRun" disabled={!scanRules.length || progress !== null} onClick={scan}>{progress ? `Taranıyor ${progress.done}/${progress.total}` : `En hacimli ${Math.min(symbols.length, 40)} piyasayı tara`}</button>
-          <p className="labFine">Kural, son KAPANMIŞ {interval} mumunda aranır. {scanRules.map(ruleText).join(' ve ')}</p>
+          {currentLang() === 'en'
+            ? <p className="labFine" translate="no">The rule is checked on the latest CLOSED {interval} candle. {scanRules.map(ruleTextEn).join(' and ')}</p>
+            : <p className="labFine">Kural, son KAPANMIŞ {interval} mumunda aranır. {scanRules.map(ruleText).join(' ve ')}</p>}
           {!progress && rows.length > 0 && matches.length === 0 && <p className="labNote" role="status">Şu an kuralı sağlayan piyasa yok.</p>}
           <ul className="labMatches">{matches.map(row => row.match ? <li key={row.symbol}>
             <button type="button" onClick={() => { onPick(row.symbol); onClose() }}><b>{row.symbol}</b><span>{row.price}</span><em data-tone={row.changePct >= 0 ? 'up' : 'down'}>{pct(row.changePct, 1)}</em></button>
