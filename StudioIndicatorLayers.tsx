@@ -1,6 +1,7 @@
 import {useId} from 'react'
 import {INDICATORS, MAX_ACTIVE_INDICATORS, type IndicatorId, type IndicatorSet, type Series} from './studio-indicators'
 import {CHART_TYPES, type ChartCandle, type ChartType} from './studio-chart-types'
+import {PATTERNS, type PatternHit} from './studio-patterns'
 import {volumeProfile} from './studio-volume-profile'
 import {bandPaths, segmentPaths, symmetricExtent, valueText} from './studio-overlay-paths'
 
@@ -146,10 +147,43 @@ export function VolumeProfileLayer({visible, yOf, plotWidth}: {visible: Readonly
   </g>
 }
 
-export function LabToggles({profile, onProfile, onLab}: {profile: boolean; onProfile: () => void; onLab: () => void}) {
+export function LabToggles({profile, onProfile, patterns, onPatterns, compare, compareOptions, onCompare, onLab}: {profile: boolean; onProfile: () => void; patterns: boolean; onPatterns: () => void; compare: string; compareOptions: readonly string[]; onCompare: (symbol: string) => void; onLab: () => void}) {
   return <div className="refLabToggles" role="group" aria-label="Analiz araçları">
     <small>ANALİZ ARAÇLARI</small>
     <button type="button" aria-pressed={profile} onClick={onProfile}>Hacim profili</button>
+    <button type="button" aria-pressed={patterns} onClick={onPatterns}>Mum formasyonları</button>
+    <label className="refCompareSelect">Sembol karşılaştır
+      <select aria-label="Karşılaştırılacak sembol" value={compare} onChange={event => onCompare(event.target.value)}>
+        <option value="">Kapalı</option>
+        {compareOptions.map(symbol => <option key={symbol} value={symbol}>{symbol}</option>)}
+      </select>
+    </label>
     <button type="button" onClick={onLab}>Strateji laboratuvarı</button>
   </div>
+}
+
+// Karşılaştırma çizgisi: ikinci sembol, pencerenin başında ana fiyata eşitlenmiş (aynı yüzde ölçeği).
+export function CompareLine({values, xOf, yOf, label}: {values: Array<number | null>; xOf: (index: number) => number; yOf: (value: number) => number; label: string}) {
+  const paths = segmentPaths(values, 0, values.length, xOf, yOf)
+  const lastIndex = values.reduce<number>((found, value, index) => value === null ? found : index, -1)
+  if (!paths.length || lastIndex < 0) return null
+  return <g className="refCompareLine" aria-hidden="true">
+    {paths.map((d, index) => <path key={index} d={d} fill="none" vectorEffect="non-scaling-stroke"/>)}
+    <text x={xOf(lastIndex) - 4} y={yOf(values[lastIndex] as number) - 6} textAnchor="end">{label}</text>
+  </g>
+}
+
+export function PatternMarkers({hits, from, xOf, yOf, candles}: {hits: readonly PatternHit[]; from: number; xOf: (index: number) => number; yOf: (value: number) => number; candles: ReadonlyArray<{high: number; low: number}>}) {
+  return <g className="refPatterns" aria-hidden="true">
+    {hits.map(hit => {
+      const local = hit.index - from, candle = candles[hit.index]
+      if (local < 0 || !candle) return null
+      const above = hit.bias === 'bear'
+      const y = above ? yOf(candle.high) - 8 : yOf(candle.low) + 14
+      return <g key={`${hit.index}-${hit.id}`} className={`refPattern refPattern--${hit.bias}`}>
+        <title>{PATTERNS[hit.id].label}: {PATTERNS[hit.id].hint}</title>
+        <text x={xOf(local)} y={y} textAnchor="middle">{PATTERNS[hit.id].short}</text>
+      </g>
+    })}
+  </g>
 }

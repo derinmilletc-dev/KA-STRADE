@@ -159,3 +159,12 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
 .labMatches button em { font-style: normal; min-width: 56px; text-align: right; }
 @media (min-width: 761px) { .labBackdrop { align-items: center; } .labSheet { border-radius: 18px; } }
 @media (max-width: 480px) { .labParams, .labStats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Karşılaştırma ve formasyonlar */
+.masterReferenceAnalysis .refCompareLine path { stroke: #f472b6; stroke-width: 1.6; stroke-dasharray: 6 3; }
+.masterReferenceAnalysis .refCompareLine text { fill: #f472b6; font-size: 11px; font-weight: 700; }
+.masterReferenceAnalysis .refCompareLegend { color: #f472b6; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.masterReferenceAnalysis .refPattern text { font-size: 10px; font-weight: 800; paint-order: stroke; stroke: rgba(8,16,18,.85); stroke-width: 3px; }
+.masterReferenceAnalysis .refPattern--bull text { fill: #00e4a4; } .masterReferenceAnalysis .refPattern--bear text { fill: #ff6474; } .masterReferenceAnalysis .refPattern--neutral text { fill: #f5b301; }
+.masterReferenceAnalysis .refCompareSelect { display: grid; gap: 4px; font-size: 11px; color: #8ca6a8; }
+.masterReferenceAnalysis .refCompareSelect select { min-height: 40px; border-radius: 10px; }
