@@ -158,7 +158,7 @@ export function LabToggles({profile, onProfile, patterns, onPatterns, compare, c
         {compareOptions.map(symbol => <option key={symbol} value={symbol}>{symbol}</option>)}
       </select>
     </label>
-    <button type="button" onClick={onLab}>Strateji laboratuvarı</button>
+    <button type="button" onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onLab() }}>Strateji laboratuvarı</button>
   </div>
 }
 
@@ -175,7 +175,7 @@ export function CompareLine({values, xOf, yOf, label}: {values: Array<number | n
 
 export function PatternMarkers({hits, from, xOf, yOf, candles}: {hits: readonly PatternHit[]; from: number; xOf: (index: number) => number; yOf: (value: number) => number; candles: ReadonlyArray<{high: number; low: number}>}) {
   return <g className="refPatterns" aria-hidden="true">
-    {hits.map(hit => {
+    {hits.filter((hit, index) => !hits.slice(0, index).some(other => (other.bias === 'bear') === (hit.bias === 'bear') && hit.index - other.index < 2)).map(hit => {
       const local = hit.index - from, candle = candles[hit.index]
       if (local < 0 || !candle) return null
       const above = hit.bias === 'bear'

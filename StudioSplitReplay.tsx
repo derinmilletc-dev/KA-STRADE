@@ -21,7 +21,7 @@ export function useKlines(symbol: string, interval: string, enabled: boolean, li
         if (!candles) throw new Error('Geçersiz veri')
         if (!controller.signal.aborted) setState({key, candles, error: ''})
       } catch {
-        if (!controller.signal.aborted) setState(current => ({key, candles: current.key === key ? current.candles : [], error: 'İkinci grafik verisi alınamadı.'}))
+        if (!controller.signal.aborted) setState(current => ({key, candles: current.key === key ? current.candles : [], error: 'Mum verisi alınamadı.'}))
       }
     }
     void load()
@@ -53,5 +53,5 @@ export function ReplayBar({state, length, onPlay, onStep, onSeek, onSpeed, onExi
 }
 
 export function ReplayToggle({length, active, onToggle}: {length: number; active: boolean; onToggle: () => void}) {
-  return <div className="refReplayToggle"><button type="button" aria-pressed={active} disabled={!canReplay(length)} onClick={onToggle}>{active ? 'Bar replay açık' : 'Bar replay'}</button><small>Geçmiş mumları tek tek açıp nasıl ilerlediğini izle.</small></div>
+  return <div className="refReplayToggle"><button type="button" aria-pressed={active} disabled={!canReplay(length)} onClick={event => { if (!active) event.currentTarget.closest('details')?.removeAttribute('open'); onToggle() }}>{active ? 'Bar replay açık' : 'Bar replay'}</button><small>Geçmiş mumları tek tek açıp nasıl ilerlediğini izle.</small></div>
 }

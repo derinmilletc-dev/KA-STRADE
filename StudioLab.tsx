@@ -29,9 +29,11 @@ function RuleList({title, rules, onChange}: {title: string; rules: Rule[]; onCha
   const set = (index: number, patch: Partial<Rule>) => onChange(rules.map((rule, i) => i === index ? {...rule, ...patch} : rule))
   return <fieldset className="labRules"><legend>{title}</legend>
     {rules.map((rule, index) => <div className="labRule" key={index}>
-      <OperandEditor value={rule.left} label="Sol taraf" onChange={left => set(index, {left})}/>
-      <select aria-label="Koşul" value={rule.op} onChange={event => set(index, {op: event.target.value as Operator})}>{OPERATORS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
-      <OperandEditor value={rule.right} label="Sağ taraf" onChange={right => set(index, {right})}/>
+      <div className="labRuleMain">
+        <OperandEditor value={rule.left} label="Sol taraf" onChange={left => set(index, {left})}/>
+        <select aria-label="Koşul" value={rule.op} onChange={event => set(index, {op: event.target.value as Operator})}>{OPERATORS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
+        <OperandEditor value={rule.right} label="Sağ taraf" onChange={right => set(index, {right})}/>
+      </div>
       <button type="button" className="labRemove" aria-label="Kuralı sil" onClick={() => onChange(rules.filter((_, i) => i !== index))}>×</button>
     </div>)}
     {rules.length < MAX_RULES && <button type="button" className="labAdd" onClick={() => onChange([...rules, {left: {kind: 'price', field: 'close'}, op: 'crossUp', right: {kind: 'ema', period: 20}}])}>+ Kural ekle</button>}
