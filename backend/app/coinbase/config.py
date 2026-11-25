@@ -32,8 +32,8 @@ def orders_enabled() -> bool:
 
 
 def resting_enabled() -> bool:
-    """Bekleyen (dolana kadar duran) limit giriş ayrı anahtardır; Coinbase'de 'ekli bracket' doğrulanana kadar KAPALI tutulur."""
-    return orders_enabled() and os.getenv("COINBASE_RESTING_ENABLED", "false").strip().lower() in TRUE_VALUES
+    """Bekleyen (dolana kadar duran) limit giriş: emir gönderme açıksa VARSAYILAN AÇIK; kapatmak için COINBASE_RESTING_ENABLED=false."""
+    return orders_enabled() and os.getenv("COINBASE_RESTING_ENABLED", "true").strip().lower() in TRUE_VALUES
 
 
 def allowed_emails() -> frozenset[str]:
