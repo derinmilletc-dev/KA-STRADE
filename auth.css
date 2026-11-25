@@ -1447,10 +1447,6 @@ html body #root main.authLoading.authBoot {
   color: #eef4f8; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
   opacity: 0; animation: authBootIn .35s ease .25s forwards;
 }
-@media (max-width: 1023px) {
-  html body #root main.authLoading.authBoot { background: radial-gradient(ellipse 90% 40% at 50% 40%, rgba(46,229,157,.12), transparent 70%), url("/login-winter-top.webp") center top / min(100%, 480px) auto no-repeat, linear-gradient(180deg, #0b1d36 0, #0b1d36 55%, #08141f 100%); }
-  html body #root main.authLoading.authBoot::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,20,36,.35) 0, rgba(8,20,36,.2) calc(min(100vw, 480px) * .25), #0a1a2e calc(min(100vw, 480px) * .53), #08141f 100%); pointer-events: none; }
-}
 .authBootInner { position: relative; display: grid; justify-items: center; width: min(320px, 100%); text-align: center; }
 .authBootLogo { display: block; width: min(240px, 66vw); height: auto; margin: 0 0 22px; filter: drop-shadow(0 0 14px rgba(20,230,160,.25)); animation: authBootBreath 2.8s ease-in-out infinite; }
 .authBootBar { position: relative; width: min(220px, 60vw); height: 3px; overflow: hidden; border-radius: 3px; background: rgba(255,255,255,.12); }
