@@ -240,3 +240,31 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
 @media (orientation: landscape) and (max-height: 480px) { html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsQuickBar { max-width: 46vw; } html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsQuickType { max-width: 108px; } }
 @media (orientation: landscape) and (max-height: 480px) { html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refDrawHint { top: 44px !important; bottom: auto !important; left: 50% !important; transform: translateX(-50%) !important; max-width: 70% !important; margin: 0 !important; padding: 5px 12px !important; font-size: 11px !important; opacity: .9; } }
 html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] svg[data-chart-ai-capture="reference"] { touch-action: none !important; }
+/* Strateji laboratuvarı v2: akış çubuğu, bölümler, kayıtlı stratejiler, genişletilmiş metrikler */
+html body #root .labFlow { display: flex; gap: 6px; padding: 8px 14px 0; overflow-x: auto; scrollbar-width: none; }
+html body #root .labFlow button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 18px; font-size: 12px; font-weight: 600; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); color: #b6c6c4; }
+html body #root .labFlow button i { font-style: normal; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 9px; background: rgba(255,255,255,.1); font-size: 10px; }
+html body #root .labFlow button[data-active] { background: rgba(0,228,164,.16); border-color: rgba(0,228,164,.5); color: #00e4a4; }
+html body #root .labFlow button:disabled { opacity: .45; }
+html body #root .labField { display: grid; gap: 4px; font-size: 11px; color: #8ca6a8; min-width: 0; }
+html body #root .labField input, html body #root .labField select { min-height: 40px; border-radius: 10px; min-width: 0; width: 100%; }
+html body #root .labPair { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px; }
+html body #root .labRules > small { color: #8ca6a8; font-size: 11px; line-height: 1.4; }
+html body #root .labSaved { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+html body #root .labSaved > input { flex: 1 1 140px; min-height: 40px; border-radius: 10px; min-width: 0; padding: 0 10px; }
+html body #root .labSavedItem { display: inline-flex; border-radius: 10px; overflow: hidden; border: 1px solid rgba(0,228,164,.3); }
+html body #root .labSavedItem button { min-height: 36px; padding: 0 10px; border: 0; border-radius: 0; font-size: 12px; background: rgba(0,228,164,.08); }
+html body #root .labSplit { margin: 0; padding: 8px 10px; border-radius: 10px; font-size: 12px; line-height: 1.45; background: rgba(0,228,164,.08); color: #bfe9de; }
+html body #root .labSplit[data-tone="warn"] { background: rgba(245,179,1,.12); color: #f5d37a; }
+html body #root .labNext { display: flex; flex-wrap: wrap; gap: 8px; }
+html body #root .labNext button { flex: 1 1 160px; min-height: 44px; border-radius: 12px; }
+html body #root .labMatches li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+html body #root .labMatches .labTestOne { width: auto; padding: 0 14px; justify-content: center; }
+html body #root .labStats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+html body #root .labStats dd { font-size: 15px; }
+@media (max-width: 560px) { html body #root .labStats { grid-template-columns: repeat(3, minmax(0, 1fr)); } html body #root .labParams { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 380px) { html body #root .labStats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+html body #root .labFlow, html body #root .labTabs { flex: none; }
+html body #root .labFlow { min-height: 44px; align-items: center; padding-bottom: 2px; }
+html body #root .labSheet svg.labEquity { width: 100% !important; height: 64px !important; display: block; }
+html body #root .labSheet svg.labEquity polyline { stroke: #00e4a4; stroke-width: 1.6; fill: none; }

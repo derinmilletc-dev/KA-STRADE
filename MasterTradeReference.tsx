@@ -892,7 +892,7 @@ export default function MasterTradeReference(props: Props) {
           {livePosition && !terminal && <PositionLiveCard position={livePosition} price={liveChart.price ?? props.price}/>}
           <button type="button" className="refTradeCta" onClick={openTrade}><Zap aria-hidden="true"/> {props.symbol} ile işlem aç</button>
           {available && <div className="refGridCard"><i className="refGridIc" aria-hidden="true"><Grid3X3/></i><span><b>Grid planı önerisi</b><small>{gridSide} · aralık %5 · 5 kademe{gridSpan ? ` · ${gridSpan}` : ''}</small></span><button type="button" className="refGridBtn" onClick={() => launchManual({mode: 'grid', pct: 5})}>Grid ile aç →</button></div>}
-          {labOpen && <StudioLab symbol={props.symbol} interval={props.interval} symbols={props.marketFeed.rows.filter(row => !row.test).slice().sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0)).map(row => row.symbol).slice(0, 40)} onPick={symbol => props.onMarket(symbol)} onClose={() => setLabOpen(false)}/>}
+          {labOpen && <StudioLab symbol={props.symbol} interval={props.interval} symbols={props.marketFeed.rows.filter(row => !row.test).slice().sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0)).map(row => row.symbol).slice(0, 40)} onPick={symbol => props.onMarket(symbol)} onClose={() => setLabOpen(false)} onTrade={() => {setLabOpen(false); orderTab()}}/>}
           {alarmToast && <p className="refAlarmToast" role="alert"><Bell/>{alarmToast}<button type="button" aria-label="Alarm uyarısını kapat" onClick={() => setAlarmToast('')}><X/></button></p>}
           {drawMode !== 'none' && <p className="refDrawHint" role="status">{DRAW_HINTS[drawMode] ?? 'Silmek istediğin çizgiye tıkla.'} <span>Vazgeçmek için Esc.</span></p>}
         </section>
