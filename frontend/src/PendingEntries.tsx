@@ -90,15 +90,15 @@ export default function PendingEntries({plans, busy, now, onUpdate, onCancel}: P
           <span><small>Kalan süre</small><b>{left ?? 'iptal edilene dek'}</b></span>
         </div>
         <div className="peLevels">
-          <span data-kind="stop"><small>Stop</small><b>{stopValue !== null ? formatPrice(stopValue) : 'yok'}</b>{money(stopValue) !== null && <em>−{formatUsdt(money(stopValue))}</em>}</span>
-          {[0, 1, 2].map(index => <span key={index} data-kind="tp"><small>TP{index + 1}</small><b>{formatPrice(targets[index] ?? null)}</b>{money(targets[index] ?? null) !== null && <em>+{formatUsdt(money(targets[index] ?? null))}</em>}</span>)}
+          <span data-kind="stop"><small>Stop</small><b>{stopValue !== null ? formatPrice(stopValue) : 'yok'}</b>{money(stopValue) !== null && <em>−{formatUsdt(money(stopValue))} USDT</em>}</span>
+          {[0, 1, 2].map(index => <span key={index} data-kind="tp"><small>TP{index + 1}</small><b>{formatPrice(targets[index] ?? null)}</b>{money(targets[index] ?? null) !== null && <em>+{formatUsdt(money(targets[index] ?? null))} USDT</em>}</span>)}
         </div>
-        {targetUsdt !== null && <p className="peNote"><Target aria-hidden="true"/>Kâr hedefi: +{formatUsdt(targetUsdt)} olunca tamamı kapanır.</p>}
+        {targetUsdt !== null && <p className="peNote"><Target aria-hidden="true"/>Kâr hedefi: +{formatUsdt(targetUsdt)} USDT olunca tamamı kapanır.</p>}
         {!isOpen && <div className="peActions">
           <button type="button" className="lcBtn" disabled={busy} onClick={() => edit(plan)}>Stop / kâr hedefi</button>
           {confirmCancel === id
             ? <button type="button" className="lcBtn lcDanger" disabled={busy} onClick={() => void onCancel(id, symbol).then(() => setConfirmCancel(null))}>Evet, emri iptal et</button>
-            : <button type="button" className="lcBtn lcGhost" disabled={busy} onClick={() => setConfirmCancel(id)}><X aria-hidden="true"/>Emri iptal et</button>}
+            : <button type="button" className="lcBtn lcGhost" disabled={busy} onClick={() => { setConfirmCancel(id); window.setTimeout(() => setConfirmCancel(current => current === id ? null : current), 6000) }}><X aria-hidden="true"/>Emri iptal et</button>}
         </div>}
         {isOpen && <div className="peEdit">
           <label><small>Stop fiyatı</small><input inputMode="decimal" value={stop} onChange={event => setStop(event.target.value)}/></label>
