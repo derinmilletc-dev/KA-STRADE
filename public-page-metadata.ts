@@ -50,7 +50,7 @@ export const PAGE_METADATA = {
 } as const
 
 export function applyPageMetadataForPath(pathname:string, indexingPath = pathname):void {
-  const privatePage = /^\/(?:admin|moderator|profile|settings|dashboard|master-trade|billing|login|register|forgot-password|reset-password|verify-email|local-owner-setup|trading|analyst|scanner|performance|testnet|ops|live|setup)(?:\/|$)/.test(indexingPath.split('?')[0])
+  const privatePage = /^\/(?:admin|moderator|profile|settings|dashboard|master-trade|billing|login|register|forgot-password|reset-password|verify-email|local-owner-setup|trading|analyst|scanner|performance|testnet|ops|live|setup|demo|analist|tarama|performans|operasyon|ayarlar|risk-kasasi)(?:\/|$)/.test(indexingPath.split('?')[0])
   const robots = document.head.querySelector('meta[name="robots"][data-kaistrade-private]')
   if (privatePage) {
     const element = robots ?? document.createElement('meta')

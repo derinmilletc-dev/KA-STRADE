@@ -54,6 +54,14 @@ const SubscriptionCenter = lazy(() => loadWorkspaceWithDeadline(() => import('./
 const MasterTrade = lazy(() => loadWorkspaceWithDeadline(() => import('./MasterTrade')))
 const BUILD_COMMIT = import.meta.env.VITE_BUILD_COMMIT
 type View = 'dashboard'|'trading'|'risk'|'analyst'|'scanner'|'performance'|'testnet'|'ops'|'support'|'setup'|'pricing'|'billing'|'master-trade'
+// Her ekranın kendi adresi var: geri tuşu, yenileme ve paylaşılan bağlantı doğru ekranı açar.
+// /risk yasal sayfa olduğu için Risk Kasası /risk-kasasi adresini kullanır.
+const VIEW_PATHS: Partial<Record<View,string>> = {trading:'/demo',analyst:'/analist',scanner:'/tarama',performance:'/performans',ops:'/operasyon',support:'/support',setup:'/ayarlar',risk:'/risk-kasasi',pricing:'/pricing',billing:'/billing','master-trade':'/master-trade'}
+function viewForPath(pathname:string):View {
+  const clean = pathname.replace(/\/+$/,'') || '/'
+  const hit = (Object.entries(VIEW_PATHS) as [View,string][]).find(([,path]) => path === clean)
+  return hit ? hit[0] : 'dashboard'
+}
 type Market = {symbol:string;display:string;price:number;change:number;volume:number}
 type Candle = {time:number;open:number;high:number;low:number;close:number;volume:number}
 type Point = {time:number;value:number}
@@ -136,7 +144,13 @@ function notificationItems(payload:unknown):NotificationItem[] {
 }
 const ANALYSIS_TIMEOUT_MS = 30000
 
-const format = (value:number) => value.toLocaleString('tr-TR',{maximumFractionDigits:value < 10 ? 5 : 2})
+// Çok küçük fiyatlar (SHIB gibi) "0" görünmesin: anlamlı ilk 4 basamağa kadar ondalık gösterilir.
+const formatPct = (value:number) => value.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})
+const format = (value:number) => {
+  const abs = Math.abs(value)
+  const digits = abs >= 10 ? 2 : abs >= 1 ? 4 : abs >= 0.01 ? 5 : abs > 0 ? Math.min(10, Math.ceil(-Math.log10(abs)) + 3) : 2
+  return value.toLocaleString('tr-TR',{maximumFractionDigits:digits})
+}
 
 type PulseCoin = {symbol:string;stream:string;label:string}
 type PulseQuote = {price:number;change:number}
@@ -154,18 +168,18 @@ const MOBILE_PULSE_COINS:PulseCoin[] = [
   {symbol:'LINKUSDT',stream:'linkusdt',label:'LINK'}, {symbol:'TONUSDT',stream:'tonusdt',label:'TON'},
   {symbol:'DOTUSDT',stream:'dotusdt',label:'DOT'}, {symbol:'TRXUSDT',stream:'trxusdt',label:'TRX'},
   {symbol:'LTCUSDT',stream:'ltcusdt',label:'LTC'}, {symbol:'SHIBUSDT',stream:'shibusdt',label:'SHIB'},
-  {symbol:'MATICUSDT',stream:'maticusdt',label:'MATIC'},
+  {symbol:'POLUSDT',stream:'polusdt',label:'POL'},
 ]
 const TABLET_PULSE_SYMBOLS = ['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT']
-const QUIET_PULSE_SYMBOLS = ['TONUSDT','MATICUSDT']
+const QUIET_PULSE_SYMBOLS = ['TONUSDT','POLUSDT']
 const PULSE_REST_RETRY_DELAYS_MS = [1000,2000,4000,8000]
 
 const paintPulseQuote = (node:PulseQuoteNode,quote:PulseQuote,flashDirection?:'up'|'down') => {
   node.price.textContent = format(quote.price)
-  node.change.textContent = `${quote.change >= 0 ? '▲ +' : '▼ '}${format(quote.change)}%`
+  node.change.textContent = `${quote.change >= 0 ? '▲ +' : '▼ '}${formatPct(quote.change)}%`
   node.change.classList.toggle('up',quote.change >= 0)
   node.change.classList.toggle('down',quote.change < 0)
-  node.button.setAttribute('aria-label',`${node.label}/USDT, ${format(quote.price)}, ${quote.change >= 0 ? 'yükseliş' : 'düşüş'} ${format(quote.change)}%`)
+  node.button.setAttribute('aria-label',`${node.label}/USDT, ${format(quote.price)}, ${quote.change >= 0 ? 'yükseliş' : 'düşüş'} ${formatPct(quote.change)}%`)
   if (!flashDirection) return
   if (node.flashFrame !== undefined) window.cancelAnimationFrame(node.flashFrame)
   if (node.flashTimer !== undefined) window.clearTimeout(node.flashTimer)
@@ -377,7 +391,7 @@ const MobileMarketPulse = memo(function MobileMarketPulse({markets,onSelect}:{ma
         const market = markets.find(item => item.symbol.replace('/','').toUpperCase() === symbol)
         const hasPrice = typeof market?.price === 'number' && Number.isFinite(market.price)
         const hasChange = typeof market?.change === 'number' && Number.isFinite(market.change)
-        return <button type="button" key={symbol} onClick={() => onSelect(symbol)}><span><b>{symbol.replace('USDT','/USDT')}</b><small>{hasPrice ? `$${format(market.price)}` : '$—'}</small></span><em className={hasChange ? market.change >= 0 ? 'up' : 'down' : ''}>{hasChange ? `${market.change >= 0 ? '+' : ''}${format(market.change)}%` : '—%'}</em></button>
+        return <button type="button" key={symbol} onClick={() => onSelect(symbol)}><span><b>{symbol.replace('USDT','/USDT')}</b><small>{hasPrice ? `$${format(market.price)}` : '$—'}</small></span><em className={hasChange ? market.change >= 0 ? 'up' : 'down' : ''}>{hasChange ? `${market.change >= 0 ? '+' : ''}${formatPct(market.change)}%` : '—%'}</em></button>
       })}
     </div>}
     {!isMobile && <div className="marketPulseLine desktopMarketPulseLine">
@@ -548,7 +562,7 @@ export default function TestnetFirstApp() {
     media.addEventListener('change',update)
     return () => media.removeEventListener('change',update)
   },[])
-  const initialView = ():View => window.location.pathname === '/pricing' ? 'pricing' : window.location.pathname === '/billing' ? 'billing' : window.location.pathname === '/master-trade' ? 'master-trade' : window.location.pathname === '/support' ? 'support' : 'dashboard'
+  const initialView = ():View => viewForPath(window.location.pathname)
   const [view,setView] = useState<View>(initialView)
   const [perfMode,setPerfMode] = useState<'live'|'demo'>('live')
   useEffect(() => {applyPageMetadataForPath(`/${view}`,window.location.pathname)},[view])
@@ -648,11 +662,8 @@ export default function TestnetFirstApp() {
     setMobileMenuOpen(false)
     if (target === 'testnet' as View) target = 'dashboard'
     setView(target)
-    if (target === 'pricing' || target === 'billing' || target === 'master-trade' || target === 'support') {
-      window.history.pushState({},'', `/${target}`)
-    } else if (window.location.pathname === '/pricing' || window.location.pathname === '/billing' || window.location.pathname === '/master-trade' || window.location.pathname === '/support') {
-      window.history.pushState({},'', '/')
-    }
+    const nextPath = VIEW_PATHS[target] ?? '/'
+    if (window.location.pathname !== nextPath) window.history.pushState({},'', nextPath)
   },[])
 
   const memberAccess = useMemberAccess()
@@ -674,12 +685,7 @@ export default function TestnetFirstApp() {
 
   useEffect(() => {
     const onNavigate = (event:Event) => navigate((event as CustomEvent<View>).detail)
-    // Geri tuşu yalnız adresle açılan sayfalar (/pricing, /billing, /master-trade) arasında gezer. Adres '/' iken
-    // ekran içi görünüm (İşlem, Analist…) korunur; yoksa tam ekran grafik kapanırken ana sayfaya atıyordu.
-    const onHistory = () => setView(current => {
-      const next = initialView()
-      return next === 'dashboard' && current !== 'pricing' && current !== 'billing' && current !== 'master-trade' && current !== 'support' ? current : next
-    })
+    const onHistory = () => setView(() => initialView())
     window.addEventListener('protrebot-navigate',onNavigate)
     window.addEventListener('popstate',onHistory)
     return () => { window.removeEventListener('protrebot-navigate',onNavigate);window.removeEventListener('popstate',onHistory) }
@@ -861,7 +867,7 @@ export default function TestnetFirstApp() {
     void refreshNotifications()
     const timer = window.setInterval(() => void refresh(),60000)
     const notificationTimer = window.setInterval(() => void refreshNotifications(),10000)
-    const openExchangeSettings = () => setView('setup')
+    const openExchangeSettings = () => navigate('setup')
     window.addEventListener('protrebot-open-exchange-settings', openExchangeSettings)
     return () => {
       marketRefreshController.current?.abort()
@@ -1115,21 +1121,21 @@ export default function TestnetFirstApp() {
       <div><small>WORKSPACE</small><h1>{view === 'trading' ? 'İşlem Masası' : view === 'risk' ? 'Risk Kasası' : view === 'analyst' ? 'Analyst' : view === 'scanner' ? 'Scanner' : view === 'performance' ? 'Performance' : view === 'ops' ? 'Bulut Operasyon ve Kanıt Merkezi' : view === 'support' ? 'Destek' : view === 'pricing' ? 'Plans & Pricing' : view === 'billing' ? 'Billing & Subscription' : view === 'master-trade' ? 'Master Trade' : 'Ayarlar ve Bağlantılar'}</h1><p>{view === 'trading' ? 'Market, sinyal, grafik ve testnet işlem yönetimi.' : view === 'risk' ? 'Risk limiti, pozisyon boyutu ve koruma ayarları.' : view === 'analyst' ? 'Tarama verisi üzerinden piyasa zekâsı ve sinyal analizi.' : view === 'scanner' ? 'Piyasadaki uygun adayları ve sinyalleri tara.' : view === 'performance' ? 'İşlem sonuçlarını, PnL ve risk ölçümlerini incele.' : view === 'ops' ? 'Otonom taramanın son kararı, pozisyonlar ve yeniden başlatmaya dayanıklı PostgreSQL kanıt defteri.' : view === 'support' ? 'Sıkça sorulan sorular, hazır cevaplar ve destek ekibine mesaj.' : view === 'pricing' || view === 'billing' ? 'Planını seç, ödemeni yap, erişimini takip et.' : 'Anahtar değerleri tarayıcıya veya GitHub’a yazılmaz; yalnızca sunucu tarafındaki şifreli kasa veya güvenli geçiş değişkenlerinde tutulur.'}</p></div>
     </section>}
 
-    {view === 'dashboard' && phoneLayout && <MobileHome markets={markets} onNavigate={target => target === 'billing' ? navigate('billing') : setView(target)}/>}
+    {view === 'dashboard' && phoneLayout && <MobileHome markets={markets} onNavigate={target => navigate(target)}/>}
     {view === 'dashboard' && !phoneLayout && <section className="v26Dashboard" aria-labelledby="dashboard-title">
       <header className="v26DashboardHero"><div><h1 id="dashboard-title"><span className="dashboardTitlePlain">İşlem</span>{' '}<span className="dashboardTitleGradient">Terminali</span></h1><p>Bir çalışma alanı seçin.</p></div></header>
       <section className="v26DashboardWorkspaces" aria-label="Çalışma alanları">
         <div className="v26DashboardChoices">
-          <button type="button" onClick={() => setView('trading')}><Activity/><span><b>DEMO İŞLEM</b><small>Demo işlem açın ve yönetin</small></span><em>→</em></button>
+          <button type="button" onClick={() => navigate('trading')}><Activity/><span><b>DEMO İŞLEM</b><small>Demo işlem açın ve yönetin</small></span><em>→</em></button>
           <button type="button" onClick={() => navigate('master-trade')}><ShieldCheck/><span><b>MASTER TRADE</b><small>Profesyonel işlem alanı</small></span><em>→</em></button>
-          <button type="button" onClick={() => setView('analyst')}><AnalystIcon/><span><b>ANALİST</b><small>Piyasa zekâsı ve sinyaller</small></span><em>→</em></button>
-          <button type="button" onClick={() => setView('scanner')}><Radar/><span><b>TARAMA</b><small>Piyasa fırsatlarını tarayın</small></span><em>→</em></button>
-          <button type="button" onClick={() => setView('performance')}><BarChart3/><span><b>PERFORMANS</b><small>Kâr, kazanma oranı ve düşüş</small></span><em>→</em></button>
-          <button type="button" onClick={() => setView('support')}><SupportIcon/><span><b>DESTEK</b><small>Sorular, cevaplar, mesaj</small></span><em>→</em></button>
-          <button type="button" onClick={() => setView('ops')}><Cloud/><span><b>OPERASYON</b><small>Sistem operasyonları</small></span><em>→</em></button>
-          <button type="button" onClick={() => setView('setup')}><CloudCog/><span><b>AYARLAR</b><small>Hesap ve güvenlik</small></span><em>→</em></button>
+          <button type="button" onClick={() => navigate('analyst')}><AnalystIcon/><span><b>ANALİST</b><small>Piyasa zekâsı ve sinyaller</small></span><em>→</em></button>
+          <button type="button" onClick={() => navigate('scanner')}><Radar/><span><b>TARAMA</b><small>Piyasa fırsatlarını tarayın</small></span><em>→</em></button>
+          <button type="button" onClick={() => navigate('performance')}><BarChart3/><span><b>PERFORMANS</b><small>Kâr, kazanma oranı ve düşüş</small></span><em>→</em></button>
+          <button type="button" onClick={() => navigate('support')}><SupportIcon/><span><b>DESTEK</b><small>Sorular, cevaplar, mesaj</small></span><em>→</em></button>
+          <button type="button" onClick={() => navigate('ops')}><Cloud/><span><b>OPERASYON</b><small>Sistem operasyonları</small></span><em>→</em></button>
+          <button type="button" onClick={() => navigate('setup')}><CloudCog/><span><b>AYARLAR</b><small>Hesap ve güvenlik</small></span><em>→</em></button>
           <button type="button" onClick={() => navigate('billing')}><Sparkles/><span><b>ABONELİK</b><small>Planlar ve abonelik</small></span><em>→</em></button>
-          <button type="button" onClick={() => setView('risk')}><ShieldCheck/><span><b>RİSK</b><small>Pozisyon ve risk kontrolü</small></span><em>→</em></button>
+          <button type="button" onClick={() => navigate('risk')}><ShieldCheck/><span><b>RİSK</b><small>Pozisyon ve risk kontrolü</small></span><em>→</em></button>
         </div>
       </section>
       <section className="v26DashboardPulse" aria-labelledby="market-pulse-title">

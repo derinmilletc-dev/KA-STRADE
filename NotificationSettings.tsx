@@ -60,6 +60,15 @@ export default function NotificationSettings() {
         <span><b><Smartphone/>Telefona bildirim</b><small>{phoneHint}</small></span>
         <Switch checked={phone === 'on'} onChange={value => void togglePhone(value)} label="Telefona bildirim"/>
       </div>
+      {(permission === 'denied' || phone === 'denied') && <details className="nsHelp" open>
+        <summary><Info/>Bildirimler engelli, nasıl açarım?</summary>
+        <ol>
+          <li>Adres çubuğunun solundaki <b>kilit</b> (veya ayar) simgesine bas.</li>
+          <li><b>Bildirimler</b> satırını <b>İzin ver</b> yap.</li>
+          <li>Sayfayı yenile ve yukarıdaki anahtarı tekrar aç.</li>
+        </ol>
+        <button type="button" className="nsReload" onClick={() => window.location.reload()}>Sayfayı yenile</button>
+      </details>}
       <details className="nsHelp">
         <summary><Info/>iPhone'da nasıl açılır?</summary>
         <ol>

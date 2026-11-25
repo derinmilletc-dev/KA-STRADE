@@ -119,6 +119,7 @@ export default function CloudOpsCenter() {
     {error && <div className="v27Error"><AlertTriangle/><b>Sunucu bağlantısı bekleniyor</b><span>Veriler güncellenemiyor.</span></div>}
     {isAdmin && !data.deployment.always_on && <div className="v27SleepNotice"><TimerReset/><div><b>ÖNİZLEME SUNUCUSU UYUYABİLİR</b><span>{data.deployment.tier} katmanında servis boşta durabilir; Testnet otomasyonunun 7/24 taraması için sürekli çalışan sunucu gerekir.</span></div><em>İŞLEM DEĞİL · ALTYAPI UYARISI</em></div>}
 
+    {!data.testnet.configured && <div className="v27SleepNotice v27Onboard" role="status"><Activity/><div><b>Başlamak için demo anahtarını bağla</b><span>Demo anahtarı kayıtlı olmadığı için bot beklemede; kanıt skoru ve sayaçlar bu yüzden boş görünüyor. Gerçek para kullanılmaz.</span></div><button type="button" onClick={() => window.dispatchEvent(new CustomEvent('protrebot-navigate',{detail:'setup'}))}>Ayarlar'a git →</button></div>}
     <div className="v27KeyCards">
       <article className={data.testnet.configured ? 'ok' : 'wait'}><ShieldCheck/><small>Demo Anahtarı</small><b>{data.testnet.configured ? 'Şifreli Kasada' : 'Anahtar Bekliyor'}</b><span>Değerler bu ekranda ve veritabanında tutulmaz.</span></article>
       <article className={data.testnet.connected ? 'ok' : 'wait'}><Activity/><small>Binance Testnet</small><b>{data.testnet.connected ? 'Bağlı' : 'Bağlantı Bekliyor'}</b><span>{data.testnet.stream.last_error || `${streamLabel(data.testnet.stream.status) || 'Beklemede'} · ${streamLabel(data.testnet.stream.transport) || '—'}`}</span></article>
