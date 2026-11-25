@@ -4,7 +4,7 @@ let staffView = false
 export function setStaffView(value: boolean): void { staffView = value }
 export function isStaffView(): boolean { return staffView }
 
-const STALE_BUILD = /Unable to preload|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError|Loading (CSS )?chunk [\w-]+ failed/i
+const STALE_BUILD = /Unable to preload|Failed to fetch dynamically imported module|Importing a module script failed|is not a valid JavaScript MIME type|error loading dynamically imported module|ChunkLoadError|Loading (CSS )?chunk [\w-]+ failed/i
 
 // After a new deploy the open tab still asks for old file names that no longer exist.
 export function isStaleBuildError(error: unknown): boolean {

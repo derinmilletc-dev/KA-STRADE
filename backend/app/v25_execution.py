@@ -7318,7 +7318,7 @@ async def execute_live_order(
                     client_id=body.intent_id,
                 )
             safe_message = sanitized_exception_message(exc)
-            failed_check = exc.check_key or next(
+            failed_check = getattr(exc, "check_key", None) or next(
                 (item["check"] for item in entry_checks if not item["passed"]),
                 None,
             )
