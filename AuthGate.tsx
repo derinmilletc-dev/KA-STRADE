@@ -1,3 +1,4 @@
+import SnowFall from './SnowFall'
 import {useGreeting} from './Greeting'
 import './greeting.css'
 import { createPortal } from 'react-dom'
@@ -790,7 +791,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
         {mode === 'login' && <section className="authMobileMarkets" aria-label="Canlı fiyatlar"><AuthCoinScreen data={market.data} status={market.status}/></section>}
       </section>
       {mode === 'login' && showcaseVisible && <Suspense fallback={null}><InstagramShowcasePhone/></Suspense>}
-    </main></>}</LoginMarketShell>
+    </main>{mode === 'login' && <SnowFall/>}</>}</LoginMarketShell>
   }
 
   if (session.two_factor_setup_required) return <Suspense fallback={<AuthBootScreen/>}><RequiredTwoFactor onDone={() => void loadSession(token)} onLogout={() => void logout()}/></Suspense>
