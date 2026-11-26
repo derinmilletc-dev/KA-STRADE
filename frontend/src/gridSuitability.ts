@@ -19,6 +19,7 @@ export type SuitInput = {
   c15: readonly SuitCandle[]
   c1h: readonly SuitCandle[]
   c4h: readonly SuitCandle[]
+  now?: number   // saniye; verilmezse şimdiki zaman (veri tazeliği kontrolü için)
 }
 
 export type SuitResult = {
@@ -138,7 +139,8 @@ const T = {
     vol: {low: 'Hareket aralığa göre çok az, kademeler zor dolar.', ideal: 'Oynaklık aralığına uygun.', high: 'Oynaklık aralığa göre çok yüksek, fiyat aralıktan çıkabilir.'},
     pos: {center: 'Fiyat aralığın ortasında.', edge: 'Fiyat aralığın kenarına doğru.', near: 'Fiyat aralığın kenarına çok yakın.', outside: 'Fiyat seçtiğin aralığın dışında.'},
     wrongSide: (side: string, dir: string) => `Seçtiğin yön ${side}, piyasa eğimi ${dir === 'LONG' ? 'yukarı' : 'aşağı'}.`,
-    noData: 'Piyasa verisi okunamadı; puan hesaplanamadı.'
+    noData: 'Piyasa verisi okunamadı; puan hesaplanamadı.',
+    stale: 'Piyasa verisi gecikmiş; güvenilir puan gösterilemiyor.'
   },
   en: {
     good: 'Suitable', caution: 'Caution', poor: 'Risky',
@@ -147,7 +149,8 @@ const T = {
     vol: {low: 'Movement is small for this range; levels may rarely fill.', ideal: 'Volatility fits the range.', high: 'Volatility is high for this range; price may leave it.'},
     pos: {center: 'Price is near the middle of the range.', edge: 'Price is drifting toward the edge of the range.', near: 'Price is very close to the edge of the range.', outside: 'Price is outside the range you chose.'},
     wrongSide: (side: string, dir: string) => `You chose ${side}, but the market leans ${dir === 'LONG' ? 'up' : 'down'}.`,
-    noData: 'Market data could not be read; score unavailable.'
+    noData: 'Market data could not be read; score unavailable.',
+    stale: 'Market data is stale; a reliable score cannot be shown.'
   }
 } as const
 
@@ -158,6 +161,11 @@ export function computeSuitability(input: SuitInput, lang: SuitLang = 'tr'): Sui
   const rangePct = input.lower > 0 && input.upper > input.lower ? (input.upper - input.lower) / ((input.upper + input.lower) / 2) * 100 : 0
   const empty: SuitResult = {ok: false, score: 0, level: 'poor', regime: 'mild', vol: 'ideal', pos: 'outside', momentum: 'mixed', direction: 'NEUTRAL', parts: {regime: 0, vol: 0, pos: 0, momentum: 0}, adx1h: null, adx4h: null, expectedMovePct: null, rangePct, headline: t.noData, detail: '', warnings: []}
   if (!(input.price > 0) || input.c1h.length < SUIT_MIN_CANDLES || input.c4h.length < 30 || input.c15.length < SUIT_MIN_CANDLES) return empty
+
+  // Veri tazeliği: son mum çok eskiyse varsayılan/rastgele puan göstermek yerine puan üretilmez.
+  const now = input.now ?? Date.now() / 1000
+  const lastT = (list: readonly SuitCandle[]) => list[list.length - 1].time
+  if (now - lastT(input.c15) > 15 * 60 * 3 || now - lastT(input.c1h) > 3600 * 3 || now - lastT(input.c4h) > 4 * 3600 * 3) return {...empty, headline: t.stale}
 
   const a1 = adx(input.c1h), a4 = adx(input.c4h)
   const reg = regimeScore(a1, a4)
