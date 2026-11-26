@@ -21,7 +21,7 @@ export default function KaisOriginalInfo() {
         <div className="kaisInfoBody">
           <h3>Genel bakış</h3>
           <p>Kais Original V2, işlem hacmine göre öne çıkan USDT-M vadeli işlem çiftlerini 15 dakikalık periyotta tarayan, kurala dayalı bir otomatik işlem stratejisidir. Kararlar önceden tanımlı kurallara göre verilir.</p>
-          <p>Platformda şu an tek otomatik strateji Kais Original V2'dir. Otomatik işlemin yanında manuel emir de verebilirsin.</p>
+          <p>Kais Original V2 platformun ana otomatik stratejisidir. Grid ve DCA botları ayrı araçlardır; her birinin kendi ayarı ve limiti vardır. İstersen manuel emir de verebilirsin.</p>
           <h3>Sinyal üretimi</h3>
           <ul>
             <li>Trend, momentum ve volatilite göstergeleri (EMA, MACD, RSI, ATR, ADX, Bollinger) birlikte değerlendirilir.</li>
