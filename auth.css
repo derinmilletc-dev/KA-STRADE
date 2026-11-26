@@ -1677,3 +1677,17 @@ html body #root .authRoot.authNight:has(.authPageLogin) { background-image: line
   html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authAltActions .authAltBtn svg { display: none !important; }
   html body #root .authRoot:has(.authPageLogin) > footer.authFooter { opacity: .6; }
 }
+
+/* ===== Giriş (telefon): her şey ortada, birbirine yakın tek blok ===== */
+@media (max-width: 1023px) {
+  html body #root .authRoot:has(.authPageLogin) { display: flex !important; flex-direction: column; --u: min(calc(min(100vw, 480px) / 426), calc(100dvh / 700)); }
+  html body #root .authRoot > main.authPage.authPageLogin { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; justify-content: center !important; align-items: center !important; min-height: 0 !important; padding: calc(var(--u) * 24) 19px calc(var(--u) * 56) !important; gap: 0 !important; }
+  html body #root .authPageLogin > header.authMobileIdentity { position: static !important; display: flex !important; flex-direction: column; align-items: center; height: auto !important; width: 100%; margin: 0 0 calc(var(--u) * 30) !important; }
+  html body #root .authPageLogin > header.authMobileIdentity img { position: static !important; transform: none !important; width: calc(var(--u) * 214) !important; max-width: 70vw !important; margin: 0 !important; }
+  html body #root .authPageLogin > header.authMobileIdentity p.authTagline { position: static !important; transform: none !important; margin: calc(var(--u) * 12) auto 0 !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin { padding-top: 0 !important; margin: 0 auto !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin::before { top: calc(var(--u) * -22); }
+}
+@media (max-width: 1023px) {
+  html body #root .authRoot > main.authPage.authPageLogin:has(.authCardLogin):has(section) { justify-content: center !important; align-items: center !important; padding: calc(var(--u) * 24) 19px calc(var(--u) * 56) !important; }
+}
