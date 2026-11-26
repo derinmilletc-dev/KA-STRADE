@@ -75,7 +75,7 @@ Daha önce görüntüsü paylaşılan anahtar artık güvenli sayılmaz. Binance
 - V25, kendisinin takip etmediği manuel pozisyonları kapatmaz.
 - Doğrulanan net işlem PnL'i gerçekleşen işlem PnL'inden USDT komisyonunu düşer; funding ayrı Binance gelir kaydıdır ve bu değere dahil değildir.
 - Aynı hesapta manuel/başka bot işlemi bulunursa V25 yalnızca kendi kesin emir kimliklerini PnL hesabına alır; kimlik kanıtı bulunamazsa sonucu tahmin etmez ve yeni girişleri kilitler.
-- Canlı V25, tek yönlü giriş + zorunlu Stop + TP1–TP3 yürütür. Paneldeki sarı kademe çizgileri görseldir; canlı çok emirli grid motoru değildir. Eski grid laboratuvarları Paper/Demo kapsamındadır.
+- Canlı V25, tek yönlü giriş + zorunlu Stop + TP1–TP3 yürütür. Paneldeki sarı kademe çizgileri görseldir; canlı çok emirli grid motoru değildir. Analiz Stüdyosu'ndaki canlı grid ayrı bir motordur (`backend/app/grid_live.py`); varsayılan AÇIKTIR ve sunucuda `KAISTRADE_GRID_LIVE=0` ile kapatılır. Ayrıntı: `docs/LIMITS.md`. Eski grid laboratuvarları Paper/Demo kapsamındadır.
 - Stop emri fiyat garantisi değildir; hızlı piyasada kayma ve likidasyon olabilir.
 - Yerel panel yalnızca `127.0.0.1` üzerinde açılır. İnternete/VPS dış ağına yayınlamak için TLS, ters proxy, güvenlik duvarı, merkezi KMS ve bağımsız sızma testi gerekir.
 - “Yapay zekâ güveni” olasılık veya kazanç garantisi değildir.

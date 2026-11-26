@@ -541,7 +541,7 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
                 note: needAck ? tx(`${params.leverage}x yüksek kaldıraç: kayıp hızlı büyüyebilir.`, `${params.leverage}x high leverage: losses can grow fast.`) : tx('Gerçek para kullanılır; tahmin ücret dahil, funding/kayma hariç.', 'Estimate includes fees, not funding/slippage.'),
               } : undefined}
               hint={tx(`${symbol} ${startWord} gridini başlatmak için basılı tut`, `Press and hold to start the ${symbol} ${startWord} grid`)}/>}
-        <p className="sqgFine">{demo ? tx('Yalnız Demo hesap · gerçek para yok.', 'Demo account only · no real money.') : tx('Gerçek para · tahmin ücret dahil, funding/kayma hariç.', 'Real money · estimate includes fees, not funding/slippage.')}</p>
+        <p className="sqgFine">{tx(`Bir grid en çok ${GRID_MAX_COUNT} kademe · aynı anda en çok 5 grid.`, `One grid has up to ${GRID_MAX_COUNT} levels · up to 5 grids at once.`)} {demo ? tx('Yalnız Demo hesap · gerçek para yok.', 'Demo account only · no real money.') : tx('Gerçek para · tahmin ücret dahil, funding/kayma hariç.', 'Real money · estimate includes fees, not funding/slippage.')}</p>
       </footer>}
     </aside>}
   </>

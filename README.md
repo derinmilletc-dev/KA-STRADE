@@ -2279,7 +2279,7 @@ Sunucu ayarları: `ANALYST_DAILY_CREDITS=50` (5 analiz/gün), `ANALYST_COST=10`,
 `CREDIT_WINDOW_HOURS=24`, `ANALYST_CACHE_MINUTES=15`.
 Varsayılan analiz maliyeti `backend/app/analyst_credits.py` içindeki
 `ANALYSIS_COST` sabitinden gelir; `ANALYST_COST` mevcut ortam ayarıyla değiştirilebilir.
-100 kredilik bütçeyle 24 saatlik pencerede 10 taze analiz açılır; 11. taze analiz
+Varsayılan 50 kredilik bütçeyle 24 saatlik pencerede 5 taze analiz açılır; 6. taze analiz
 kredi yetersizliğiyle reddedilir. Cache sonuçları bu bütçeden harcamaz.
 
 - `GET /api/analyst/credits`: `remaining`, `total`, `analysis_cost`, `resetsAt`, `unlimited`.

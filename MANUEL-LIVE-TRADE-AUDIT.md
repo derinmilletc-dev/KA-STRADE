@@ -1,5 +1,7 @@
 # Manuel Live Trade Akışı Denetim Raporu
 
+> **Not (tarihsel kayıt):** Bu rapor geçmiş bir denetimin çıktısıdır; bulgular güncel kodla yeniden doğrulanmadı. Güncel sınırlar için `docs/LIMITS.md` dosyasına bakın.
+
 ## Kapsam
 
 Bu rapor Master Trade manuel canlı emir akışını, readiness kapılarını, giriş sonrası Stop/TP korumasını ve disarm/consent davranışını değerlendirir. İnceleme kod ve mevcut güvenlik sözleşmesi üzerinden yapılmıştır. Canlı emir gönderilmemiştir.
