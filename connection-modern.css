@@ -2,30 +2,35 @@
 #master-trade-live-terminal .exSwitch{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px;width:100%;margin:0 0 16px;padding:6px;border-radius:18px}
 #master-trade-live-terminal .exSwitch button{width:100%;min-width:0;justify-content:flex-start;min-height:60px}
 
-#master-trade-live-terminal .liveWsConnect{display:grid;gap:16px;width:100%;box-sizing:border-box;padding:22px;border-radius:22px;border:1px solid rgba(120,220,190,.16);background:linear-gradient(160deg,rgba(52,211,153,.07),rgba(255,255,255,.015) 55%);box-shadow:0 14px 34px rgba(0,0,0,.28)}
+/* Kart zaten dış 'liveWsCard' içinde: ikinci kutu açma, yalnız iç düzen */
+#master-trade-live-terminal .liveWsConnect{display:grid;gap:16px;width:100%;box-sizing:border-box;padding:0;border:0;background:transparent;box-shadow:none}
 #master-trade-live-terminal .liveWsConnect>*{min-width:0;margin:0}
 
 /* Başlık: durum noktası + başlık + sağda eylem düğmesi */
-#master-trade-live-terminal .liveWsConnectHead{display:flex;align-items:center;gap:14px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.07)}
+#master-trade-live-terminal .liveWsConnectHead{display:flex;align-items:center;gap:12px;min-height:48px;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)}
 #master-trade-live-terminal .liveWsConnectHead>div{flex:1 1 auto;display:grid;gap:3px;min-width:0}
-#master-trade-live-terminal .liveWsConnectHead b{font-size:1.05rem;font-weight:800}
-#master-trade-live-terminal .liveWsConnectHead small{font-size:.8rem;opacity:.75;overflow-wrap:anywhere}
+#master-trade-live-terminal .liveWsConnectHead b{font-size:.98rem;font-weight:800}
+#master-trade-live-terminal .liveWsConnectHead small{font-size:.78rem;opacity:.75;overflow-wrap:anywhere}
 #master-trade-live-terminal .liveWsDot{flex:none;width:14px;height:14px}
 #master-trade-live-terminal .liveWsConnectHead .liveWsDisconnect,#master-trade-live-terminal .liveWsConnect .cbDeleteKey{flex:none;min-height:38px;padding:0 14px;border-radius:12px;font-size:.85rem;font-weight:700;color:#ffb3ab!important;background:rgba(240,90,80,.1)!important;border:1px solid rgba(240,90,80,.38)!important}
 #master-trade-live-terminal .liveWsConnectHead .liveWsDisconnect:hover:not(:disabled),#master-trade-live-terminal .liveWsConnect .cbDeleteKey:hover:not(:disabled){background:rgba(240,90,80,.2)!important}
 #master-trade-live-terminal .liveWsConnectHead .liveWsDisconnect svg,#master-trade-live-terminal .liveWsConnect .cbDeleteKey svg{width:16px;height:16px}
 
 /* Coinbase: kes düğmesi kartın altında, sağda, tam genişlikte uzamaz */
-#master-trade-live-terminal .liveWsConnect .cbDisconnect{order:90;display:flex;justify-content:flex-end}
+#master-trade-live-terminal .liveWsConnect .cbDisconnect{display:grid}
+#master-trade-live-terminal .liveWsConnect .cbHelpBtn{flex:none;margin:0;width:38px;height:38px;min-height:38px;border-radius:12px}
 #master-trade-live-terminal .liveWsConnect .cbDisconnectArm{width:100%;box-sizing:border-box}
 
 /* Alanlar: iki eşit sütun, aynı yükseklik, taşma yok */
-#master-trade-live-terminal .liveWsFields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px;align-items:start}
+#master-trade-live-terminal .liveWsFields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 16px;align-items:start}
 #master-trade-live-terminal .liveWsFields label{display:grid;gap:7px;min-width:0;font-size:.8rem;font-weight:700;letter-spacing:.02em;color:#9fb3ad}
 #master-trade-live-terminal .liveWsFields input{width:100%;box-sizing:border-box;min-height:46px;padding:0 14px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(6,12,10,.7);color:#e9f1ee;font-size:.92rem;transition:border-color .15s,box-shadow .15s}
 #master-trade-live-terminal .liveWsFields input:focus{outline:none;border-color:rgba(52,211,153,.7);box-shadow:0 0 0 3px rgba(52,211,153,.18)}
-#master-trade-live-terminal .liveWsFields .masterTradeLiveSecretField{display:flex;align-items:center;gap:8px}
-#master-trade-live-terminal .liveWsFields .masterTradeLiveSecretField input{flex:1 1 auto;min-width:0}
+#master-trade-live-terminal .liveWsFields .masterTradeLiveSecretField{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 46px;align-items:center;gap:8px;width:100%}
+#master-trade-live-terminal .liveWsFields .masterTradeLiveSecretField input{min-width:0;padding-right:14px}
+#master-trade-live-terminal .liveWsFields .masterTradeLiveSecretField button{position:static!important;inset:auto!important;transform:none!important;margin:0!important;width:46px!important;height:46px!important;min-height:46px;padding:0;display:grid;place-items:center;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(6,12,10,.7);color:#bcd0c9}
+#master-trade-live-terminal .liveWsFields .masterTradeLiveSecretField button:hover{border-color:rgba(52,211,153,.6);color:#e9f1ee}
+#master-trade-live-terminal .liveWsFields .masterTradeLiveSecretField button svg{width:18px;height:18px}
 
 #master-trade-live-terminal .liveWsConnect .liveWsCheck{padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}
 #master-trade-live-terminal .liveWsConnect .liveWsRow{display:flex;flex-wrap:wrap;gap:10px}
@@ -34,9 +39,14 @@
 #master-trade-live-terminal .liveWsConnect .liveWsWarn{padding:10px 14px;border-radius:12px}
 #master-trade-live-terminal .liveWsConnect .liveWsIpInfo{padding:14px 16px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07)}
 
+@media (max-width:1000px){
+  #master-trade-live-terminal .liveWsFields{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 @media (max-width:720px){
-  #master-trade-live-terminal .liveWsConnect{padding:16px;border-radius:18px}
   #master-trade-live-terminal .liveWsFields{grid-template-columns:minmax(0,1fr)}
   #master-trade-live-terminal .liveWsConnectHead{flex-wrap:wrap}
   #master-trade-live-terminal .liveWsConnect .liveWsRow button{flex:1 1 100%}
 }
+
+/* Dış kartın gövdesi: başlıkla iç içerik arasında fazla boşluk kalmasın */
+#master-trade-live-terminal .liveWsCard>.liveWsBody{padding-top:0}

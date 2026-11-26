@@ -56,16 +56,14 @@ export default function CoinbaseManualKey({lastChecked, keySaved, meta, vaultRea
   const canSave = !busy && vaultReady && accepted && keyName.trim().length >= 10 && privateKey.length >= 40 && totpOk
 
   return <div className="liveWsConnect">
-    <div className="liveWsConnectHead"><span className={`liveWsDot ${keySaved ? 'on' : ''}`}/><div><b>{keySaved ? 'Hesap bağlı' : 'Hesap bağlı değil'}</b><small>Coinbase · Futures · Son kontrol: {lastChecked || '—'}</small></div><button type="button" className="cbHelpBtn" aria-label="Coinbase bağlantısı nasıl yapılır?" aria-expanded={helpOpen} aria-controls="coinbase-key-help" onClick={() => setHelpOpen(value => !value)}>?</button></div>
+    <div className="liveWsConnectHead"><span className={`liveWsDot ${keySaved ? 'on' : ''}`}/><div><b>{keySaved ? 'Hesap bağlı' : 'Hesap bağlı değil'}</b><small>Coinbase · Futures · Son kontrol: {lastChecked || '—'}</small></div>{keySaved && !armedDelete && <button type="button" className="liveWsGhost cbDeleteKey" disabled={Boolean(busy)} onClick={() => setArmedDelete(true)}><Trash2/> Bağlantıyı kes</button>}<button type="button" className="cbHelpBtn" aria-label="Coinbase bağlantısı nasıl yapılır?" aria-expanded={helpOpen} aria-controls="coinbase-key-help" onClick={() => setHelpOpen(value => !value)}>?</button></div>
     {helpOpen && <div id="coinbase-key-help" className="cbHelp" role="region" aria-label="Coinbase anahtarı oluşturma adımları">
       <b>Coinbase'e nasıl bağlanırım?</b>
       <ol>{COINBASE_KEY_STEPS.map(step => <li key={step}>{step}</li>)}</ol>
       <p>Anahtarını kimseyle paylaşma, ekran görüntüsü atma. Sadece bu sitedeki alana yapıştır.</p>
     </div>}
-    {keySaved && <div className="cbDisconnect">
-      {!armedDelete
-        ? <button type="button" className="liveWsGhost cbDeleteKey" disabled={Boolean(busy)} onClick={() => setArmedDelete(true)}><Trash2/> Bağlantıyı kes</button>
-        : <div className="cbDisconnectArm" role="group" aria-label="Bağlantıyı kes">
+    {keySaved && armedDelete && <div className="cbDisconnect">
+      {<div className="cbDisconnectArm" role="group" aria-label="Bağlantıyı kes">
           <p>Kayıtlı Coinbase anahtarı sunucudan silinir. Onaylamak için 2FA kodunu yaz.</p>
           <input data-private="true" type="password" autoComplete="one-time-code" inputMode="numeric" value={totp} onChange={event => setTotp(event.target.value)} maxLength={12} placeholder="6 haneli 2FA kodu" aria-label="2FA kodu"/>
           <div className="liveWsRow">
