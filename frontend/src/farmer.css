@@ -825,3 +825,15 @@ html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data
 html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzBarTx{gap:14px !important}
 html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzBarTx span{font-size:12px !important}
 html body #root > main.v26App.masterTradeRoute .masterTradePage.masterTrade[data-layout-tab="canli"] .fmGuide.fmGuide .fmWzBarTx b{font-size:14px !important}
+
+/* Sade Farmer ekranı: tek özet kartı, az metin */
+.fmStatusMsg{font-size:15px!important;color:#dbe8e1!important}
+.fmBrief{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.fmBrief span{display:grid;gap:2px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.04)}
+.fmBrief small{font-size:11px;color:var(--fm-mute)}.fmBrief b{font-size:16px;font-variant-numeric:tabular-nums}
+.fmBrief b.up{color:var(--fm-green)}.fmBrief b.down{color:#ff8f8a}
+.fmMeta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px!important;color:var(--fm-mute)!important;line-height:1.4!important}
+.fmMeta span[data-arm="on"]{color:var(--fm-green)}.fmMeta span[data-arm="off"]{color:var(--fm-amber)}
+.fmResLine{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px!important;color:var(--fm-mute)!important}
+.fmResLine b{color:#e8f1ec}
+.fmSettings .fmCands{margin-top:10px}

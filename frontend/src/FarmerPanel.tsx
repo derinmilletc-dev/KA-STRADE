@@ -249,7 +249,9 @@ function Dashboard(p: DashProps) {
   const hasPositions = status.positions.length > 0
   const slots = slotView(status)
   const intervention = state === 'INTERVENTION_REQUIRED'
-  const message = t(statusMessageKey(state, hasPositions))
+  const message = state === 'RUNNING' && !hasPositions ? insightText(status, L, t) : t(statusMessageKey(state, hasPositions))
+  const cfg = status.config
+  const armLeft = armRemaining(status.arm.expires_at, p.now)
   const canActivate = state === 'OFF' && !intervention
   const canStop = state === 'RUNNING' || state === 'ENTRY_PAUSED_ARM' || state === 'ENTRY_PAUSED_SAFETY'
   const BadgeIcon = { power: Power, play: Play, pause: Pause, square: Square, alert: TriangleAlert }[badge.icon]
@@ -267,46 +269,50 @@ function Dashboard(p: DashProps) {
         {canStop && <button type="button" className="fmBtn fmWarn" data-testid="farmer-stop" disabled={!!p.busy} onClick={p.onStop}><Square aria-hidden="true"/>STOP BOT</button>}
         {state === 'ENTRY_PAUSED_ARM' && <button type="button" className="fmBtn fmPrimary" data-testid="farmer-renew-arm" disabled={!!p.busy} onClick={p.onRenew}><Clock aria-hidden="true"/>{L('ARM’I YENİLE', 'RENEW ARM')}</button>}
       </div>
-      {canStop && <p className="fmHint">{L('STOP BOT yalnızca yeni girişleri durdurur. Mevcut pozisyonlar korunmaya devam eder.', 'STOP BOT stops new entries only. Existing positions remain protected.')}</p>}
       {state === 'STOPPING' && <p className="fmHint">{L('Pozisyonlar kapanınca KAIS FARMER kapanır.', 'KAIS FARMER switches off once positions have closed.')}</p>}
       {canActivate && !p.armActive && <p className="fmHint" data-testid="farmer-arm-needed">{L('Yeni pozisyon açabilmesi için geçerli bir işlem oturumu (ARM) gerekir.', 'A valid trading session (ARM) is required before new positions can be opened.')}</p>}
+      <div className="fmBrief" data-testid="farmer-overview">
+        <span><small>{L('Kâr hedefi', 'Profit target')}</small><b className="up">{cfg ? money(cfg.target_usdt, true) : '—'}</b></span>
+        <span><small>{L('En fazla kayıp', 'Max loss')}</small><b className="down">{cfg ? `-${money(cfg.max_loss_usdt).replace('-', '')}` : '—'}</b></span>
+        <span><small>{L('Kaldıraç', 'Leverage')}</small><b>{cfg ? `${cfg.leverage}×` : '—'}</b></span>
+      </div>
+      <p className="fmMeta" data-testid="farmer-slots">
+        <span>{L(`Pozisyon ${slots.used}/${slots.capacity}`, `Positions ${slots.used}/${slots.capacity}`)}</span>
+        <span>{L('Marjin', 'Margin')} {typeof status.margin_used_usdt === 'number' ? status.margin_used_usdt : '—'}{typeof status.margin_used_usdt === 'number' && typeof status.available_margin_usdt === 'number' ? ` / ${Math.round((status.margin_used_usdt + status.available_margin_usdt) * 100) / 100}` : ''} USDT</span>
+        <span data-arm={status.arm.active ? 'on' : 'off'}>{status.arm.active ? L(`Oturum aktif${armLeft ? ` · ${armLeft}` : ''}`, `Session active${armLeft ? ` · ${armLeft}` : ''}`) : L('Oturum bitti', 'Session ended')}</span>
+      </p>
     </section>
 
     {intervention && <Intervention status={status} L={L} busy={p.busy} onAck={p.onAck}/>}
     {p.flash && <p className="fmFlash" data-tone={p.flash.tone} role="status">{p.flash.text}</p>}
     {p.emergencyResult && <EmergencyResult kind={p.emergencyResult} L={L} onClose={p.clearEmergency}/>}
 
-    <Insight status={status} L={L} t={t}/>
-    <Overview status={status} L={L} slots={slots} showAvail={state === 'RUNNING'}/>
-    <ArmCard status={status} L={L} now={p.now} busy={p.busy} onRenew={p.onRenew} hideRenew={state === 'ENTRY_PAUSED_ARM'}/>
+    {!status.arm.active && state !== 'ENTRY_PAUSED_ARM' && state !== 'OFF' && <ArmCard status={status} L={L} now={p.now} busy={p.busy} onRenew={p.onRenew}/>}
 
-    <section className="fmSection" aria-labelledby="fm-positions">
+    {hasPositions && <section className="fmSection" aria-labelledby="fm-positions">
       <h3 id="fm-positions">{L('Pozisyonlar', 'Positions')}</h3>
-      {hasPositions
-        ? <div className="fmPositions">{status.positions.map(pos => <PositionCard key={pos.grid_id} pos={pos} L={L} t={t}/>)}</div>
-        : <p className="fmEmpty" data-testid="farmer-no-positions">{L('Şu an açık pozisyon yok. KAIS FARMER yalnızca nitelikli bir kurulum çıkınca pozisyon açar.', 'No open positions right now. KAIS FARMER opens one only when a qualified setup appears.')}</p>}
-    </section>
+      <div className="fmPositions">{status.positions.map(pos => <PositionCard key={pos.grid_id} pos={pos} L={L} t={t}/>)}</div>
+    </section>}
 
     <ResultsCard status={status} L={L}/>
 
-    {(!hasPositions || slots.free > 0) && <WhyCard status={status} L={L} t={t} openGuide={p.openGuide}/>}
-    <Scanner items={status.scanner} L={L} t={t} openGuide={p.openGuide}/>
+    {state === 'ENTRY_PAUSED_SAFETY' && <WhyCard status={status} L={L} t={t} openGuide={p.openGuide}/>}
+    {status.scanner.length > 0 && <Scanner items={status.scanner} L={L} t={t} openGuide={p.openGuide}/>}
 
     <details className="fmSettings" data-testid="farmer-settings">
       <summary><span>{L('Ayarlar', 'Settings')}</span><ChevronDown aria-hidden="true"/></summary>
       <Setup {...{status, form: p.form, edit: p.edit, canEdit: p.canEdit, preview: p.preview, formError: p.formError, lang: p.lang, L, openGuide: p.openGuide, mode: 'edit', onActivate: p.onActivate, busy: p.busy}}/>
     </details>
 
-    <section className="fmDanger" aria-labelledby="fm-emergency">
+    {hasPositions && <section className="fmDanger" aria-labelledby="fm-emergency">
       <div><h3 id="fm-emergency">{L('Acil durum', 'Emergency')}</h3>
         <p>{L('STOP BOT’tan farklıdır: Farmer’a ait tüm pozisyonları kapatmayı dener.', 'Different from STOP BOT: it attempts to close all KAIS FARMER positions.')}</p></div>
       <button type="button" className="fmBtn fmDangerBtn" data-testid="farmer-emergency" disabled={!hasPositions || p.emergencyBusy} onClick={p.onEmergency}><TriangleAlert aria-hidden="true"/>EMERGENCY CLOSE</button>
-    </section>
+    </section>}
   </>
 }
 
-function Insight({status, L, t}: {status: FarmerStatus; L: (tr: string, en: string) => string; t: (key: CopyKey) => string}) {
-  if (status.state === 'OFF' || status.state === 'INTERVENTION_REQUIRED') return null
+function insightText(status: FarmerStatus, L: (tr: string, en: string) => string, t: (key: CopyKey) => string): string {
   const rows = status.scanner.filter(c => typeof c.score === 'number')
   const best = rows.reduce<FarmerCandidate | null>((acc, c) => (!acc || (c.score as number) > (acc.score as number) ? c : acc), null)
   const min = status.config?.min_score
@@ -317,7 +323,7 @@ function Insight({status, L, t}: {status: FarmerStatus; L: (tr: string, en: stri
     ? L(`${best.symbol} ${best.direction} adayı ${Math.round(best.score as number)} puanla öne çıktı; onay bekleniyor.`, `${best.symbol} ${best.direction} leads at ${Math.round(best.score as number)}; waiting for confirmation.`)
     : L(`En yakın aday ${best.symbol}: ${Math.round(best.score as number)} puan, eşik ${min}. Eşiğe ulaşırsa girerim.`, `Closest is ${best.symbol}: ${Math.round(best.score as number)}, threshold ${min}. I enter only if it gets there.`)
   else text = t(whyKey(status.why.code))
-  return <aside className="fmInsight" data-testid="farmer-insight"><span aria-hidden="true"><Zap/></span><p><b>{L('Kais diyor ki', 'Kais says')}</b>{text}</p></aside>
+  return text
 }
 
 function Overview({status, L, slots, showAvail}: {status: FarmerStatus; L: (tr: string, en: string) => string; slots: ReturnType<typeof slotView>; showAvail: boolean}) {
@@ -410,17 +416,15 @@ function WhyCard({status, L, t, openGuide}: {status: FarmerStatus; L: (tr: strin
 }
 
 function Scanner({items, L, t, openGuide}: {items: FarmerCandidate[]; L: (tr: string, en: string) => string; t: (key: CopyKey) => string; openGuide: (topic?: string) => void}) {
-  return <section className="fmSection" aria-labelledby="fm-scanner" data-testid="farmer-scanner">
-    <h3 id="fm-scanner">{L('Piyasa tarayıcısı', 'Market Scanner')}</h3>
-    {items.length === 0
-      ? <p className="fmEmpty" data-testid="farmer-no-candidates">{L('Şu an kalite şartlarını karşılayan aday yok. İşlem zorlanmıyor.', 'No candidate currently meets your quality requirements. No trade is being forced.')}</p>
-      : <ul className="fmCands">{items.slice(0, 8).map(c => <li key={c.symbol} data-status={c.status}>
+  return <details className="fmSettings" data-testid="farmer-scanner">
+    <summary><span>{L(`Piyasa tarayıcısı · ${items.length} aday`, `Market scanner · ${items.length} candidates`)}</span><ChevronDown aria-hidden="true"/></summary>
+    {<ul className="fmCands">{items.slice(0, 8).map(c => <li key={c.symbol} data-status={c.status}>
         <b>{c.symbol}</b><span className="fmScore">{c.score === null ? '—' : Math.round(c.score)}</span>
         {c.score !== null && <i className="fmScoreBar" aria-hidden="true"><u style={{width: `${Math.max(0, Math.min(100, c.score))}%`}}/></i>}
         <span className="fmCandSide">{c.direction}</span>
         <em data-status={c.status}>{t(`cand.${c.status}` as CopyKey)}</em></li>)}</ul>}
     <p className="fmFoot">{L('Yüksek skor = KAIS FARMER modeline göre daha güçlü kurulum.', 'Higher score = a stronger setup according to the KAIS FARMER model.')} <button type="button" className="fmLink" onClick={() => openGuide('score')}>{L('Daha fazla', 'Learn more')}</button></p>
-  </section>
+  </details>
 }
 
 function Intervention({status, L, busy, onAck}: {status: FarmerStatus; L: (tr: string, en: string) => string; busy: string; onAck: () => void}) {
