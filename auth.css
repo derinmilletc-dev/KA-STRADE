@@ -1691,3 +1691,10 @@ html body #root .authRoot.authNight:has(.authPageLogin) { background-image: line
 @media (max-width: 1023px) {
   html body #root .authRoot > main.authPage.authPageLogin:has(.authCardLogin):has(section) { justify-content: center !important; align-items: center !important; padding: calc(var(--u) * 24) 19px calc(var(--u) * 56) !important; }
 }
+
+/* Logo/slogan okunurluğu: arkasında çok hafif, yumuşak bir karartma */
+@media (max-width: 1023px) {
+  html body #root .authPageLogin > header.authMobileIdentity { position: relative !important; isolation: isolate; }
+  html body #root .authPageLogin > header.authMobileIdentity::before { content: ""; position: absolute; z-index: -1; left: -8%; right: -8%; top: -26%; bottom: -34%; pointer-events: none; background: radial-gradient(ellipse 60% 55% at 50% 48%, rgba(6, 10, 16, .5) 0%, rgba(6, 10, 16, .28) 55%, rgba(6, 10, 16, 0) 100%); }
+  html body #root .authPageLogin > header.authMobileIdentity p.authTagline { text-shadow: 0 1px 6px rgba(0, 0, 0, .75); }
+}
