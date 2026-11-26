@@ -610,3 +610,22 @@
 .dbReal{text-align:right}.dbReal b{font-size:15px}
 .dsMore{display:grid;gap:10px}.dsMore summary{cursor:pointer;color:#7fe0b8;font-size:12.5px;font-weight:700;list-style:none}
 .dsMore summary::-webkit-details-marker{display:none}.dsMore[open] summary{margin-bottom:6px}
+
+/* Sade coin listesi: kutu içinde kutu yok, tek kart = tek satır */
+#root .dca .dwKais.dk{background:none;border:0;padding:0;gap:10px}
+#root .dca .dkCard{min-height:88px}
+.dk>small{font-size:12px;color:#7f93a9;line-height:1.45}
+#root .dca ul.dwCoins{gap:8px}
+#root .dca ul.dwCoins.dwSearchRes{max-height:none;overflow:visible}
+#root .dca ul.dwCoins li.dwAnaLi{display:flex;align-items:center;gap:0;padding:0 4px;border-radius:16px;background:var(--card);border:1px solid transparent}
+#root .dca ul.dwCoins li.dwAnaLi[data-picked]{border-color:rgba(61,220,151,.55);background:linear-gradient(160deg,rgba(61,220,151,.08),var(--card))}
+#root .dca ul.dwCoins li.dwAnaLi>button{background:none!important;border:0!important;box-shadow:none!important;min-height:62px!important;padding:8px 8px!important;border-radius:12px}
+#root .dca ul.dwCoins li.dwAnaLi>button.dkPick,#root .dca ul.dwCoins li.dwAnaLi>button.dwAnaBtn{flex:none;width:40px!important;min-width:40px!important;padding:0!important;display:grid;place-items:center}
+#root .dca ul.dwCoins li.dwAnaLi>button.dwAnaBtn{color:#6f8aa6}
+#root .dca ul.dwCoins li.dwAnaLi>button.dwAnaBtn svg{width:20px;height:20px}
+#root .dca ul.dwCoins li.dwAnaLi>button:nth-child(2){flex:1 1 0;width:auto;min-width:0}
+#root .dca .dwAnaLi .dwCoinSide{display:flex;flex-direction:column;align-items:flex-end;gap:4px;max-width:none}
+#root .dca .dwAnaLi .dwCoinMain b{font-size:16px}
+#root .dca .dwAnaLi .dwFit{font-size:12px;font-weight:600;color:#7f93a9}
+.dwSteps li button{white-space:nowrap;gap:5px;padding:0 4px;font-size:13px}
+.dwSteps li button span{overflow:hidden;text-overflow:ellipsis}
