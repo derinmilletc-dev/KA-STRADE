@@ -21,7 +21,9 @@ type Props = {
 }
 
 const ROW = 60
-const FILTERS: MarketFilter[] = ['Tümü', 'Favoriler', 'Skorlu']
+type PickerFilter = MarketFilter | 'LONG' | 'SHORT'
+const FILTERS: PickerFilter[] = ['Tümü', 'LONG', 'SHORT', 'Favoriler', 'Skorlu']
+const sideOf = (score?: MarketScore) => { const value = String(score?.direction ?? '').toUpperCase(); return value === 'LONG' || value === 'SHORT' ? value : null }
 const SYMBOL_PATTERN = /^[A-Z0-9]+USDT$/
 
 /** Piyasa listesindeki favoriler (aynı anahtar ve doğrulama); yeni kalıcılık eklenmez, yalnız okunur. */
@@ -48,7 +50,7 @@ function place(anchor: HTMLElement | null): Placement {
 
 export function MasterTradeCoinPicker({symbol, rows, scores, userId, error, anchor, onSelect, onClose}: Props) {
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<MarketFilter>('Tümü')
+  const [filter, setFilter] = useState<PickerFilter>('Tümü')
   const [favorites] = useState(() => readFavorites(userId))
   const [placement, setPlacement] = useState<Placement>(() => place(anchor))
   const [scroll, setScroll] = useState({offset: 0, extent: 360})
@@ -61,7 +63,12 @@ export function MasterTradeCoinPicker({symbol, rows, scores, userId, error, anch
   const scoreMap = useMemo(() => new Map(scores.filter(row => Number.isFinite(row.score)).map(row => [row.symbol, row])), [scores])
   // Sentetik test satırları (OFFLINE TEST) grafik tarafından yüklenemez; seçicide gösterilmez.
   const usable = useMemo(() => rows.filter(row => !row.test && SYMBOL_PATTERN.test(row.symbol)), [rows])
-  const filtered = useMemo(() => filterMarketQuotes(usable, scoreMap, favorites, query, filter, 'Hacim'), [usable, scoreMap, favorites, query, filter])
+  const filtered = useMemo(() => {
+    if (filter !== 'LONG' && filter !== 'SHORT') return filterMarketQuotes(usable, scoreMap, favorites, query, filter, 'Hacim')
+    // LONG/SHORT: yalnız o yönde sinyali olan coinler, güven puanına göre yüksekten düşüğe.
+    const confidence = (row: MarketQuote) => scoreMap.get(row.symbol)?.confidence ?? scoreMap.get(row.symbol)?.score ?? 0
+    return filterMarketQuotes(usable, scoreMap, favorites, query, 'Skorlu', 'Skor').filter(row => sideOf(scoreMap.get(row.symbol)) === filter).sort((a, b) => confidence(b) - confidence(a))
+  }, [usable, scoreMap, favorites, query, filter])
   const view = marketWindow(scroll.offset, scroll.extent, filtered.length, ROW)
 
   useLayoutEffect(() => {
@@ -124,7 +131,7 @@ export function MasterTradeCoinPicker({symbol, rows, scores, userId, error, anch
           value={query} onChange={event => { setQuery(event.target.value); if (list.current) list.current.scrollTop = 0; setScroll(current => ({...current, offset: 0})) }}/>
       </label>
       <div className="kfsCoinFilters" role="group" aria-label="Piyasa filtreleri">
-        {FILTERS.filter(item => item !== 'Favoriler' || userId).map(item => <button type="button" key={item} aria-pressed={filter === item}
+        {FILTERS.filter(item => item !== 'Favoriler' || userId).map(item => <button type="button" key={item} aria-pressed={filter === item} data-side={item === 'LONG' || item === 'SHORT' ? item : undefined}
           onClick={() => { setFilter(item); if (list.current) list.current.scrollTop = 0; setScroll(current => ({...current, offset: 0})) }}>{item}</button>)}
       </div>
     </div>
@@ -138,6 +145,7 @@ export function MasterTradeCoinPicker({symbol, rows, scores, userId, error, anch
               style={{transform: `translateY(${(view.start + index) * ROW}px)`}} onClick={() => onSelect(row.symbol)}>
               <CoinIcon symbol={row.symbol} size={28}/>
               <span className="kfsCoinId"><b>{base}</b><small><span>{row.display}</span>{row.name && row.name !== base ? <span className="kfsCoinName" title={row.name}>{row.name}</span> : null}</small></span>
+              {(() => { const score = scoreMap.get(row.symbol); const side = sideOf(score); const conf = score?.confidence; return side && Number.isFinite(conf) ? <span className="kfsCoinSignal" data-side={side} title={`${side} · güven %${Math.round(conf as number)}`}><em>{side}</em><b>%{Math.round(conf as number)}</b></span> : <span className="kfsCoinSignal" data-empty="true" aria-hidden="true"/> })()}
               <span className="kfsCoinQuote"><strong>{marketPrice(row.price)}</strong>
                 <small data-tone={row.change === null ? 'neutral' : row.change >= 0 ? 'positive' : 'negative'}>{row.change === null ? '—' : `${row.change >= 0 ? '+' : ''}${row.change.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}%`}</small></span>
               <span className="kfsCoinMark" aria-hidden="true">{selected && <Check/>}</span>

@@ -887,7 +887,7 @@ export default function MasterTrade({ onBack, assistantSlotRef, embedDemo = fals
   const referenceContent = referenceAnalysis ? <MasterTradeReference assistantSlotRef={assistantSlotRef} demo={embedDemo} demoConnected={demoConnected}
       chartAiControl={chartAiControl}
       symbol={draft.market} interval={interval} query={marketQuery} onQuery={setMarketQuery}
-      scores={scannerCandidates.map(candidate => ({symbol: candidate.symbol, direction: candidate.direction, score: candidate.final_decision_score}))}
+      scores={scannerCandidates.map(candidate => ({symbol: candidate.symbol, direction: candidate.direction, score: candidate.final_decision_score, confidence: candidate.confidence}))}
       marketFeed={marketFeed}
       onMarket={selectMarket} onInterval={setInterval} onNavigate={goTab}
       onAutoTrade={() => {shortcutPending.current = !embedDemo; goTab('canli')}}

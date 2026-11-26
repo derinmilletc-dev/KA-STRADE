@@ -408,3 +408,15 @@ html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReference
   html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar > .refDrawingTools { display: none !important; }
   html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .refChart[data-fs="on"] .refToolbar.refToolbar .kfsQuoteMeta .refLiveBadge { font-size: 0 !important; gap: 0; }
 }
+
+/* Coin seçici: güven puanı + yön rozeti ve LONG/SHORT filtre rengi */
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinPicker .kfsCoinRow { grid-template-columns: 28px minmax(0, 1fr) auto auto 16px; gap: 10px; }
+.masterReferenceAnalysis .kfsCoinSignal { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 52px; padding: 4px 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); line-height: 1; }
+.masterReferenceAnalysis .kfsCoinSignal[data-empty] { visibility: hidden; }
+.masterReferenceAnalysis .kfsCoinSignal em { font-style: normal; font-size: 9.5px; font-weight: 800; letter-spacing: .08em; }
+.masterReferenceAnalysis .kfsCoinSignal b { font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.masterReferenceAnalysis .kfsCoinSignal[data-side="LONG"] { color: #34d399; border-color: rgba(52,211,153,.45); background: rgba(52,211,153,.12); }
+.masterReferenceAnalysis .kfsCoinSignal[data-side="SHORT"] { color: #ff8a80; border-color: rgba(255,138,128,.45); background: rgba(255,138,128,.12); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinFilters button[data-side="LONG"][aria-pressed="true"] { color: #34d399; border-color: rgba(52,211,153,.6); background: rgba(52,211,153,.14); }
+html body #root > main.v26App.masterTradeRoute.masterTradeRoute .masterReferenceAnalysis.masterReferenceAnalysis .kfsCoinFilters button[data-side="SHORT"][aria-pressed="true"] { color: #ff8a80; border-color: rgba(255,138,128,.6); background: rgba(255,138,128,.14); }
+.masterReferenceAnalysis .kfsCoinFilters { flex-wrap: wrap; }
