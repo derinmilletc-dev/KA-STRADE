@@ -526,6 +526,20 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
           : step < 3 ? <button type="button" className="sgwNext" disabled={!params} onClick={() => setStep(step === 1 ? 2 : 3)}>{step === 1 ? tx('Devam · para ve risk', 'Next · money & risk') : tx('Devam · onay', 'Next · confirm')}</button>
           : <HoldButton ms={holdMs} tone={params?.mode === 'SHORT' ? 'sell' : 'buy'} disabled={!canStart}
               label={busy || tx(`Basılı tut · ${startWord} grid başlat`, `Hold · start ${startWord} grid`)} onDone={() => void start()}
+              clickLabel={tx(`${startWord} grid başlat`, `Start ${startWord} grid`)}
+              confirm={params && preview ? {
+                title: tx('Emin misin?', 'Are you sure?'), sub: tx('Şu şartlarda grid başlatılacak', 'A grid will start on these terms'), demo, confirmLabel: tx('Onayla · grid başlat', 'Confirm · start grid'),
+                warn: needAck,
+                rows: [
+                  {label: tx('Coin · tür', 'Coin · type'), value: `${short(symbol)} · ${startWord}`},
+                  {label: tx('Aralık', 'Range'), value: `${priceText(params.lower)} – ${priceText(params.upper)}`},
+                  {label: tx('Kademe', 'Levels'), value: `${params.count}`},
+                  {label: tx('Teminat · kaldıraç', 'Margin · leverage'), value: `${fmt(params.margin)} USDT · ${params.leverage}x`},
+                  {label: tx('En kötü durum', 'Worst case'), value: preview.worstLoss !== null ? `−${fmt(preview.worstLoss)} USDT` : '—', tone: 'down'},
+                  ...(preview.profitPerCycle !== null ? [{label: tx('Tur başı net kâr', 'Net per cycle'), value: `+${fmt(preview.profitPerCycle, Math.abs(preview.profitPerCycle) < 0.1 ? 4 : 2)} USDT`, tone: 'up' as const}] : []),
+                ],
+                note: needAck ? tx(`${params.leverage}x yüksek kaldıraç: kayıp hızlı büyüyebilir.`, `${params.leverage}x high leverage: losses can grow fast.`) : tx('Gerçek para kullanılır; tahmin ücret dahil, funding/kayma hariç.', 'Estimate includes fees, not funding/slippage.'),
+              } : undefined}
               hint={tx(`${symbol} ${startWord} gridini başlatmak için basılı tut`, `Press and hold to start the ${symbol} ${startWord} grid`)}/>}
         <p className="sqgFine">{demo ? tx('Yalnız Demo hesap · gerçek para yok.', 'Demo account only · no real money.') : tx('Gerçek para · tahmin ücret dahil, funding/kayma hariç.', 'Real money · estimate includes fees, not funding/slippage.')}</p>
       </footer>}
@@ -646,6 +660,7 @@ function GridCard({row, price, demo, busy, ask, setAsk, holdMs, onAct, onSelect,
             {staleLoop && <button type="button" className="sqtBtn" data-tone="primary" disabled={busy} onClick={() => onAct(row, 'resume')}>{tx('Devam ettir', 'Resume')}</button>}
             {row.status !== 'PAUSED' && !row.needs_user && <button type="button" className="sqtBtn" disabled={busy} onClick={() => setAsk(`stop:${row.grid_id}`)}>{tx('Durdur', 'Stop')}</button>}
             <HoldButton ms={holdMs} tone="danger" disabled={busy} label={tx('Acil kapat · basılı tut', 'Emergency close · hold')} onDone={() => onAct(row, 'emergency')}
+              clickLabel={tx('Acil kapat', 'Emergency close')} confirm={{title: tx('Grid acil kapatılsın mı?', 'Emergency-close this grid?'), sub: tx('Emirler iptal edilir, pozisyon piyasadan kapatılır', 'Orders are cancelled and the position is closed at market'), demo, warn: true, confirmLabel: tx('Onayla · acil kapat', 'Confirm · emergency close'), rows: [{label: tx('Coin', 'Coin'), value: short(row.symbol)}], note: tx('Bu işlem geri alınamaz.', 'This cannot be undone.')}}
               hint={tx(`${row.symbol} gridini acil kapatmak için basılı tut`, `Press and hold to emergency-close the ${row.symbol} grid`)}/>
           </>}
     </div>}
