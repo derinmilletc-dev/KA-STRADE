@@ -2,19 +2,22 @@
   "version": "25.0.0",
   "policy": {
     "allowed_symbols": [
-      "BTCUSDT"
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "BNBUSDT"
     ],
     "interval": "15m",
     "allow_long": true,
     "allow_short": true,
     "max_margin_per_trade": 25.0,
     "max_loss_per_trade": 3.0,
-    "max_leverage": 50,
+    "max_leverage": 30,
     "max_positions": 5,
     "max_same_direction_positions": 2,
     "max_direction_exposure_usdt": null,
     "max_total_exposure_usdt": 350.0,
-    "daily_loss_limit": 5,
+    "daily_loss_limit": 10.0,
     "daily_trade_limit": 3,
     "consecutive_loss_limit": 3,
     "min_confidence": 80,
@@ -69,102 +72,44 @@
   },
   "events": [
     {
-      "id": "6bd1188134a64f7ba2f493e2e4f645fa",
-      "kind": "LIVE_DECISION_AUDIT",
-      "message": "Canlı emir öncesi değişmez karar özeti oluşturuldu.",
-      "created_at": "2026-11-11T11:03:50.515154+00:00",
-      "symbol": "BTCUSDT",
-      "decision_id": "manual-b9d905940639428db684fc1e572da7f2",
-      "audit_snapshot": {
-        "decision_id": "manual-b9d905940639428db684fc1e572da7f2",
-        "timestamp": "2026-11-11T11:03:50.515117+00:00",
-        "mode": "LIVE",
-        "symbol": "BTCUSDT",
-        "side": "BUY",
-        "position_side": "BOTH",
-        "quantity": "2.5",
-        "leverage": 50,
-        "margin_usdt": 5,
-        "estimated_notional_usdt": 250,
-        "stop_loss": "99.2",
-        "tp_levels": [
-          "102",
-          "104",
-          "106"
-        ],
-        "risk_amount_usdt": 2,
-        "exposure_usdt": 250,
-        "exposure_limit_usdt": 350.0,
-        "active_plan_conflict": false,
-        "protection_readiness": true,
-        "lock_state": false,
-        "order_parameters": {
-          "type": "MARKET",
-          "entry_price": "100",
-          "stop_loss": "99.2",
-          "targets": [
-            "102",
-            "104",
-            "106"
-          ]
-        }
-      }
+      "id": "f1b7243575d04b6fa2b5bd4f0ef9a78f",
+      "kind": "LIVE_EMERGENCY_AUTO_CLEARED",
+      "message": "Geçici kilit nedeni düzeldi ve Binance hesabı yeniden doğrulandı; acil durdurma kalktı. Canlı işlem için ARM yeniden onaylanmalı.",
+      "created_at": "2026-11-26T20:50:22.205785+00:00",
+      "reason": "BINANCE_ACCOUNT_RATE_LIMITED"
+    },
+    {
+      "id": "33f523bd8fc641368ba960db9a46633d",
+      "kind": "LIVE_ACCOUNT_RATE_LIMIT_RECOVERED",
+      "message": "Binance hesap bilgileri yeniden doğrulandı; önceki ARM süresi uzatılmadı.",
+      "created_at": "2026-11-26T20:50:22.205756+00:00"
+    },
+    {
+      "id": "bb3f51a3b6784698b1294ccc62ccdae4",
+      "kind": "LIVE_FAIL_CLOSED",
+      "message": "Canlı yürütme güvenlik nedeniyle kilitlendi.",
+      "created_at": "2026-11-26T20:50:22.205729+00:00",
+      "reason": "BINANCE_ACCOUNT_RATE_LIMITED",
+      "execution_state": "LOCKED",
+      "symbol": null,
+      "client_order_id_suffix": null,
+      "reconciliation_required": false,
+      "unknown_execution": false
+    },
+    {
+      "id": "18afc420435c4ff2acf2c008c589ec99",
+      "kind": "LIVE_ACCOUNT_RATE_LIMIT_WAIT",
+      "message": "Binance hesap sorgusu hız sınırında; ARM süresi korunuyor, yeni girişler hesap yeniden doğrulanana kadar kapalı.",
+      "created_at": "2026-11-26T20:50:22.205088+00:00",
+      "retry_after_seconds": 180
     }
   ],
   "mtf_decision_history": [],
   "plans": {},
   "persistence_revision": 1,
-  "intents": {
-    "manual-b9d905940639428db684fc1e572da7f2": {
-      "symbol": "BTCUSDT",
-      "client_order_id": "PTBLV_ENTRY_79ae6e917ca05483d9c362",
-      "created_at": "2026-11-11T11:03:50.515176+00:00",
-      "source": "ORIGINAL_V2_LIVE",
-      "spec": {
-        "symbol": "BTCUSDT",
-        "direction": "LONG",
-        "order_type": "MARKET",
-        "entry_price": "100",
-        "quantity": "2.5",
-        "margin_usdt": 5,
-        "notional_usdt": 250,
-        "leverage": 50,
-        "stop_loss": "99.2",
-        "targets": [
-          "102",
-          "104",
-          "106"
-        ],
-        "step": "0.001",
-        "min_qty": "0.001",
-        "min_notional": "5",
-        "initial_risk_usdt": 2.0,
-        "liquidation_guard": {
-          "verified": true,
-          "model": "ISOLATED_MAINTENANCE_BRACKETS_WITH_FEE_RESERVE",
-          "liquidation_price_estimate": "98.49321948769462581617277750",
-          "buffer_pct": 0.5,
-          "minimum_buffer": "0.5",
-          "available_buffer": "0.70678051230537418382722250",
-          "maintenance_rate": "0.004",
-          "maintenance_deduction": "0",
-          "funding_included": false
-        },
-        "initial_stop_loss": "99.2",
-        "initial_quantity": "2.5",
-        "original_risk_budget": "2",
-        "original_cost_bps": "0"
-      },
-      "applied_leverage": 50,
-      "margin_type": "isolated"
-    }
-  },
+  "intents": {},
   "armed_until": 0.0,
-  "live_lock_reason": {
-    "code": "SERVER_RESTART",
-    "message": "Sunucu yeniden başladığı için ARM iptal edildi; canlı giriş yetkisi yeniden onaylanmalı.",
-    "at": "2026-11-11T11:03:50.515289+00:00"
-  },
+  "live_lock_reason": null,
   "account_rate_limit": null,
   "auto": {
     "enabled": false,
@@ -189,8 +134,8 @@
   "live_auto_trade": false,
   "emergency": {
     "active": false,
-    "triggered_at": null,
-    "reason": null
+    "triggered_at": "2026-11-26T20:50:22.205710+00:00",
+    "reason": "BINANCE_ACCOUNT_RATE_LIMITED_RECOVERED"
   },
   "web_consent": {
     "accepted_at": null,
