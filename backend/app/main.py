@@ -28,6 +28,7 @@ from .analyst_credits import router as analyst_credits_router
 from .assistant_api import router as assistant_router, shutdown_assistant
 from .chart_ai_api import router as chart_ai_router, shutdown_chart_ai
 from .instagram_showcase import router as instagram_showcase_router
+from .public_ticker import router as public_ticker_router
 from .chart_ai_maintenance import chart_ai_maintenance_loop
 from .browser_security import (
     OWNER_ACCESS_COOKIE, USER_SESSION_COOKIE, browser_request, clear_browser_cookie,
@@ -1461,6 +1462,7 @@ MEMBER_PUBLIC_PATHS = frozenset({
     "/api/v22/auth/registration/exchange",
     "/api/v22/auth/registration/email",
     "/api/public/instagram/feed",
+    "/api/public/ticker",
     "/api/v22/founding/apply", "/api/v22/founding/confirm", "/api/v22/founding/status", "/api/v22/founding/track", "/api/v22/founding/track-link", "/api/v22/founding/event",
     "/api/v22/founding/invite",  # davet bağlantısı açılırken kişi henüz giriş yapmamıştır
 })
@@ -1702,6 +1704,7 @@ async def owner_preview_gate(request, call_next):
         response.headers.setdefault("Cache-Control", "no-store")
     return response
 
+app.include_router(public_ticker_router)
 app.include_router(binance_demo_router)
 app.include_router(v21_demo_router)
 from .cockpit_demo_twin import router as cockpit_demo_twin_router

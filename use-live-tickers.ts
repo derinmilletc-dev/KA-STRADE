@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { spotStream } from './market-stream'
+import { API_BASE } from './api'
 
 type TickerPayload = {c?:string;o?:string}
 export type LiveTicker = {
@@ -42,8 +43,10 @@ export function useLiveTickers(symbols:string[]):{data:LiveTickerData;status:Liv
       const poll = async () => {
         if (stoppedRef.current || document.hidden) return
         try {
-          const response = await fetch(`${REST_URL}${encodeURIComponent(JSON.stringify(normalizedSymbols))}`)
-          if (!response.ok) throw new Error('Binance REST unavailable')
+          // Tarayıcı Binance'e ulaşamazsa (operatör engeli, uygulama içi tarayıcı) aynı veri sunucudan gelir.
+          let response = await fetch(`${REST_URL}${encodeURIComponent(JSON.stringify(normalizedSymbols))}`).catch(() => null)
+          if (!response?.ok) response = await fetch(`${API_BASE}/public/ticker?symbols=${encodeURIComponent(normalizedSymbols.join(','))}`)
+          if (!response.ok) throw new Error('Market data unavailable')
           const payload = await response.json() as Array<{symbol:string;lastPrice:string;openPrice:string}>
           payload.forEach(item => queue(item.symbol,Number(item.lastPrice),Number(item.openPrice)))
           setStatus('live')
