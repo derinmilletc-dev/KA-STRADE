@@ -71,7 +71,7 @@ export type ConfirmRow = {label: string; value: string; tone?: 'up' | 'down' | '
 export type ConfirmInfo = {title: string; sub: string; rows: ConfirmRow[]; note?: string; warn?: boolean; demo?: boolean; confirmLabel: string}
 
 /** "Emin misin?" penceresi: işlemin özetini gösterir; Onayla / Vazgeç. Esc = vazgeç, Enter = onayla. */
-export function ConfirmDialog({info, tone, anchor, onConfirm, onCancel}: {info: ConfirmInfo; tone: 'buy' | 'sell' | 'danger'; anchor: HTMLElement | null; onConfirm: () => void; onCancel: () => void}) {
+export function ConfirmDialog({info, tone, onConfirm, onCancel}: {info: ConfirmInfo; tone: 'buy' | 'sell' | 'danger'; anchor?: HTMLElement | null; onConfirm: () => void; onCancel: () => void}) {
   const okRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     okRef.current?.focus()
@@ -79,7 +79,6 @@ export function ConfirmDialog({info, tone, anchor, onConfirm, onCancel}: {info: 
     document.addEventListener('keydown', onKey, true)
     return () => document.removeEventListener('keydown', onKey, true)
   }, [onCancel])
-  const host = (anchor?.closest('.masterReferenceAnalysis') as HTMLElement | null) ?? document.body
   return createPortal(
     <div className="sqcOverlay" data-tone={tone} onMouseDown={event => { if (event.target === event.currentTarget) onCancel() }}>
       <div className="sqcCard" role="alertdialog" aria-modal="true" aria-label={info.title}>
@@ -96,7 +95,7 @@ export function ConfirmDialog({info, tone, anchor, onConfirm, onCancel}: {info: 
           <button type="button" ref={okRef} className="sqcOk" data-tone={tone} onClick={onConfirm}>{info.confirmLabel}</button>
         </footer>
       </div>
-    </div>, host)
+    </div>, document.body)
 }
 
 export function HoldButton({ms, label, tone, disabled, onDone, hint, confirm, clickLabel}: {ms: number; label: string; tone: 'buy' | 'sell' | 'danger'; disabled: boolean; onDone: () => void; hint: string; confirm?: ConfirmInfo; clickLabel?: string}) {
