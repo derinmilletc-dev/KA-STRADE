@@ -1553,3 +1553,4 @@ html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn:active
 #root .authCardRegister .authMarketingConsent small { display:block; margin-top:2px; font-size:10.5px; color:#6f877d; }
 #root .authCardRegister .authCardLead { margin-bottom:14px!important; }
 #root .authCardRegister .authRegisterLinks { flex-direction:column; }
+#root .authCardRegister { position:relative; }
