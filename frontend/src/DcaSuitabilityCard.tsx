@@ -76,10 +76,6 @@ export default function DcaSuitabilityCard({symbol, side, price, stepPct, safety
         <span className="dsRing" style={{background: `conic-gradient(var(--ds-c) 0 ${result.score}%, rgba(255,255,255,.08) 0)`}}><b>{result.score}</b></span>
         <span className="dsHead"><b>{result.headline}</b><small>{result.detail}</small></span>
       </div>
-      {Number.isFinite(Number(aiConfidence)) && aiAgrees && <div className="dsPair" aria-label="AI ve DCA puanı">
-        <span><small>{t.ai}</small><b className="up">%{Math.round(Number(aiConfidence))}</b></span>
-        <span><small>{t.dca}</small><b data-level={result.level}>{result.score}/100</b></span>
-      </div>}
       {conflict && <p className="dsConflict" role="status">⚠ {t.conflict}</p>}
       <details className="dsMore"><summary>{t.more}</summary>
       <div className="dsBars">

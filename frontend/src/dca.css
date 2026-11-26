@@ -629,3 +629,10 @@
 #root .dca .dwAnaLi .dwFit{font-size:12px;font-weight:600;color:#7f93a9}
 .dwSteps li button{white-space:nowrap;gap:5px;padding:0 4px;font-size:13px}
 .dwSteps li button span{overflow:hidden;text-overflow:ellipsis}
+
+/* Plan: taşma/sıkışma düzeltmesi */
+#root .dca .dwBig{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#root .dca .dwBig span{min-width:0;display:grid;gap:3px;padding:10px 12px;text-align:left;justify-items:start}
+#root .dca .dwBig b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#root .dca .dwBig small{font-size:11.5px}
+#root .dca .ds{background:none;border:0;border-top:1px solid #1b2b42;border-radius:0;padding:14px 2px 0;margin:6px 0}
