@@ -39,6 +39,7 @@ export type FarmerStatus = {
   slots: FarmerSlots | null; effective_capacity: number | null; max_positions?: number; snapshot_ok?: boolean; recovered: boolean
   today: {basis: string; verified_net_pnl: number | null; verified_count: number; pending_count: number; unverified_count: number} | null
   why: {code: string; details: Array<{code: string; count: number}>}; hard_cap_usdt: number; signal_interval_s?: number; scanned_count?: number | null
+  funnel?: {scanned: number; directional: number; min_score: number; stages: Array<{code: string; passed: number}>} | null
   margin_used_usdt?: number; available_margin_usdt?: number
   recent_results?: FarmerResultRow[]; summary?: FarmerSummary; events?: string[]
 }
