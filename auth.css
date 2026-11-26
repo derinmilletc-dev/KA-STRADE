@@ -1561,3 +1561,52 @@ html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn:active
 #root .authCardRegister .authLangField .langPickerFlag svg { border-radius:3px; }
 #root .authCardRegister .authLangField .langPickerBadge { width:24px!important; min-width:24px!important; height:16px!important; border-radius:3px!important; font-size:9px!important; }
 #root .authCardRegister .authLangField .langPickerList button.on .langPickerFlag { box-shadow:0 0 0 1px rgba(100,227,161,.7)!important; }
+
+/* ===== Kış ormanı: gerçekçi arka plan + buzlu cam kartlar (en sonda, hepsini ezer) ===== */
+html body #root .authRoot:has(.authPageLogin) {
+  background-color: #0b1216 !important;
+  background-image: linear-gradient(180deg, rgba(5,10,14,.5) 0%, rgba(5,10,14,.12) 30%, rgba(5,10,14,.18) 62%, rgba(5,10,14,.62) 100%), url("/login-winter-forest.webp") !important;
+  background-repeat: no-repeat !important;
+  background-size: 100% 100%, cover !important;
+  background-position: 0 0, center 38% !important;
+}
+@media (min-width: 1024px) {
+  html body #root .authRoot:has(.authPageLogin) { background-position: 0 0, center 45% !important; }
+}
+html body #root .authRoot > main.authPage.authPageLogin { background: transparent !important; }
+html body #root .authRoot:has(.authPageLogin) .authCandlePattern, html body #root .authRoot:has(.authPageLogin) .authBrandMark::before { display: none !important; }
+
+/* Kart: buzlu cam, sıcak fener yansıması, kenarda ince kırağı çizgisi */
+html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin {
+  position: relative; overflow: hidden;
+  background:
+    radial-gradient(120% 70% at 100% 100%, rgba(255, 170, 84, .17) 0%, rgba(255, 170, 84, 0) 55%),
+    radial-gradient(90% 50% at 0% 0%, rgba(215, 236, 255, .13) 0%, rgba(215, 236, 255, 0) 60%),
+    linear-gradient(165deg, rgba(20, 31, 38, .62), rgba(9, 15, 19, .72)) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.25) brightness(.9) !important; backdrop-filter: blur(22px) saturate(1.25) brightness(.9) !important;
+  border: 1px solid rgba(233, 244, 255, .2) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .28),
+    inset 0 -1px 0 rgba(255, 178, 96, .16),
+    inset 0 0 38px rgba(210, 230, 245, .05),
+    0 22px 60px rgba(0, 0, 0, .55),
+    0 0 42px rgba(255, 170, 84, .08) !important;
+}
+/* Üst kenarda cam yansıması */
+html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 46%; pointer-events: none; z-index: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .11) 0%, rgba(255, 255, 255, .035) 45%, rgba(255, 255, 255, 0) 100%);
+  border-radius: inherit;
+}
+/* Alt kenarda ıslak buz gibi sıcak parıltı */
+html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin::after {
+  content: ""; position: absolute; left: 12%; right: 12%; bottom: 0; height: 1px; pointer-events: none; z-index: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 196, 128, .55), transparent); filter: blur(.4px);
+}
+html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin > * { position: relative; z-index: 1; }
+/* Alanlar ve düğmeler: kırağılı cam */
+html body #root .authPageLogin .authCardLogin input:not([type="checkbox"]) { background: rgba(8, 14, 18, .5) !important; border-color: rgba(225, 240, 250, .16) !important; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .35) !important; }
+html body #root .authPageLogin .authCardLogin input:not([type="checkbox"]):focus { border-color: rgba(255, 196, 128, .55) !important; box-shadow: 0 0 0 3px rgba(255, 170, 84, .14), inset 0 1px 2px rgba(0, 0, 0, .35) !important; }
+html body #root .authPageLogin .authCardLogin .authGoogle, html body #root .authPageLogin .authCardLogin .authInstagramLink, html body #root .authPageLogin .authCardLogin .authAltActions > a { background: rgba(10, 18, 23, .48) !important; border-color: rgba(225, 240, 250, .18) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1) !important; }
+html body #root .authPageLogin .authCardLogin .authSubmit { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 8px 22px rgba(70, 200, 140, .25) !important; }
+html body #root .authRoot:has(.authPageLogin) > footer.authFooter, html body #root .authRoot:has(.authPageLogin) > footer.authFooter a { color: rgba(238, 246, 250, .85) !important; text-shadow: 0 1px 4px rgba(0, 0, 0, .8), 0 0 12px rgba(0, 0, 0, .55); }
