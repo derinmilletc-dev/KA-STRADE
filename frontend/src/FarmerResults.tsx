@@ -1,5 +1,4 @@
 import {useEffect, useRef} from 'react'
-import {Target, TrendingDown, TrendingUp, Wallet} from 'lucide-react'
 import {showToast} from '../../toast-center'
 import {money, pnlView, type FarmerResultRow, type FarmerStatus} from './farmerView'
 
@@ -24,7 +23,7 @@ function ago(ts: number, L: LFn): string {
 /** Sonuç özeti: yalnız borsada kanıtlanmış kapanışlar ve doğrulanmış net PnL. Doğrulanmamış tutar sayı gibi gösterilmez ("—"). */
 export function ResultsCard({status, L}: {status: FarmerStatus; L: LFn}) {
   const sum = status.summary
-  const rows = (status.recent_results ?? []).filter(r => r.closed_at > 0).slice(-5).reverse()
+  const rows = (status.recent_results ?? []).filter(r => r.closed_at > 0).slice(-3).reverse()
   if (!sum) return null
   const empty = sum.closed_count === 0
   const decided = sum.target_count + sum.stop_count
@@ -40,18 +39,10 @@ export function ResultsCard({status, L}: {status: FarmerStatus; L: LFn}) {
           <b data-testid="farmer-results-net">{net.text === '—' ? '—' : money(sum.verified_net_pnl, true)}</b>
           {unverified > 0 && <em>{L(`${unverified} sonucun net tutarı doğrulanıyor`, `${unverified} result${unverified === 1 ? ' is' : 's are'} being verified`)}</em>}
         </div>
-        {decided > 0 && <div className="fmResBalance" aria-label={L('Hedef ve stop dağılımı', 'Target versus stop split')}>
-          <div className="fmResBar"><i data-k="gain" style={{flexGrow: sum.target_count}}/><i data-k="loss" style={{flexGrow: sum.stop_count}}/></div>
-          <div className="fmResBarTx">
-            <span data-k="gain"><Target aria-hidden="true"/>{L('Hedefe giden', 'Hit target')} <b>{sum.target_count}</b></span>
-            <span data-k="loss"><TrendingDown aria-hidden="true"/>{L('Stop olan', 'Stopped')} <b>{sum.stop_count}</b></span>
-          </div>
-        </div>}
-        <ul className="fmResTiles">
-          <li data-k="fee"><Wallet aria-hidden="true"/><small>{L('Ücret', 'Fees')}</small><b>{sum.commission_total === null ? '—' : money(sum.commission_total)}</b></li>
-          <li data-k="best"><TrendingUp aria-hidden="true"/><small>{L('En iyi', 'Best')}</small><b>{sum.best_pnl === null ? '—' : money(sum.best_pnl, true)}</b></li>
-          <li data-k="worst"><TrendingDown aria-hidden="true"/><small>{L('En kötü', 'Worst')}</small><b>{sum.worst_pnl === null ? '—' : money(sum.worst_pnl, true)}</b></li>
-        </ul>
+        <p className="fmResLine">
+          {decided > 0 && <span>{L('Hedefe giden', 'Hit target')} <b>{sum.target_count}</b> · {L('Stop olan', 'Stopped')} <b>{sum.stop_count}</b></span>}
+          <span>{L('Ücret', 'Fees')} <b>{sum.commission_total === null ? '—' : money(sum.commission_total)}</b></span>
+        </p>
         {rows.length > 0 && <ul className="fmResList" aria-label={L('Son işlemler', 'Recent trades')}>{rows.map(r => <ResultRow key={r.grid_id} r={r} L={L}/>)}</ul>}
       </>}
   </section>
