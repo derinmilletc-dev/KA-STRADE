@@ -15,7 +15,7 @@ import {
   type AnalysisLevels, type JournalEntry, type LimitExpiry, type Levels, type OrderKind, type PositionLike, type Side,
 } from './studio-quick-trade'
 import {JournalChip, JournalPanel} from './StudioJournal'
-import {ConfirmDialog, HoldButton, useDesktopConfirm, useHold, type ConfirmInfo} from './studio-hold'
+import {ConfirmDialog, HoldButton, useDesktopConfirm, useHold, type ConfirmInfo, type ConfirmRow} from './studio-hold'
 import StudioGrid from './StudioGrid'
 import {ConsentRenew} from './StudioConsent'
 import type {Candle, ChartTools, GridChartLine} from './studio-grid'
@@ -67,8 +67,35 @@ export function positionPnl(position: StudioPosition, livePrice: number | null):
   return {pnl, pct: pnl !== null && margin ? pnl / margin * 100 : null, net: netOfFees(pnl, entry, now ?? entry, qty)}
 }
 
+/** Pozisyon kapatma onayı: giriş/şu an, büyüklük, kâr/zarar (brüt ve net), stop ve hedefe uzaklık. */
+function closeConfirmInfo(position: StudioPosition, livePrice: number | null, demo: boolean): ConfirmInfo {
+  const p = positionPnl(position, livePrice)
+  const entry = positive(position.entry_price)
+  const now = positive(livePrice) ?? positive(position.mark_price)
+  const qty = Math.abs(Number(position.quantity) || 0)
+  const lev = positive(position.leverage ?? undefined)
+  const stop = positive(position.stop_loss), tp1 = positive(position.tp1)
+  const win = p.pnl !== null && p.pnl >= 0
+  const rows: ConfirmRow[] = [{label: tx('Coin', 'Coin'), value: `${short(position.symbol)} · ${sideOf(position)}${lev ? ` ${lev}x` : ''}`}]
+  if (entry && now) rows.push({label: tx('Giriş → şu an', 'Entry → now'), value: `${analysisPrice(entry)} → ${analysisPrice(now)}`})
+  if (entry && qty > 0) rows.push({label: tx('Pozisyon büyüklüğü', 'Position size'), value: `${fmt(entry * qty, 0)} USDT`})
+  if (p.pnl !== null) rows.push({label: tx('Kâr / zarar', 'Profit / loss'), value: `${signed(p.pnl, Math.abs(p.pnl) < 1 ? 4 : 2)} USDT${p.pct !== null ? ` · ${signed(p.pct)}%` : ''}`, tone: win ? 'up' : 'down'})
+  if (!demo && p.net !== null) rows.push({label: tx('Komisyon sonrası tahmin', 'After fees (est.)'), value: `${signed(p.net, Math.abs(p.net) < 1 ? 4 : 2)} USDT`, tone: p.net >= 0 ? 'up' : 'down'})
+  if (now && (stop || tp1)) {
+    const away = (level: number | null) => level ? `${fmt(Math.abs(now - level) / now * 100, 1)}%` : '—'
+    rows.push({label: tx("Stop'a · TP1'e uzaklık", 'To stop · to TP1'), value: `${away(stop)} · ${away(tp1)}`})
+  }
+  return {
+    title: tx('Pozisyon kapatılsın mı?', 'Close this position?'),
+    sub: p.pnl === null ? tx('Piyasa fiyatından kapatılacak', 'Will be closed at market price') : win ? tx(`Kârda kapanacak: ${signed(p.pnl, Math.abs(p.pnl) < 1 ? 4 : 2)} USDT`, `Closing in profit: ${signed(p.pnl, Math.abs(p.pnl) < 1 ? 4 : 2)} USDT`) : tx(`Zararda kapanacak: ${signed(p.pnl, Math.abs(p.pnl) < 1 ? 4 : 2)} USDT`, `Closing at a loss: ${signed(p.pnl, Math.abs(p.pnl) < 1 ? 4 : 2)} USDT`),
+    rows, demo, warn: !win,
+    confirmLabel: tx('Onayla · kapat', 'Confirm · close'),
+    note: tx('Piyasa fiyatından kapanır; açık stop ve hedef emirleri de iptal edilir.', 'Closes at market price; open stop and target orders are cancelled too.'),
+  }
+}
+
 /** Açık işlem varken sağ altta: pozisyonu kapatan tek tuş (LONG → SAT, SHORT → AL). Basılı tutarak çalışır; yeni işlem açmaz. */
-function CloseDock({position, demo, disabled, onDone}: {position: StudioPosition; demo: boolean; disabled: boolean; onDone: () => void}) {
+function CloseDock({position, price, demo, disabled, onDone}: {position: StudioPosition; price: number | null; demo: boolean; disabled: boolean; onDone: () => void}) {
   const long = sideOf(position) === 'LONG'
   const ms = demo ? HOLD_MS.demo : HOLD_MS.live
   const {holding, bind} = useHold(ms, onDone, disabled) // yazı basılıyken değişmez: tuş boyutu sabit kalır
@@ -85,7 +112,7 @@ function CloseDock({position, demo, disabled, onDone}: {position: StudioPosition
       <span className="sqtTx"><b>{word}</b><small>{desktop ? tx('tıkla · kapat', 'click · close') : tx('basılı tut · kapat', 'hold · close')}</small></span>
       <span className="sqtIc" aria-hidden="true">{long ? '▼' : '▲'}</span>
     </button>
-    {asking && <ConfirmDialog tone="danger" anchor={dockRef.current} onCancel={() => setAsking(false)} onConfirm={() => { setAsking(false); onDone() }} info={{title: tx('Pozisyon kapatılsın mı?', 'Close this position?'), sub: tx('Şu pozisyon piyasa fiyatından kapatılacak', 'This position will be closed at market price'), demo, warn: true, confirmLabel: tx('Onayla · kapat', 'Confirm · close'), rows: [{label: tx('Coin', 'Coin'), value: `${short(position.symbol)} · ${sideOf(position)}${lev ? ` ${lev}x` : ''}`}], note: tx('Açık stop ve hedef emirleri de iptal edilir.', 'Open stop and target orders are cancelled too.')}}/>}
+    {asking && <ConfirmDialog tone="danger" anchor={dockRef.current} onCancel={() => setAsking(false)} onConfirm={() => { setAsking(false); onDone() }} info={closeConfirmInfo(position, price, demo)}/>}
   </div>
 }
 
@@ -461,7 +488,7 @@ export default function StudioQuickTrade({symbol, price, demo, premium, onUpgrad
             onAsk={kind => { setActionError(''); setAction(kind) }} onCancelAsk={() => { setActionError(''); setAction(null) }} onRun={runAction} onTray={open.length > 1 ? () => setTray(value => !value) : undefined}
             manage={canManage ? {mark: positive(currentClose) ?? positive(current.mark_price), ask: stopAsk, error: stopError, onAsk: (stop, label) => { setStopError(''); setStopAsk({stop, label}) }, onCancel: () => { setStopAsk(null); setStopError('') }, onApply: stop => void applyStop(stop), trail: {pct: activeTrail, error: trailError, onSet: pct => void setTrail(pct)}} : undefined} demoManageNote={demo && !canManage}/>}
       {!card && !tray && !side && posDock}
-      {rights.close && !card && !tray && !side && <CloseDock position={current} demo={demo} disabled={sending || lockLeft > 0} onDone={() => void runAction('close')}/>}
+      {rights.close && !card && !tray && !side && <CloseDock position={current} price={currentClose} demo={demo} disabled={sending || lockLeft > 0} onDone={() => void runAction('close')}/>}
       {tray && <div className="sqtTray" role="dialog" aria-label={tx('Açık pozisyonlar', 'Open positions')}>
         <header><b>{tx('Açık pozisyonlar', 'Open positions')}</b><button type="button" className="sqtRound" aria-label={tx('Listeyi kapat', 'Close list')} onClick={() => setTray(false)}><X aria-hidden="true"/></button><span>{tx(`${open.length} · toplam`, `${open.length} · total`)} <strong data-tone={open.reduce((sum, item) => sum + (positionPnl(item, closeNow(item)).pnl ?? 0), 0) >= 0 ? 'up' : 'down'}>{signed(open.reduce((sum, item) => sum + (positionPnl(item, closeNow(item)).pnl ?? 0), 0))} USDT</strong></span></header>
         {open.map(item => { const value = positionPnl(item, closeNow(item)); return <button key={item.symbol} type="button" className="sqtTrayRow" data-on={item.symbol === symbol} onClick={() => { onSelect(item.symbol); setTray(false) }}>
@@ -788,8 +815,7 @@ function PositionCard({position, price, pnl, live, rights, demo, busy, action, a
     {action === null && <div className="sqtActs">
       {rights.reduce && <button type="button" className="sqtBtn" disabled={sending} onClick={() => onAsk('half')}>{tx('Kısmi kapat', 'Partial close')}</button>}
       {canAdd && <button type="button" className="sqtBtn" disabled={sending} onClick={() => onAsk('add')}>{tx('Ek al', 'Add')}</button>}
-      {rights.close && <HoldButton ms={demo ? HOLD_MS.demo : HOLD_MS.live} tone="danger" disabled={sending} label={tx('Kapat · basılı tut', 'Close · hold')} onDone={() => onRun('close')} clickLabel={tx('Pozisyonu kapat', 'Close position')} confirm={{title: tx('Pozisyon kapatılsın mı?', 'Close this position?'), sub: tx('Şu pozisyon piyasa fiyatından kapatılacak', 'This position will be closed at market price'), demo, confirmLabel: tx('Onayla · kapat', 'Confirm · close'), warn: true,
-        rows: [{label: tx('Coin', 'Coin'), value: `${short(position.symbol)} · ${sideOf(position)}${positive(position.leverage ?? undefined) ? ` ${position.leverage}x` : ''}`}, ...(pnl.pnl === null ? [] : [{label: tx('Şu anki kâr/zarar', 'Current P/L'), value: `${signed(pnl.pnl, Math.abs(pnl.pnl) < 1 ? 4 : 2)} USDT`, tone: (pnl.pnl >= 0 ? 'up' : 'down') as 'up' | 'down'}])], note: tx('Açık stop ve hedef emirleri de iptal edilir.', 'Open stop and target orders are cancelled too.')}} hint={tx(`${position.symbol} pozisyonunu kapatmak için basılı tut`, `Press and hold to close the ${position.symbol} position`)}/>}
+      {rights.close && <HoldButton ms={demo ? HOLD_MS.demo : HOLD_MS.live} tone="danger" disabled={sending} label={tx('Kapat · basılı tut', 'Close · hold')} onDone={() => onRun('close')} clickLabel={tx('Pozisyonu kapat', 'Close position')} confirm={closeConfirmInfo(position, price, demo)} hint={tx(`${position.symbol} pozisyonunu kapatmak için basılı tut`, `Press and hold to close the ${position.symbol} position`)}/>}
       {!rights.close && <p className="sqtNoteSmall">{tx('Bu pozisyon bot ya da dış kaynaklı; kapatma Pozisyonlar sekmesinden.', 'This position is bot-managed or external; close it from the Positions tab.')}</p>}
     </div>}
     {action === null && manage && <StopManager position={position} manage={manage} sending={sending} busy={busy}/>}
