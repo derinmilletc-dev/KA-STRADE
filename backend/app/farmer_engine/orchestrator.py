@@ -19,6 +19,7 @@ from ..grid_engine.ports import EPS, LONG, SHORT, ExchangeError, OrderInfo
 from ..grid_engine.store import TERMINAL
 from . import DISPLAY_NAME
 from .confirm import (ARM_BLOCKED, CONFIRMED, ENTRY_LOCKED, MARGIN_CAP, OCCUPIED, SAFETY_GATE, ConfirmParams, RiskView)
+from .confirm import confirm as confirm_candidate
 from .feed import FarmerFeed
 from .ids import farmer_client_order_id, farmer_grid_prefix, is_farmer_client_id
 from .margin import MarginGuard
@@ -712,6 +713,32 @@ class Orchestrator:
                 status, reason = "WAITING_CONFIRMATION", tried
             rows.append({"symbol": item.symbol, "direction": item.direction, "score": item.confidence, "status": status, "reason": reason})
         return rows
+
+    FUNNEL_STAGES: tuple[tuple[str, tuple[str, ...]], ...] = (
+        ("score", ("score",)), ("momentum", ("momentum",)), ("mtf", ("mtf",)), ("short_filter", ("short_filter",)),
+        ("quality", ("trap", "breakout", "cost", "atr")))
+
+    def filter_funnel(self) -> dict[str, Any]:
+        """Eleme hunisi (YALNIZ OKUMA, karar yok): son taramadaki adayların giriş şartlarını sırayla kaç tanesinin geçtiği.
+        Mevcut `confirm` kontrollerini aynen kullanır; yeni kural/eşik yok. Her aşama bir öncekini geçenleri sayar."""
+        items = self.feed.cache.all()
+        params = self.settings.confirm
+        counts = {code: 0 for code, _ in self.FUNNEL_STAGES}
+        directional = 0
+        for item in items:
+            if not item.tradable_direction:
+                continue
+            directional += 1
+            try:
+                checks = confirm_candidate(item.to_farmer_candidate(), params).checks
+            except Exception:                                        # noqa: BLE001  tek aday okunamazsa huni geri kalanı sayar
+                continue
+            for code, names in self.FUNNEL_STAGES:
+                if not all((checks.get(name) or {}).get("ok", True) for name in names):
+                    break
+                counts[code] += 1
+        return {"scanned": len(items), "directional": directional, "min_score": params.min_score,
+                "stages": [{"code": code, "passed": counts[code]} for code, _ in self.FUNNEL_STAGES]}
 
     # ---------- arayüz görüntüsü ----------
     def ui_snapshot(self, now_ms: int | None = None) -> dict[str, Any]:

@@ -296,6 +296,7 @@ function Dashboard(p: DashProps) {
 
     <ResultsCard status={status} L={L}/>
 
+    {state === 'RUNNING' && status.funnel && status.funnel.scanned > 0 && <Funnel funnel={status.funnel} L={L}/>}
     {state === 'ENTRY_PAUSED_SAFETY' && <WhyCard status={status} L={L} t={t} openGuide={p.openGuide}/>}
     {status.scanner.length > 0 && <Scanner items={status.scanner} L={L} t={t} openGuide={p.openGuide}/>}
 
@@ -675,4 +676,29 @@ function Wizard(p: WizardProps) {
       <p className="fmHint">{L('Etkinleştirmek gerçek pozisyon açmaya izin verir. Hedefler garanti değildir.', 'Activating allows real positions to be opened. Targets are not guarantees.')}</p>
     </div>}
   </div>
+}
+
+
+function Funnel({funnel, L}: {funnel: NonNullable<FarmerStatus['funnel']>; L: (tr: string, en: string) => string}) {
+  const label: Record<string, string> = {
+    score: L(`Skor ${funnel.min_score} ve üstü`, `Score ${funnel.min_score}+`), momentum: L('İvme yönle uyumlu', 'Momentum agrees'),
+    mtf: L('Çoklu zaman dilimi onayı', 'Multi-timeframe OK'), short_filter: L('SHORT filtresi', 'SHORT filter'),
+    quality: L('Maliyet ve risk uygun', 'Cost and risk OK')}
+  const rows = [{code: 'scanned', text: L('Taranan coin', 'Coins scanned'), n: funnel.scanned}, {code: 'dir', text: L('Net yönü olan', 'With a clear direction'), n: funnel.directional},
+    ...funnel.stages.map(stage => ({code: stage.code, text: label[stage.code] ?? stage.code, n: stage.passed}))]
+  let worst: {text: string; from: number; to: number} | null = null
+  for (let i = 1; i < rows.length; i++) {
+    const drop = rows[i - 1].n - rows[i].n
+    if (rows[i - 1].n > 0 && drop > 0 && (!worst || drop > worst.from - worst.to)) worst = {text: rows[i].text, from: rows[i - 1].n, to: rows[i].n}
+  }
+  const last = rows[rows.length - 1].n
+  return <details className="fmSettings fmFun" data-testid="farmer-funnel">
+    <summary><span>{L('Adaylar nerede eleniyor?', 'Where are candidates filtered out?')}</span><ChevronDown aria-hidden="true"/></summary>
+    <p className="fmFunVerdict">{last > 0 ? L(`${last} aday tüm şartları geçti.`, `${last} candidate(s) passed every rule.`)
+      : worst ? L(`En çok eleyen şart: “${worst.text}” (${worst.from} → ${worst.to}).`, `Biggest filter: “${worst.text}” (${worst.from} → ${worst.to}).`)
+      : L('Şu an yönü net coin yok.', 'No coin has a clear direction right now.')}</p>
+    <ul className="fmFunList">{rows.map(row => <li key={row.code}><span>{row.text}</span>
+      <i aria-hidden="true"><u style={{width: `${funnel.scanned > 0 ? Math.round(row.n / funnel.scanned * 100) : 0}%`}}/></i><b>{row.n}</b></li>)}</ul>
+    <p className="fmFunNote">{L('Son taramanın sayıları. Şartlar sırayla uygulanır; her satır bir öncekini geçenleri gösterir.', 'Counts from the latest scan. Rules apply in order; each row shows those that passed the previous one.')}</p>
+  </details>
 }

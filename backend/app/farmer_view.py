@@ -216,6 +216,14 @@ def _summary(results: list[Mapping[str, Any]]) -> dict[str, Any]:
             "best_pnl": round(max(nets), 6) if nets else None, "worst_pnl": round(min(nets), 6) if nets else None}
 
 
+def _funnel(orch: Any) -> dict[str, Any] | None:
+    """Eleme hunisi; okunamazsa None (uydurma sayı yok)."""
+    try:
+        return orch.filter_funnel()
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
 def _scanned_count(orch: Any) -> int | None:
     """Son kapanmış mumda taranan (analizi çıkan) sembol sayısı; okunamazsa None (uydurma sayı yok)."""
     try:
@@ -238,7 +246,7 @@ def build_status(runtime: Any | None, *, arm: Mapping[str, Any], env: Mapping[st
                             "signal_interval_s": _signal_seconds()}
     if runtime is None:
         return {**base, "state": OFF, "configured": False, "config": None, "preview": preview(parse_settings({})), "positions": [], "scanner": [],
-                "slots": None, "effective_capacity": None, "today": None, "why": {"code": "UNAVAILABLE", "details": []}, "recovered": False}
+                "slots": None, "effective_capacity": None, "today": None, "why": {"code": "UNAVAILABLE", "details": []}, "recovered": False, "funnel": None}
     orch = runtime.orchestrator
     view = orch.ui_snapshot(int(now * 1000))
     scanner = orch.scanner_view(int(now * 1000))
@@ -250,6 +258,6 @@ def build_status(runtime: Any | None, *, arm: Mapping[str, Any], env: Mapping[st
             "today": _today_totals(orch.store.results(orch.account_key), now), "recent_results": view["recent_results"],
             "summary": _summary(orch.store.results(orch.account_key)), "events": list(view.get("events") or [])[-10:],
             "why": why_no_position(view, scanner, daily_loss), "has_held": bool(orch.engines),
-            "scanned_count": _scanned_count(orch),
+            "scanned_count": _scanned_count(orch), "funnel": _funnel(orch),
             "margin_used_usdt": round(float(orch.store.held_margin(orch.account_key)), 6),
             "available_margin_usdt": round(max(0.0, min(float(cfg.total_margin_cap), HARD_CAP_USDT) - float(orch.store.held_margin(orch.account_key))), 6)}
