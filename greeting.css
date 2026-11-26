@@ -1,0 +1,11 @@
+/* Sıcak karşılama cümlesi: sessiz, silik, yerini bozmaz */
+.ktGreeting { margin: 0; font-size: 14px; font-weight: 500; letter-spacing: .01em; color: rgba(214, 232, 223, .62); animation: ktGreetIn .7s ease both; }
+@keyframes ktGreetIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ktGreeting { animation: none; } }
+/* Trade Terminal başlığı: masaüstünde sağ üst boşluk, telefonda başlığın altı */
+#root > main.v26App .v26DashboardHero { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+#root > main.v26App .v26DashboardHero .ktGreeting { margin-top: 6px; max-width: 320px; text-align: right; font-size: 15px; }
+@media (max-width: 767px) {
+  #root > main.v26App .v26DashboardHero { flex-direction: column; align-items: flex-start; gap: 10px; }
+  #root > main.v26App .v26DashboardHero .ktGreeting { margin-top: 0; max-width: none; text-align: left; font-size: 13px; color: rgba(143, 232, 189, .8); }
+}

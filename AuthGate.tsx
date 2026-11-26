@@ -1,3 +1,5 @@
+import {useGreeting} from './Greeting'
+import './greeting.css'
 import { createPortal } from 'react-dom'
 import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Activity, ArrowLeft, ArrowRight, ArrowUpRight, BarChart3, Bitcoin, ChevronDown, ChevronUp, CircleDollarSign, Coins, Eye, EyeOff, FileText, Flag, LoaderCircle, LockKeyhole, ChevronRight, KeyRound, LogOut, Mail, MailCheck, Play, ShieldAlert, ShieldCheck, Ticket, UserPlus, UserRound, Users, Wrench, X, Zap } from 'lucide-react'
@@ -212,6 +214,7 @@ function MaintenanceScreen({mode}:{mode:string}) {
 
 
 export default function AuthGate({children,surface='customer'}:{children:ReactNode;surface?:Surface}) {
+  const greeting = useGreeting()
   const [token,setToken] = useState(userSessionToken())
   const [session,setSession] = useState<Session|null>(null)
   const [mode,setMode] = useState<Mode>(() => new URLSearchParams(location.search).has('mfa_challenge') ? 'mfa' : surface === 'admin' ? 'login' : window.location.pathname === '/register' || window.location.pathname === '/davet' ? 'register' : window.location.pathname === '/forgot-password' ? 'forgot' : window.location.pathname === '/reset-password' ? 'reset' : window.location.pathname === '/verify-email' ? 'verify' : 'login')
@@ -728,6 +731,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
   }
   if (!session || (mode === 'reset' && resetToken) || (mode === 'forgot' && window.location.pathname === '/forgot-password')) {
     const registrationStrength = strength(register.password)
+    const loginGreeting = greeting
     return <LoginMarketShell>{market => <><MaintenanceCountdown variant="login"/><main className={`authPage${isRegistration ? ' authPageRegister' : ''}${mode === 'login' ? ' authPageLogin' : ''}`}>
       {mode !== 'login' && <p className="authMobileSlogan">KaisTrade piyasayı tek yerden yönetin</p>}
       {mode === 'login' && <header className="authMobileIdentity"><img src="/kaistrade-logo-trim.png" alt="KaisTrade"/><p className="authTagline"><span>TRADING INTELLIGENCE</span></p></header>}
@@ -735,7 +739,7 @@ export default function AuthGate({children,surface='customer'}:{children:ReactNo
       <section className={`authCard ${mode === 'verify' ? 'authCardVerify' : ''}${isRegistration ? ' authCardRegister' : ''}${mode === 'login' ? ' authCardLogin' : ''}`}>
         <div className={`authLoginBrand${mode !== 'login' ? ' isLink' : ''}`} {...(mode !== 'login' ? {role:'link',tabIndex:0,'aria-label':'Giriş ekranına dön',onClick:() => setMode('login'),onKeyDown:(event:ReactKeyboardEvent) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setMode('login') } }} : {})}><img src="/kaistrade-logo.png" alt="KaisTrade"/></div>
         <div className="authCardHead"><div className="authMark">{mode === 'verify' ? <MailCheck/> : mode === 'mfa' ? <ShieldCheck/> : <UserRound/>}</div><div><span>{mode === 'bootstrap' ? 'YEREL YÖNETİCİ' : mode === 'register' || isGoogleConsent ? 'HESAP OLUŞTUR' : 'ÜYE GİRİŞİ'}</span><h2 data-mobile-copy={mode === 'login' ? 'Tekrar hoş geldin.' : undefined}>{mode === 'mfa' ? 'İki aşamalı doğrulama' : mode === 'login' ? 'Hesabınıza giriş yapın' : mode === 'bootstrap' ? 'İlk yönetici hesabı' : mode === 'register' || isGoogleConsent ? 'Hesabını oluştur' : mode === 'forgot' ? 'Parolanızı yenileyin' : mode === 'reset' ? 'Yeni parola belirleyin' : 'E-postanızı kontrol edin'}</h2></div></div>
-        <p className="authCardLead" data-mobile-copy={mode === 'login' ? 'Hesabına güvenle devam et.' : undefined}>{mode === 'mfa' ? 'Authenticator uygulamasındaki kodu veya tek kullanımlık kurtarma kodunuzu girin.' : mode === 'login' ? 'Çalışma alanınıza güvenli şekilde erişin.' : mode === 'bootstrap' ? 'Yerel yönetici hesabınız için güçlü bir parola belirleyin.' : mode === 'register' || isGoogleConsent ? 'KaisTrade hesabını oluştur ve piyasaları tek bir yerden takip et.' : mode === 'forgot' ? 'Hesabınıza yeniden erişmek için güvenli bir bağlantı gönderelim.' : mode === 'reset' ? 'Yeni ve güçlü bir parola belirleyin.' : 'Gelen kutunuzdaki bağlantıyla hesabınızı güvenle etkinleştirin.'}</p>
+        <p className="authCardLead" {...(mode === 'login' ? {'data-i18n-skip':'true',translate:'no' as const} : {})} data-mobile-copy={mode === 'login' ? loginGreeting : undefined}>{mode === 'mfa' ? 'Authenticator uygulamasındaki kodu veya tek kullanımlık kurtarma kodunuzu girin.' : mode === 'login' ? loginGreeting : mode === 'bootstrap' ? 'Yerel yönetici hesabınız için güçlü bir parola belirleyin.' : mode === 'register' || isGoogleConsent ? 'KaisTrade hesabını oluştur ve piyasaları tek bir yerden takip et.' : mode === 'forgot' ? 'Hesabınıza yeniden erişmek için güvenli bir bağlantı gönderelim.' : mode === 'reset' ? 'Yeni ve güçlü bir parola belirleyin.' : 'Gelen kutunuzdaki bağlantıyla hesabınızı güvenle etkinleştirin.'}</p>
         {<>
         {mode === 'register' && <div className="authRegQuick"><button type="button" className="authGoogle authRegGoogle" disabled={busy} aria-busy={busy} onClick={() => void startGoogle()}><GoogleMark/><span>Google ile hızlı kayıt</span></button><div className="authRegDivider"><span>veya e-posta ile kayıt ol</span></div></div>}
         <form ref={registrationFormRef} onSubmit={submit} noValidate={mode === 'login'} aria-busy={busy}>
