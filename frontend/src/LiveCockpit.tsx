@@ -2233,7 +2233,6 @@ export default function LiveCockpit(props: Props) {
             </div></details>}
         </section>}
 
-        <BinanceInsights/>
         <PendingEntries plans={pendingPlans} busy={Boolean(working) || stale} now={now} onUpdate={updatePending} onCancel={cancelPending}/>
         <PositionsCard dcaBots={dcaBots} farmerBots={farmerBots} live={live} stale={stale} staleAge={staleAge} running={running} busy={Boolean(working) || stale} closeBusy={Boolean(working)} now={now} positions={positions as unknown as RawRecord[]}
           findPlan={findPlanRaw} maxPositions={finite(policy.max_positions)} exposureLimit={finite((policy as Record<string, unknown>).max_total_exposure_usdt) ?? finite((policy as Record<string, unknown>).max_total_exposure)}
@@ -2258,6 +2257,7 @@ export default function LiveCockpit(props: Props) {
           {shownEvents.length === 0 ? <p className="lcEmpty">{allEvents.length ? 'Bu filtrede olay yok.' : 'Henüz olay yok.'}</p> : <ul>{shownEvents.map(item => <li key={item.id} data-tone={item.tone}>
             <time>{clock(item.at)}</time><span>{item.title}{item.detail && <small className="lcEvDetail">{item.detail}</small>}</span></li>)}</ul>}
         </section>
+        <BinanceInsights/>
       </aside>
     </div>
 
