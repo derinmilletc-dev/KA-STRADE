@@ -1514,3 +1514,14 @@ html body #root .masterTradePage[data-layout-tab="canli"] .lcRoot .lcClose2 .lcC
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot{display:grid!important;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvSlimFoot>span:last-child{text-align:right}
 #root .masterTradePage[data-layout-tab="canli"] .lcRoot .pvRoot .pvQuick{margin:2px 12px 0!important;padding:10px 0 11px!important;border-top:1px solid rgba(160,185,210,.12)!important}
+/* Grid uygunluk puanı (yalnız bilgi; hiçbir şeyi engellemez) */
+.mgs{--mgs-c:#3ddc97;display:grid;gap:10px;margin:12px 0;padding:12px;border-radius:16px;background:#0b1522;border:1px solid #1f3149}
+.mgsHead{display:flex;align-items:center;gap:12px}
+.mgsHead[data-level="caution"]{--mgs-c:#f5c04a}.mgsHead[data-level="poor"]{--mgs-c:#ff6b6b}
+.mgsHead>span:last-child{display:grid;gap:2px}.mgsHead small{color:#8ea0b4;font-size:12px}
+.mgsGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0}
+.mgsGrid>div{display:grid;gap:2px;padding:8px 10px;border-radius:12px;background:#101d2e}
+.mgsGrid dt{font-size:11px;color:#8ea0b4}.mgsGrid dd{margin:0;font-size:13px;font-weight:750}
+.mgsGrid .mgsDir{grid-column:1/-1}
+.mgsWarn{margin:0;padding:10px 12px 10px 26px;border-radius:12px;background:#2a2410;border:1px solid #5a4a1a;color:#e9d9a0;font-size:12.5px;display:grid;gap:4px}
+.mgsNote{margin:0}

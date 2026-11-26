@@ -32,6 +32,7 @@ import {useTradingPreferences} from '../../useTradingPreferences'
 import {marginForLoss, preferredRiskMargin} from '../../account-risk-sizing'
 import {computeGrid, GRID_MAX_COUNT, GRID_MIN_COUNT, type GridFilters} from './gridMath'
 import {buildGridAlerts, type FiltersState} from './gridAlerts'
+import GridSuitabilityCard from './GridSuitabilityCard'
 import {openPositionsRiskToStop} from './gridPortfolio'
 import {MasterOnlyGate, PremiumWorkspace, TrialLiveGate, useMemberAccess} from '../../premium-access'
 import OriginalV2LiveCard, {type OriginalV2EntryCheck, type OriginalV2LiveStatus, type OriginalPersistenceDiagnostics} from './OriginalV2LiveCard'
@@ -2368,6 +2369,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         {liveGrid?.enabled ? <p><b>Canlı grid AÇIK.</b> En fazla {liveGrid.max_levels ?? 20} kademe. Planın en kötü zararı tek işlem ve günlük zarar sınırını, toplam büyüklüğü de maruziyet sınırını aşıyorsa grid başlamaz. Aşağıdaki kontroller geçmeden emir gitmez.</p> : <p>Bu ekran sadece hesaplar. <b>Hiçbir emir gönderilmez.</b> Gerçek grid sunucuda kapalı; açıldığında bu plan, aynı kontrollerden geçerek canlı başlatılabilir.</p>}
         <div className="mwzMini"><span>{selectedRow?.display || order.symbol || 'Coin seçilmedi'}</span><span className={gridSide === 'LONG' ? 'up' : 'down'}>{gridSide}</span><span>Fiyat {gridPrice > 0 ? presetPrice(gridPrice) : '—'}</span></div>
         <div className="liveWsChips manualPresets" role="group" aria-label="Hazır aralık"><small className="liveWsHint">Hazır plan:</small>{[[3, 'Dar', 3], [5, 'Dengeli', 5], [8, 'Geniş', 5]].map(([pct, name, cnt]) => <button type="button" key={pct as number} disabled={!(gridPrice > 0)} onClick={() => { gridAuto(pct as number); setGridField('count', String(Math.min(cnt as number, GRID_MAX_COUNT))) }}><b>{name}</b><small>%{pct} · {Math.min(cnt as number, GRID_MAX_COUNT)} kademe</small></button>)}</div>
+        <GridSuitabilityCard symbol={order.symbol} price={gridPrice} lower={Number(grid.lower)} upper={Number(grid.upper)} side={gridSide} active={active && manualMode === 'grid'}/>
         {gridSmart}{gridMap}
         <div className="liveWsTwo">
           <label className="liveWsField">Alt sınır<input type="number" value={grid.lower} onChange={event => setGridField('lower', event.target.value)}/></label>
