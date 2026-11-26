@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, BarChart3, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, X, SlidersHorizontal, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Wallet } from 'lucide-react'
+import { AlertTriangle, BarChart3, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, X, SlidersHorizontal, CircleDollarSign, Info, Search, Eye, EyeOff, KeyRound, LockKeyhole, Power, RefreshCw, Send, ShieldAlert, ShieldCheck, TriangleAlert, UnlockKeyhole, Trash2, Wallet } from 'lucide-react'
 import { API_BASE } from './api'
 import { fetchWithTimeout } from '../../master-trade-request'
 import CoinLiveChart from './CoinLiveChart'
@@ -19,6 +19,7 @@ import { AI_DISCLAIMER, STRONG_CONFIDENCE, alignment, strengthLabel, buildSignal
 import {CONNECTION_REQUEST_TIMEOUT_MS, connectionFailureMessage, connectionHttpMessage, redactConnectionMessage} from './exchange-connection-errors'
 import { liveCopy } from '../../ui-copy'
 import '../../live-ws.css'
+import '../../connection-modern.css'
 import '../../manual-order.css'
 import '../../coin-picker.css'
 import '../../manual-mobile.css'
@@ -1055,6 +1056,21 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       message: 'Önce bağlantı kapatılmalıdır. Doğrulanmış açık pozisyon varsa sunucu silmeyi reddeder. Şifreli anahtar bu oturumdan kalıcı silinir; gerçek emir gönderilmez.',
       action: async () => {
         await call(CONNECTIONS, '/credentials', {method:'DELETE', body:JSON.stringify({mode:'LIVE', confirmation:'ANAHTARI KALICI SİL'})})
+        setCredentials({apiKey:'', secretKey:'', accepted:false})
+        setTestResult(null)
+      },
+    })
+    setConfirmText('')
+    setConfirmCode('')
+  }
+
+  const disconnectBinance = () => {
+    setConfirm({
+      title: 'Binance bağlantısını kes', expected: 'BAĞLANTIYI KES',
+      message: 'Yeni emir yetkileri ve otomasyon kapanır, kayıtlı API anahtarı sunucudan kalıcı silinir. Açık pozisyonlar kapatılmaz; korumalarını Binance üzerinden kontrol et. Açık pozisyon varsa sunucu silmeyi reddeder.',
+      action: async () => {
+        if (connected) await call(CONNECTIONS, '/deactivate', {method: 'POST', body: JSON.stringify({mode:'LIVE', confirmation:'BAĞLANTIYI KAPAT'})})
+        await call(CONNECTIONS, '/credentials', {method:'DELETE', body: JSON.stringify({mode:'LIVE', confirmation:'ANAHTARI KALICI SİL'})})
         setCredentials({apiKey:'', secretKey:'', accepted:false})
         setTestResult(null)
       },
@@ -2570,7 +2586,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       {key: 'manuel', title: '4 · Manuel emir', sub: manualOrderReady ? 'Hazır' : 'Önce 1-2. adımlar ve ARM'},
     ]
     const connectionBlock = <div className="liveWsConnect">
-      <div className="liveWsConnectHead"><span className={`liveWsDot ${connected ? 'on' : ''}`}/><div><b>{connected ? 'Hesap bağlı' : 'Hesap bağlı değil'}</b><small>Binance · USDT-M Futures · Son kontrol: {date(testResult?.testedAt || status?.connection?.last_checked)}</small></div></div>
+      <div className="liveWsConnectHead"><span className={`liveWsDot ${connected ? 'on' : ''}`}/><div><b>{connected ? 'Hesap bağlı' : 'Hesap bağlı değil'}</b><small>Binance · USDT-M Futures · Son kontrol: {date(testResult?.testedAt || status?.connection?.last_checked)}</small></div>{configured && <button type="button" className="liveWsGhost liveWsDisconnect" disabled={Boolean(busy)} onClick={disconnectBinance}><Trash2 aria-hidden="true"/> Bağlantıyı kes</button>}</div>
       {status?.connection?.last_error && !connected && <p className="liveWsWarn">Bağlantı hatası: {text(status.connection.last_error)}</p>}
       <div className="liveWsFields">
         <label>API anahtarı<input id="live-api-key" data-private="true" type="password" autoComplete="new-password" value={credentials.apiKey} onChange={event => setCredentials({...credentials, apiKey: event.target.value})} placeholder="API anahtarını yapıştır"/></label>

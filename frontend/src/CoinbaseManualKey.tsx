@@ -3,6 +3,7 @@ import {Eye, EyeOff, LockKeyhole, RefreshCw, ShieldCheck, Trash2} from 'lucide-r
 import {CONFIRM} from './coinbase-manual'
 import {CoinbaseApiError, coinbaseCall} from './coinbase-manual-api'
 import './coinbase-manual.css'
+import '../../connection-modern.css'
 
 // Coinbase anahtarı oluşturma adımları: "?" düğmesine basınca açılır. Metin sade tutulur; anahtar değerleri burada gösterilmez.
 export const COINBASE_KEY_STEPS: string[] = [
