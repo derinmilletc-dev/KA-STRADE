@@ -1502,3 +1502,28 @@ html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn svg.au
 html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn:hover { background: rgba(100, 227, 161, .14) !important; border-color: rgba(125, 240, 184, .7) !important; }
 html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn:hover svg.authAltChev { transform: translateX(3px); }
 html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn:active { transform: scale(.985); }
+
+/* ===== Modern kayıt ekranı ===== */
+#root .authCardRegister .authRegQuick { display:grid; gap:14px; margin:0 0 14px; }
+#root .authCardRegister .authRegGoogle { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; min-height:46px; padding:0 16px; border:1px solid rgba(146,198,170,.28)!important; border-radius:999px!important; background:rgba(7,18,14,.35)!important; color:#e3efe9!important; font:600 14px/1 system-ui,-apple-system,"Segoe UI",sans-serif!important; cursor:pointer; transition:border-color .2s,background .2s; }
+#root .authCardRegister .authRegGoogle:hover:not(:disabled) { border-color:rgba(100,227,161,.55)!important; background:rgba(100,227,161,.07)!important; }
+#root .authCardRegister .authRegGoogle .authGoogleMark { width:18px; height:18px; flex:0 0 18px; }
+#root .authCardRegister .authRegDivider { display:flex; align-items:center; gap:12px; color:#758b80; font:500 11px/1 system-ui,sans-serif; }
+#root .authCardRegister .authRegDivider::before, #root .authCardRegister .authRegDivider::after { content:""; flex:1; height:1px; background:rgba(182,200,191,.16); }
+#root .authCardRegister .authRegInput { position:relative; display:block; }
+#root .authCardRegister .authRegInput > svg:first-child { position:absolute; left:13px; top:50%; width:17px; height:17px; transform:translateY(-50%); color:#6f877d; pointer-events:none; }
+#root .authCardRegister .authRegInput > input { padding-left:40px!important; }
+#root .authCardRegister .authRegInput:focus-within > svg:first-child { color:#64e3a1; }
+#root .authCardRegister .authLangField { flex-direction:row; align-items:center; justify-content:space-between; margin:0 0 2px; }
+#root .authCardRegister .passwordMeter { display:flex; align-items:center; gap:10px; height:auto; background:none; }
+#root .authCardRegister .passwordMeter i { display:block; height:4px; border-radius:4px; max-width:100%; transition:width .25s,background .25s; background:#e0645c; }
+#root .authCardRegister .passwordMeter.strength3 i, #root .authCardRegister .passwordMeter.strength4 i { background:#e2b24a; }
+#root .authCardRegister .passwordMeter.strength5 i { background:#64e3a1; }
+#root .authCardRegister .passwordMeter span { margin-left:auto; font-size:11px!important; color:#9fb0aa; }
+#root .authCardRegister .passwordRules { display:flex!important; flex-wrap:wrap; gap:6px!important; }
+#root .authCardRegister .passwordRules span { padding:3px 9px; border:1px solid rgba(182,200,191,.16); border-radius:999px; font-size:11px; line-height:1.5; color:#8da0aa; transition:all .2s; }
+#root .authCardRegister .passwordRules span.passed { border-color:rgba(100,227,161,.4); background:rgba(100,227,161,.1); color:#8fe8bd; }
+#root .authCardRegister .authMatch { font-size:11px; }
+#root .authCardRegister .authMatch.ok { color:#64e3a1; }
+#root .authCardRegister .authMatch.bad { color:#d9a35f; }
+#root .authCardRegister .authSubmit { border-radius:999px!important; }
