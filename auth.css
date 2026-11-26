@@ -1527,3 +1527,30 @@ html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn:active
 #root .authCardRegister .authMatch.ok { color:#64e3a1; }
 #root .authCardRegister .authMatch.bad { color:#d9a35f; }
 #root .authCardRegister .authSubmit { border-radius:999px!important; }
+
+/* ===== Kayıt ekranı cilası: kompakt dil rozeti, daha ferah ve modern alanlar ===== */
+#root .authCardRegister .authLangField { position:absolute; top:14px; right:14px; z-index:5; width:auto; margin:0; display:block; }
+#root .authCardRegister .authLangField > span { display:none; }
+#root .authCardRegister .authLangField .langPicker { width:auto; display:block; }
+#root .authCardRegister .authLangField .langPickerTrigger { min-height:34px; height:34px; gap:7px; padding:0 10px 0 6px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(182,200,191,.2); }
+#root .authCardRegister .authLangField .langPickerTrigger small { display:none; }
+#root .authCardRegister .authLangField .langPickerTrigger b { font-size:12px; font-weight:600; color:#d9e8e0; }
+#root .authCardRegister .authLangField .langPickerTrigger svg:last-child { width:14px; height:14px; }
+#root .authCardRegister .authLangField .langPickerFlag, #root .authCardRegister .authLangField .langPickerBadge { width:22px!important; height:22px!important; min-width:22px!important; }
+#root .authCardRegister .authLangField .langPickerTrigger:hover { border-color:rgba(100,227,161,.5); }
+#root .authCardRegister .authLangField .langPickerTrigger:hover .langPickerFlag { box-shadow:none!important; }
+#root .authCardRegister .authLangField .langPickerPanel { left:auto; right:0; width:220px; }
+#root .authCardRegister .authLangField .langPickerList button.on { background:rgba(100,227,161,.1); }
+#root .authCardRegister .authLangField .langPickerList button svg { color:#64e3a1; }
+#root .authCardRegister .authLangField .langPickerList .langPickerFlag { width:26px!important; height:26px!important; min-width:26px!important; }
+#root .authCardRegister form { gap:14px!important; }
+#root .authCardRegister form > label:not(.authCheck) { font-size:11px!important; letter-spacing:.04em; text-transform:uppercase; color:#8fa59b!important; font-weight:600!important; }
+#root .authCardRegister form > label input:not([type="checkbox"]) { height:48px!important; border-radius:14px!important; background:rgba(255,255,255,.035)!important; border:1px solid rgba(182,200,191,.16)!important; font-size:15px!important; letter-spacing:0; text-transform:none; }
+#root .authCardRegister form > label input:not([type="checkbox"]):focus { border-color:rgba(100,227,161,.6)!important; background:rgba(100,227,161,.05)!important; box-shadow:0 0 0 3px rgba(100,227,161,.1)!important; }
+#root .authCardRegister .authConsentGroup { gap:8px; }
+#root .authCardRegister .authConsent { padding:10px 12px!important; border-radius:14px!important; border-color:rgba(182,200,191,.14)!important; background:rgba(255,255,255,.02); font-size:12px!important; line-height:1.5!important; }
+#root .authCardRegister .authMarketingConsent { border-style:dashed!important; background:transparent; color:#8fa59b!important; }
+#root .authCardRegister .authMarketingConsent small { display:block; margin-top:2px; font-size:10.5px; color:#6f877d; }
+#root .authCardRegister .authCardLead { margin-bottom:14px!important; }
+#root .authCardRegister .authRegisterLinks { flex-direction:column; }
+#root .authCardRegister { position:relative; }
