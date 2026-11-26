@@ -1487,3 +1487,20 @@ html body #root main.authLoading.authBoot {
   html body #root .authRoot:has(.authPageLogin) > footer.authFooter { z-index: 2; padding: 0 0 max(calc(var(--u) * 22), env(safe-area-inset-bottom)) !important; }
   html body #root .authRoot:has(.authPageLogin) > footer.authFooter a { text-shadow: 0 1px 3px rgba(0,0,0,.7), 0 0 10px rgba(0,0,0,.5); }
 }
+
+/* Hesap oluştur: tam genişlik, modern cam + yeşil vurgu (Google/Instagram düğmeleriyle aynı genişlik) */
+html body #root .authPageLogin .authCardLogin .authAltActions { display: grid !important; grid-template-columns: 1fr !important; width: 100% !important; gap: 12px !important; }
+html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn {
+  grid-column: 1 / -1 !important; width: 100% !important; height: auto !important; min-height: 52px !important; padding: 0 18px !important; border-radius: 16px !important;
+  display: flex !important; align-items: center !important; justify-content: center !important; gap: 10px !important; position: relative;
+  border: 1px solid rgba(100, 227, 161, .55) !important;
+  background: linear-gradient(135deg, rgba(100, 227, 161, .22), rgba(40, 150, 110, .12)) !important;
+  box-shadow: 0 6px 22px rgba(60, 200, 140, .16), inset 0 1px 0 rgba(255, 255, 255, .08) !important;
+  color: #f2fff8 !important; font: 700 15.5px/1.2 system-ui, -apple-system, "SF Pro Text", sans-serif !important; letter-spacing: .01em;
+}
+html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn span { flex: 0 1 auto !important; overflow: visible !important; text-overflow: clip !important; }
+html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn svg { color: #7df0b8 !important; width: 20px !important; height: 20px !important; }
+html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn svg.authAltChev { display: block !important; position: absolute; right: 16px; width: 18px !important; height: 18px !important; opacity: .85; transition: transform .18s ease; }
+html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn:hover { background: linear-gradient(135deg, rgba(100, 227, 161, .32), rgba(40, 150, 110, .2)) !important; border-color: rgba(125, 240, 184, .8) !important; }
+html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn:hover svg.authAltChev { transform: translateX(3px); }
+html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn:active { transform: scale(.985); }
