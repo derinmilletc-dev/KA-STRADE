@@ -9,7 +9,7 @@ export type Mood = 'up' | 'down' | 'calm' | 'wild'
 const TR: Pool = {
   any: ['Kahve ve KaisTrade vakti mi?', 'Yine buradayız, hoş geldin.', 'Bugün neye bakıyoruz?', 'Hazırsan, başlayalım.', 'Geri döndün, iyi ki.',
     'Piyasalar ne diyor bakalım?', 'Nasıl gidiyor bugün?', 'Bir göz atalım mı?', 'Sakin kafayla, adım adım.', 'Tekrar merhaba.',
-    'Grafikler seni bekliyordu.', 'Bot çalışıyor, sen rahat ol.', 'Su içtin mi? Şimdi bakalım.', 'Acele yok, buradayız.'],
+    'Grafikler seni bekliyordu.', 'Bot çalışıyor, sen rahat ol.', 'Kahve, trade vakti mi?', 'Acele yok, buradayız.'],
   morning: ['Günaydın, kahven hazır mı?', 'Güne güzel başla.', 'Sabah sabah burada, helal.', 'Erken kalkan piyasayı yakalar.'],
   afternoon: ['Tünaydın, günün nasıl geçiyor?', 'Öğleden sonra molası mı?', 'Gün ortası, bir kontrol zamanı.', 'Çayını al, bakalım.'],
   evening: ['İyi akşamlar, günün özeti zamanı.', 'Akşam çayı ve grafikler.', 'Gün biterken bir bakalım.', 'Akşam keyfi, sakin kafa.'],
@@ -28,7 +28,7 @@ const TR: Pool = {
 const EN: Pool = {
   any: ['Coffee and KaisTrade time?', 'Back again, welcome.', 'What are we looking at today?', 'Ready when you are.', 'You\'re back, glad to see you.',
     'What are the markets saying?', 'How\'s it going today?', 'Shall we take a look?', 'Calm mind, one step at a time.', 'Hello again.',
-    'The charts were waiting for you.', 'The bot is running, take it easy.', 'Had some water? Now let\'s look.', 'No rush, we\'re here.'],
+    'The charts were waiting for you.', 'The bot is running, take it easy.', 'Coffee, trade time?', 'No rush, we\'re here.'],
   morning: ['Good morning, is your coffee ready?', 'Start the day right.', 'Up early, nice.', 'The early bird catches the market.'],
   afternoon: ['Good afternoon, how\'s your day going?', 'Afternoon break?', 'Midday, time for a check-in.', 'Grab your tea, let\'s see.'],
   evening: ['Good evening, time for the daily recap.', 'Evening tea and charts.', 'Day\'s winding down, let\'s look.', 'Evening mood, calm mind.'],
