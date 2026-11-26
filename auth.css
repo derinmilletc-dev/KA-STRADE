@@ -1638,3 +1638,42 @@ html body #root .authCardLogin .authLantern .halo { transform-origin: 20px 52px;
 @keyframes ktSwing { 0% { transform: rotate(-5.5deg); } 50% { transform: rotate(1.2deg); } 100% { transform: rotate(5.5deg); } }
 @keyframes ktFlicker { 0%, 100% { opacity: .85; transform: scale(1); } 30% { opacity: 1; transform: scale(1.06); } 55% { opacity: .78; transform: scale(.97); } 78% { opacity: .95; transform: scale(1.03); } }
 @media (prefers-reduced-motion: reduce) { html body #root .authCardLogin > .authLantern, html body #root .authCardLogin .authLantern .halo { animation: none; } }
+
+/* ===== Giriş (telefon): referans tasarım — kartsız form, doğrudan fotoğrafın üstünde ===== */
+html body #root .authRoot:has(.authPageLogin) { background-image: linear-gradient(180deg, rgba(6,10,16,.18) 0%, rgba(6,10,16,0) 30%, rgba(6,10,16,.22) 100%), url("/login-winter-forest.webp") !important; background-size: 100% 100%, cover !important; background-position: 0 0, center top !important; }
+html body #root .authRoot.authNight:has(.authPageLogin) { background-image: linear-gradient(180deg, rgba(4,8,16,.12) 0%, rgba(4,8,16,0) 30%, rgba(4,8,16,.2) 100%), url("/login-night.webp") !important; }
+@media (max-width: 1023px) {
+  html body #root .authRoot:has(.authPageLogin) { --u: min(calc(min(100vw, 480px) / 426), calc(100dvh / 880)); }
+  html body #root .authRoot:has(.authPageLogin) > .tickerTape, html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authMobileMarkets, html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin > .authWinterDeco, html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin > .authLantern { display: none !important; }
+  /* Logo: referanstan biraz daha aşağıda */
+  html body #root .authPageLogin > header.authMobileIdentity { height: calc(var(--u) * 372) !important; }
+  html body #root .authPageLogin > header.authMobileIdentity img { top: calc(var(--u) * 214) !important; width: calc(var(--u) * 204) !important; }
+  html body #root .authPageLogin > header.authMobileIdentity p.authTagline { top: calc(var(--u) * 276) !important; }
+  /* Kart: arka plansız, altında yumuşak karartma; içerik dikey akış */
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin {
+    display: flex !important; flex-direction: column; background: none !important; border: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+    overflow: visible !important; width: 100% !important; max-width: 400px !important; padding: calc(var(--u) * 8) calc(var(--u) * 4) 0 !important; border-radius: 0 !important;
+  }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin::before {
+    content: "" !important; display: block !important; position: absolute; left: -30px; right: -30px; top: calc(var(--u) * -34); bottom: -400px; height: auto; z-index: 0; pointer-events: none; border-radius: 0;
+    background: linear-gradient(180deg, rgba(8,12,18,0) 0%, rgba(8,12,18,.46) calc(var(--u) * 70), rgba(8,12,18,.58) 100%);
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 calc(var(--u) * 90)); mask-image: linear-gradient(180deg, transparent 0, #000 calc(var(--u) * 90));
+  }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin::after { display: none !important; }
+  /* Etiketler gizli: yer tutucular kullanılır */
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin form > label { font-size: 0 !important; line-height: 0 !important; gap: 0 !important; margin: 0 !important; padding: 0 !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin form > label > div { margin: 0 !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin form > label input { font-size: 15px !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin form > label em { font-size: 12px !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin form { gap: calc(var(--u) * 12) !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin form input:not([type="checkbox"]) { height: calc(var(--u) * 42) !important; min-height: 0 !important; border-radius: 999px !important; background: rgba(14, 20, 26, .55) !important; border: 1px solid rgba(255, 255, 255, .22) !important; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: none !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authSubmit { height: calc(var(--u) * 42) !important; min-height: 0 !important; border-radius: 999px !important; background: linear-gradient(180deg, #3aa866, #218347) !important; color: #fff !important; box-shadow: 0 6px 18px rgba(33, 131, 71, .35), inset 0 1px 0 rgba(255,255,255,.25) !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authSocial { margin-top: calc(var(--u) * 12) !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authGoogle, html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authInstagramFollow { height: calc(var(--u) * 38) !important; min-height: 0 !important; border-radius: 999px !important; background: rgba(14, 20, 26, .55) !important; border: 1px solid rgba(255, 255, 255, .22) !important; box-shadow: none !important; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authInstagramFollow { order: 1; margin-top: calc(var(--u) * 9) !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authAltActions { order: 2; margin-top: calc(var(--u) * 14) !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authAltActions .authAltBtn { height: auto !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; color: #5fe08f !important; font-size: 15px !important; font-weight: 600 !important; }
+  html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authAltActions .authAltBtn svg { display: none !important; }
+  html body #root .authRoot:has(.authPageLogin) > footer.authFooter { opacity: .6; }
+}
