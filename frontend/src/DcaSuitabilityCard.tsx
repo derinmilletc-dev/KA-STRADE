@@ -16,13 +16,13 @@ const parse = (rows: unknown): SuitCandle[] => (Array.isArray(rows) ? rows : [])
 }).filter(candle => [candle.time, candle.open, candle.high, candle.low, candle.close].every(Number.isFinite))
 
 const TXT = {
-  tr: {kicker: 'DCA UYGUNLUĞU', loading: 'Piyasa okunuyor…', noData: 'Piyasa verisi okunamadı; puan hesaplanamadı.', ai: 'AI yönü', dca: 'DCA uygunluğu',
+  tr: {kicker: 'DCA UYGUNLUĞU', loading: 'Piyasa okunuyor…', more: 'Ayrıntıları göster', noData: 'Piyasa verisi okunamadı; puan hesaplanamadı.', ai: 'AI yönü', dca: 'DCA uygunluğu',
     bars: {trend: 'Trend uyumu', vol: 'Oynaklık / aralık', recovery: 'Toparlanma', stretch: 'Fiyat uzaması'},
     trendL: {with: 'Yönünde', flat: 'Yatay', against: 'Ters', strongAgainst: 'Güçlü ters'}, volL: {calm: 'Sakin', ok: 'Uygun', fast: 'Hızlı', wild: 'Çok sert'},
     recL: {yes: 'Var', partial: 'Kısmi', no: 'Yok'}, strL: {normal: 'Normal', high: 'Yüksek', extreme: 'Aşırı'},
     conflict: 'AI yönü güçlü ama DCA için piyasa yapısı şu an uygun değil.',
     note: 'DCA uygunluğu, mevcut piyasa koşullarının bu DCA yapısına ne kadar uygun olduğunun değerlendirmesidir; kâr tahmini ya da garantisi değildir. Düşük puan botu başlatmayı engellemez.'},
-  en: {kicker: 'DCA SUITABILITY', loading: 'Reading the market…', noData: 'Market data could not be read; score unavailable.', ai: 'AI direction', dca: 'DCA suitability',
+  en: {kicker: 'DCA SUITABILITY', loading: 'Reading the market…', more: 'Show details', noData: 'Market data could not be read; score unavailable.', ai: 'AI direction', dca: 'DCA suitability',
     bars: {trend: 'Trend fit', vol: 'Volatility / step', recovery: 'Recovery', stretch: 'Price stretch'},
     trendL: {with: 'With you', flat: 'Flat', against: 'Against', strongAgainst: 'Strong against'}, volL: {calm: 'Calm', ok: 'Fits', fast: 'Fast', wild: 'Very sharp'},
     recL: {yes: 'Yes', partial: 'Partial', no: 'None'}, strL: {normal: 'Normal', high: 'High', extreme: 'Extreme'},
@@ -81,12 +81,14 @@ export default function DcaSuitabilityCard({symbol, side, price, stepPct, safety
         <span><small>{t.dca}</small><b data-level={result.level}>{result.score}/100</b></span>
       </div>}
       {conflict && <p className="dsConflict" role="status">⚠ {t.conflict}</p>}
+      <details className="dsMore"><summary>{t.more}</summary>
       <div className="dsBars">
         {bar(t.bars.trend, result.parts.trend, t.trendL[result.trend])}
         {bar(t.bars.vol, result.parts.vol, t.volL[result.volState])}
         {bar(t.bars.recovery, result.parts.recovery, t.recL[result.recovery])}
         {bar(t.bars.stretch, result.parts.stretch, t.strL[result.stretch])}
       </div>
+      </details>
       {result.warnings.length > 0 && <ul className="dsWarn" role="status">{result.warnings.map(text => <li key={text}>{text}</li>)}</ul>}
     </>
   return <div className="ds" role="group" aria-label={t.kicker} data-testid="dca-suitability">

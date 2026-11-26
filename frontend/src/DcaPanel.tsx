@@ -645,7 +645,6 @@ export default function DcaPanel(props: DcaPanelProps) {
         <button type="button" className="dwSummary" onClick={() => setStep(1)}><b>{display}</b><span className={dir ? 'up' : 'down'}>{side}</span><span>{fmtPrice(price)} USDT</span><em>Değiştir</em></button>
         <h3 className="dwH">Ne kadar risk?</h3>
         <p className="dwLead">Sürgüyü kaydır, gerisini bot ayarlar. Her planda stop var.</p>
-        <DcaSuitabilityCard symbol={symbol} side={side} price={price} stepPct={num(form.step)} safetyOrders={form.safety} stopGapPct={num(form.gap)} aiConfidence={signals?.[symbol]?.confidence ?? null} aiAgrees={signals?.[symbol]?.lean === side}/>
         {!ready && <p className="dwHint">{filtersError || 'Borsa kuralları okunuyor…'}</p>}
         {ready && presetPlans.every(plan => plan.state === 'no') && <div className="dwWarn" data-testid="dca-advice">
           <b>{display} bu limitle çalışmaz</b>
@@ -665,6 +664,7 @@ export default function DcaPanel(props: DcaPanelProps) {
             <span><small>Kaldıraç</small><b>{form.leverage}x</b></span>
           </div>}
         </div>}
+        <DcaSuitabilityCard symbol={symbol} side={side} price={price} stepPct={num(form.step)} safetyOrders={form.safety} stopGapPct={num(form.gap)} aiConfidence={signals?.[symbol]?.confidence ?? null} aiAgrees={signals?.[symbol]?.lean === side}/>
         {ready && customBlock && <p className="dwWarn" role="alert">{customBlock}{fixNowCustom && <> <button type="button" className="dwFix" onClick={applyCustomFix}>Otomatik sığdır</button></>}</p>}
         {ready && result.valid && <DcaPriceLine result={result} price={price} side={side} />}
         <details className="dwSettings" data-testid="dca-settings">
@@ -859,6 +859,19 @@ function BotCard({bot, busy, onAct, mark = null}: {bot: any; busy: boolean; onAc
         <div><b>{bot.symbol}</b><span className={long ? 'up' : 'down'}>{long ? 'LONG ▲' : 'SHORT ▼'}</span></div>
         <span className="dcaStatus" data-tone={info.tone}><i />{info.text}</span>
       </div>
+      {watching && (() => {
+        const avg = Number(stats.avg_entry), qty = Math.abs(Number(bot.position_qty || 0))
+        const live = hasPos && mark != null && mark > 0 && avg > 0 ? (long ? mark - avg : avg - mark) * qty : null
+        const livePct = live !== null && avg * qty > 0 ? live / (avg * qty) * 100 : null
+        const ring = total > 0 ? Math.round(done / total * 100) : 0
+        return <div className="dbHero" data-testid="dca-bot-hero">
+          <span className="dbRing" style={{background: `conic-gradient(var(--tone) 0 ${ring}%, rgba(255,255,255,.08) 0)`}} aria-label={`${done}/${total} emir doldu`}><b>{done}/{total}</b></span>
+          <span className="dbPnl"><small>Anlık kâr / zarar</small>
+            <b className={live === null ? '' : live >= 0 ? 'up' : 'down'}>{live === null ? '—' : fmtUsd(live, true)}</b>
+            {livePct !== null && <em className={livePct >= 0 ? 'up' : 'down'}>{livePct >= 0 ? '+' : ''}{livePct.toFixed(2)}%</em>}</span>
+          <span className="dbReal"><small>Gerçekleşen</small><b className={Number(stats.realized_usdt || 0) >= 0 ? 'up' : 'down'}>{fmtUsd(Number(stats.realized_usdt || 0), true)}</b></span>
+        </div>
+      })()}
       {watching && <DcaWatch bot={bot} mark={mark}/>}
       {!watching && <div className="dcaRail" aria-label={`${done}/${total} emir doldu`}>
         {Array.from({length: total}).map((_, index) => <span key={index} className={index < done ? 'on' : ''}><i>{index === 0 ? 'T' : index}</i></span>)}

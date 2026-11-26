@@ -599,3 +599,14 @@
 .dkBarNums small{font-size:10.5px;color:#8ea0b4;line-height:1.2}.dkBarNums b{font-size:14px}
 .dkBarNote{margin:0;font-size:12.5px;color:#3ddc97}.dkBarNote[data-ok="0"]{color:#f5c04a}
 #root .dca .dkGo{min-height:50px;border-radius:15px;border:0;background:linear-gradient(135deg,#3ddc97,#2fbf86);color:#06231a;font-weight:850;font-size:15.5px}
+
+/* DCA Takip: bot kartı özeti (anlık kâr/zarar + doluluk halkası) ve kompakt uygunluk kartı */
+.dbHero{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;padding:12px;border-radius:16px;background:rgba(255,255,255,.035)}
+.dbRing{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;position:relative}
+.dbRing::before{content:"";position:absolute;inset:6px;border-radius:50%;background:#0c1726}
+.dbRing b{position:relative;font-size:13px}
+.dbPnl,.dbReal{display:grid;gap:2px}.dbPnl small,.dbReal small{font-size:11px;color:#8ea0b4}
+.dbPnl b{font-size:22px;line-height:1.1}.dbPnl em{font-style:normal;font-size:12.5px;font-weight:750}
+.dbReal{text-align:right}.dbReal b{font-size:15px}
+.dsMore{display:grid;gap:10px}.dsMore summary{cursor:pointer;color:#7fe0b8;font-size:12.5px;font-weight:700;list-style:none}
+.dsMore summary::-webkit-details-marker{display:none}.dsMore[open] summary{margin-bottom:6px}
