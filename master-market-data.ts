@@ -1,5 +1,5 @@
 export type MarketQuote = {symbol: string; display: string; name?: string; test?: boolean; price: number | null; change: number | null; volume: number | null}
-export type MarketScore = {symbol: string; score: number; direction: string}
+export type MarketScore = {symbol: string; score: number; direction: string; confidence?: number}
 export type MarketFilter = 'Tümü' | 'Favoriler' | 'Skorlu' | 'Yükselenler' | 'Düşenler'
 export type MarketSort = 'Skor' | '24s %' | 'Hacim' | 'A-Z'
 
