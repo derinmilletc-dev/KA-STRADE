@@ -1,10 +1,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode} from 'react'
-import {Check, Grid3X3, Info, Minus, ShieldAlert, Sparkles, TriangleAlert, X} from 'lucide-react'
+import {ArrowLeftRight, Check, ChevronDown, Grid3X3, Info, Minus, ShieldAlert, ShieldCheck, Sparkles, Target, TrendingDown, TrendingUp, TriangleAlert, Wallet, X} from 'lucide-react'
 import {API_BASE} from './api'
 import {currentLang} from './i18n'
 import {requestPositionsRefresh} from './trade-intent'
 import {HoldButton} from './studio-hold'
 import {ConsentRenew} from './StudioConsent'
+import './studio-grid-modern.css'
 import {tx, type AnalysisLevels} from './studio-quick-trade'
 import {
   GRID_MAX_COUNT, GRID_MIN_COUNT, atrPct, backtestGrid, barSeconds, chartLinesFor, chartLinesForRows, gridActive, gridPnl, gridRangeStatus, gridStatusText, gridSummary, previewGrid, priceText, requestGrid,
@@ -107,7 +108,7 @@ type MapProps = {mode: GridMode; price: number; params: GridParams; lines: {pric
 
 /** Dikey aralık haritası: fiyat, kademe çizgileri ve sürüklenebilir sınır/stop tutamakları. Klavye: ↑/↓ (Shift = daha büyük adım). */
 function RangeMap({mode, price, params, lines, tick, disabled, onChange}: MapProps) {
-  const H = 168
+  const H = 232
   const ref = useRef<HTMLDivElement>(null)
   const drag = useRef<{key: HandleKey; min: number; max: number} | null>(null)
   const [active, setActive] = useState<HandleKey | null>(null)
@@ -270,6 +271,23 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
   const pickMode = (mode: GridMode) => { updatePrefs({mode}); suggest(mode, preset === 'custom' ? prefs.preset : preset); if (preset === 'custom') setPreset(prefs.preset); setError('') }
   const pickPreset = (which: Exclude<GridPreset, 'custom'>) => { updatePrefs({preset: which}); setPreset(which); if (params) suggest(params.mode, which); setError('') }
 
+  // Adım akışı ve "Kais önerisi": mevcut öneri mantığını (suggestGrid) tek dokunuşla uygular; gerekçeyi tek cümleyle gösterir.
+  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [smartWhy, setSmartWhy] = useState('')
+  useEffect(() => { if (!open) { setStep(1); setSmartWhy('') } }, [open])
+  useEffect(() => { setSmartWhy('') }, [symbol])
+  const applySmart = () => {
+    const mode: GridMode = decision === 'LONG' ? 'LONG' : decision === 'SHORT' ? 'SHORT' : 'NEUTRAL'
+    const which: Exclude<GridPreset, 'custom'> = (decision === 'LONG' || decision === 'SHORT') && analysis ? 'analysis' : 'atr'
+    const vol = atr?.pct ?? null
+    const wanted = vol === null ? 3 : vol >= 1.2 ? 2 : vol >= 0.6 ? 3 : 5
+    const lev = Math.max(1, Math.min(wanted, maxLeverage))
+    updatePrefs({mode, preset: which, leverage: lev}); setPreset(which)
+    suggest(mode, which, {leverage: lev}); setError('')
+    const dir = mode === 'LONG' ? tx('yükseliş', 'uptrend') : mode === 'SHORT' ? tx('düşüş', 'downtrend') : tx('nötr', 'neutral')
+    setSmartWhy(tx(`${dir} grid, ${which === 'analysis' ? 'analiz seviyelerine' : 'oynaklığa'} göre kuruldu; kaldıraç ${lev}x (oynaklık ${vol === null ? 'bilinmiyor' : vol >= 1.2 ? 'yüksek' : vol >= 0.6 ? 'orta' : 'düşük'}).`,
+      `${dir} grid set from ${which === 'analysis' ? 'analysis levels' : 'volatility'}; leverage ${lev}x (volatility ${vol === null ? 'unknown' : vol >= 1.2 ? 'high' : vol >= 0.6 ? 'medium' : 'low'}).`))
+  }
   const [levAck, setLevAck] = useState(false)
   const needAck = !demo && !!params && params.leverage > HIGH_LEVERAGE_ABOVE
   useEffect(() => { setLevAck(false) }, [params?.leverage, symbol])
@@ -282,6 +300,15 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
     : !demo && liveBlocker ? liveBlocker
     : disabledReason || (filtersState === 'error' ? tx('Borsa kuralları okunamadı; güvenli tarafta kalmak için başlatılmaz.', 'Exchange rules could not be read; for safety the grid will not start.') : '')
   const canStart = !!params && !!preview?.ok && !blockReason && filtersState === 'ready' && !busy && running.length < 5 && server.state !== 'rejected' && (!needAck || levAck)
+  const dayLimit = !demo && Number(status?.day?.limit_usdt) > 0 ? Number(status?.day?.limit_usdt) : 0
+  const worst = preview && preview.activeLevels > 0 && preview.worstLoss !== null ? preview.worstLoss : 0
+  const riskBase = dayLimit > 0 ? dayLimit : (params ? params.margin : 0)
+  const riskRatio = riskBase > 0 ? worst / riskBase : 0
+  const riskTone = !worst ? 'idle' : riskRatio >= 0.6 ? 'high' : riskRatio >= 0.25 ? 'mid' : 'low'
+  const riskPct = Math.round(riskRatio * 100)
+  const riskText = !worst ? '' : dayLimit > 0
+    ? tx(`En kötü durumda günlük zarar limitinin %${riskPct}'i gider.`, `Worst case uses ${riskPct}% of the daily loss limit.`)
+    : tx(`En kötü durumda teminatın %${riskPct}'i gider.`, `Worst case uses ${riskPct}% of your margin.`)
 
   // Sunucuya plan sorusu (emir yok): sunucunun kuralları son sözü söyler; kesin ret varsa başlatma kapanır, ulaşılamazsa yerel kontrol geçerli kalır.
   const serverKey = params ? JSON.stringify(startBody(symbol, params, demo)) : ''
@@ -374,20 +401,33 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
       </header>
 
       <div className="sqgBody">
-        {tab === 'new' && <div className="sqgCols">
-          <div className="sqgCol">
-          <div className="sqgSeg" role="radiogroup" aria-label={tx('Grid türü', 'Grid type')}>
-            {MODES.map(item => <button key={item.id} type="button" role="radio" aria-checked={params?.mode === item.id} data-on={params?.mode === item.id} data-mode={item.id} onClick={() => pickMode(item.id)}>{tx(item.tr, item.en)}</button>)}
+        {tab === 'new' && <div className="sgw" data-step={step}>
+          <div className="sgwStrip" data-tone={riskTone} aria-live="polite">
+            <div><small>{tx('En kötü durum', 'Worst case')}</small><b data-tone="loss">{preview && preview.activeLevels > 0 && preview.worstLoss !== null ? `−${fmt(preview.worstLoss)}` : '—'}<u>USDT</u></b></div>
+            <div><small>{tx('Gereken teminat', 'Margin needed')}</small><b>{preview && preview.activeLevels > 0 ? fmt(preview.marginNeeded) : '—'}<u>USDT</u></b></div>
+            <div><small>{tx('Tur başı kâr', 'Per cycle')}</small><b data-tone="gain">{preview && preview.activeLevels > 0 && preview.profitPerCycle !== null ? `+${fmt(preview.profitPerCycle, Math.abs(preview.profitPerCycle) < 0.1 ? 4 : 2)}` : '—'}<u>USDT</u></b></div>
           </div>
-          <p className="sqgHint"><Info aria-hidden="true"/>{params ? tx(MODES.find(m => m.id === params.mode)?.hintTr ?? '', MODES.find(m => m.id === params.mode)?.hintEn ?? '') : ''}</p>
+          <ol className="sgwSteps" aria-label={tx('Adımlar', 'Steps')}>
+            {([[1, tx('Yön ve aralık', 'Direction'), Target], [2, tx('Para ve risk', 'Money & risk'), Wallet], [3, tx('Onay', 'Confirm'), ShieldCheck]] as const).map(([n, label, Icon]) => <li key={n}>
+              <button type="button" data-on={step === n} data-done={step > n || undefined} aria-current={step === n ? 'step' : undefined} onClick={() => setStep(n)}><i>{step > n ? <Check aria-hidden="true"/> : <Icon aria-hidden="true"/>}</i><span>{label}</span></button>
+            </li>)}
+          </ol>
 
+          {step === 1 && <section className="sgwStep">
+            {finite(price) && <div className="sgwSmart">
+              <div className="sgwSmartHead"><span><Sparkles aria-hidden="true"/></span><div><b>{tx('Kais önerisi', 'Kais suggestion')}</b><small>{smartWhy || (note ? `${note}${decision === 'LONG' || decision === 'SHORT' ? ` ${tx('Analiz', 'Analysis')}: ${decision}.` : ''}` : tx('Analize ve oynaklığa göre aralığı, kademeyi ve kaldıracı ben seçeyim.', 'Let me pick range, levels and leverage from the analysis and volatility.'))}</small></div></div>
+              <button type="button" className="sgwSmartBtn" disabled={!!busy || filtersState === 'loading'} onClick={applySmart}><Sparkles aria-hidden="true"/>{tx('Önerilen ayarları uygula', 'Apply suggested setup')}</button>
+            </div>}
+            <div className="sgwModes" role="radiogroup" aria-label={tx('Grid türü', 'Grid type')}>
+              {MODES.map(item => { const Icon = item.id === 'LONG' ? TrendingUp : item.id === 'SHORT' ? TrendingDown : ArrowLeftRight; return <button key={item.id} type="button" role="radio" aria-checked={params?.mode === item.id} data-on={params?.mode === item.id} data-mode={item.id} onClick={() => pickMode(item.id)}><Icon aria-hidden="true"/><b>{tx(item.tr, item.en)}</b></button> })}
+            </div>
+                      <p className="sqgHint"><Info aria-hidden="true"/>{params ? tx(MODES.find(m => m.id === params.mode)?.hintTr ?? '', MODES.find(m => m.id === params.mode)?.hintEn ?? '') : ''}</p>
+            <h4 className="sgwLabel">{tx('Aralık genişliği', 'Range width')}</h4>
           <div className="sqgPresets" role="radiogroup" aria-label={tx('Aralık genişliği', 'Range width')}>
             {PRESETS.map(item => <button key={item.id} type="button" role="radio" aria-checked={preset === item.id} data-on={preset === item.id} onClick={() => pickPreset(item.id)}>{item.id === 'analysis' && <Sparkles aria-hidden="true"/>}{tx(item.tr, item.en)}</button>)}
             {preset === 'custom' && <span className="sqgCustom" data-on="true">{tx('Özel', 'Custom')}</span>}
           </div>
-          {note && <p className="sqgNote">{note}{decision === 'LONG' || decision === 'SHORT' ? ` ${tx('Analiz', 'Analysis')}: ${decision}.` : ''}</p>}
-
-          {params && finite(price)
+                      {params && finite(price)
             ? <div className="sqgGrid2">
                 <RangeMap mode={params.mode} price={price} params={params} lines={preview?.lines ?? []} tick={filters?.tickSize} disabled={!!busy} onChange={(key, value) => edit({[key]: value} as Partial<GridParams>)}/>
                 <div className="sqgFields">
@@ -403,19 +443,20 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
                 </div>
               </div>
             : <p className="sqgEmpty">{tx('Fiyat verisi bekleniyor…', 'Waiting for price data…')}</p>}
-          </div>
+          </section>}
 
-          <div className="sqgCol">
+          {step === 2 && <section className="sgwStep">
+            <h4 className="sgwLabel">{tx('Para ve kaldıraç', 'Money and leverage')}</h4>
           <div className="sqgParams">
             <div className="sqtParam"><small>{tx('Toplam teminat (USDT)', 'Total margin (USDT)')}</small><div role="radiogroup" aria-label={tx('Toplam teminat', 'Total margin')}>{marginChoices.map(v => <button key={v} type="button" role="radio" aria-checked={v === margin} data-on={v === margin} disabled={!!busy} onClick={() => updatePrefs({margin: v})}>{v}</button>)}</div></div>
-            <div className="sqtParam"><small>{tx('Kaldıraç', 'Leverage')}</small><div role="radiogroup" className="sqgLevScroll" aria-label={tx('Kaldıraç', 'Leverage')}>{leverageChoices.map(v => <button key={v} type="button" role="radio" aria-checked={v === leverage} data-on={v === leverage} disabled={!!busy} onClick={() => updatePrefs({leverage: v})}>{v}x</button>)}</div></div>
+            <div className="sqtParam"><small>{tx('Kaldıraç', 'Leverage')}</small><div role="radiogroup" className="sqgLevScroll" aria-label={tx('Kaldıraç', 'Leverage')}>{leverageChoices.map(v => <button key={v} type="button" role="radio" aria-checked={v === leverage} data-on={v === leverage} data-risk={v > HIGH_LEVERAGE_ABOVE ? 'high' : v >= 10 ? 'mid' : undefined} disabled={!!busy} onClick={() => updatePrefs({leverage: v})}>{v}x</button>)}</div></div>
           </div>
-
           {params && params.mode !== 'NEUTRAL'
             ? <label className="sqgSwitch"><input type="checkbox" checked={params.recycle} disabled={!!busy} onChange={event => { updatePrefs({recycle: event.target.checked}); edit({recycle: event.target.checked}) }}/><span aria-hidden="true"/>
                 <div><b>{tx('Sürekli çalış', 'Keep cycling')}</b><small>{tx('Hedef dolunca aynı kademede yeniden giriş kurulur. Kapalıysa her kademe bir kez çalışır.', 'When a target fills the same level is re-armed. If off, each level runs once.')}</small></div></label>
             : params && <p className="sqgHint"><Info aria-hidden="true"/>{tx('Nötr grid her zaman sürekli çalışır: hedef dolunca aynı çizgide yeniden kurulur.', 'A neutral grid always cycles: when a target fills the line is re-armed.')}</p>}
-
+            <details className="sgwAdv">
+              <summary><span>{tx('Gelişmiş koruma', 'Advanced protection')}</span><small>{tx('Hedef kâr · zarar sınırı · kâr kilidi', 'Take profit · loss limit · profit lock')}</small><ChevronDown aria-hidden="true"/></summary>
           {params && <div className="sqgProt" role="group" aria-label={tx('Kâr ve zarar koruması', 'Profit and loss protection')}>
             <ProtField id="sqg-tp" label={tx('Hedef kâr (USDT)', 'Take profit (USDT)')} hint={params.closeOnTarget ? tx('Ulaşınca yeni giriş durur ve pozisyon kapanır', 'New entries stop and the position closes') : tx('Ulaşınca yeni giriş durur', 'New entries stop when reached')} value={params.takeProfit ?? 0} disabled={!!busy} onCommit={value => setParams(current => current ? {...current, takeProfit: value} : current)}/>
             <ProtField id="sqg-sl" label={tx('Zarar sınırı (USDT)', 'Loss limit (USDT)')} hint={tx('Ulaşınca grid kapatılır', 'The grid is closed when reached')} value={params.lossLimit ?? 0} disabled={!!busy} onCommit={value => setParams(current => current ? {...current, lossLimit: value} : current)}/>
@@ -423,14 +464,20 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
             <label className="sqgSwitch sqgProtSwitch"><input type="checkbox" checked={!!params.closeOnTarget} disabled={!!busy || !(params.takeProfit && params.takeProfit > 0)} onChange={event => setParams(current => current ? {...current, closeOnTarget: event.target.checked} : current)}/><span aria-hidden="true"/>
               <div><b>{tx('Hedefte pozisyonu da kapat', 'Also close the position at target')}</b><small>{params.takeProfit && params.takeProfit > 0 ? tx('Kapalıysa hedefte yalnız yeni giriş durur.', 'If off, only new entries stop at the target.') : tx('Önce bir hedef kâr gir.', 'Enter a take-profit first.')}</small></div></label>
           </div>}
+            </details>
+          </section>}
 
+          {step === 3 && <section className="sgwStep">
+            {preview && preview.activeLevels > 0 && <div className="sgwMeter" data-tone={riskTone}>
+              <div><b>{tx('Risk seviyesi', 'Risk level')}</b><span>{riskText}</span></div>
+              <i aria-hidden="true"><u style={{width: `${Math.round(Math.min(1, riskRatio) * 100)}%`}}/></i>
+            </div>}
           {preview && preview.activeLevels > 0 && <dl className="sqgStats">
             <div><dt>{tx('Kademe aralığı', 'Level spacing')}</dt><dd>%{fmt(preview.spacingPct, 2)}</dd></div>
             <div data-tone="gain"><dt>{tx('Tur başı net kâr', 'Net per cycle')}</dt><dd>{preview.profitPerCycle !== null ? `+${fmt(preview.profitPerCycle, Math.abs(preview.profitPerCycle) < 0.1 ? 4 : 2)}` : '—'} <u>USDT</u></dd></div>
             <div data-tone="loss"><dt>{tx('En kötü durum', 'Worst case')}</dt><dd>{preview.worstLoss !== null ? `−${fmt(preview.worstLoss)}` : '—'} <u>USDT</u></dd></div>
             <div><dt>{tx('Gereken teminat', 'Margin needed')}</dt><dd>{fmt(preview.marginNeeded)} <u>USDT</u></dd></div>
           </dl>}
-
           {backtest && <section className="sqgBack" aria-label={tx('Geçmişe göre deneme', 'Backtest')}>
             <h4>{tx('Geçmişte nasıl çalışırdı?', 'How would it have run?')}</h4>
             <p className="sqgBackSub">{tx(`Son ${backtest.candles} mum (≈ ${fmt(backtest.hours, backtest.hours < 10 ? 1 : 0)} saat) · aynı genişlik ve kademe`, `Last ${backtest.candles} candles (≈ ${fmt(backtest.hours, backtest.hours < 10 ? 1 : 0)} h) · same width and levels`)}</p>
@@ -443,7 +490,6 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
             {backtest.stopped && <p className="sqgBackWarn"><TriangleAlert aria-hidden="true"/>{tx('Bu dönemde stop çalışırdı; grid erken biterdi.', 'The stop would have triggered in this window; the grid would have ended early.')}</p>}
             <p className="sqgBackFine">{tx('Geçmiş sonuç gelecek için garanti değildir. Ücret dahil; funding ve kayma hariç.', 'Past results are no guarantee. Fees included; funding and slippage excluded.')}</p>
           </section>}
-
           <ul className="sqgChecks" aria-live="polite">
             {(preview?.issues ?? []).map(text => <li key={text} data-ok="false"><TriangleAlert aria-hidden="true"/>{text}</li>)}
             {(preview?.warnings ?? []).map(text => <li key={text} data-ok="warn"><Info aria-hidden="true"/>{text}</li>)}
@@ -460,7 +506,7 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
             <div><b>{tx(`${params.leverage}x yüksek kaldıraç`, `${params.leverage}x high leverage`)}</b><small>{tx(`Fiyat girişe göre yaklaşık %${fmt(100 / params.leverage, 1)} ters giderse pozisyon likide olabilir. Stop mesafesi bunun içinde kalmalı. Riski anlıyorum.`, `If price moves about ${fmt(100 / params.leverage, 1)}% against the entry the position can be liquidated. Keep your stop inside that distance. I understand the risk.`)}</small></div>
           </label>}
           {error && <p className="sqgError" role="alert"><TriangleAlert aria-hidden="true"/>{error}</p>}
-          </div>
+          </section>}
         </div>}
 
         {tab === 'running' && <>
@@ -477,6 +523,7 @@ export default function StudioGrid({symbol, price, demo, premium, onUpgrade, ana
       {tab === 'new' && <footer className="sqgFoot">
         {!demo && !premium
           ? <button type="button" className="sqgUpgrade" onClick={onUpgrade}>{tx('Canlı grid için Smart Trade / Master Mode gerekir', 'Live grid needs Smart Trade / Master Mode')}</button>
+          : step < 3 ? <button type="button" className="sgwNext" disabled={!params} onClick={() => setStep(step === 1 ? 2 : 3)}>{step === 1 ? tx('Devam · para ve risk', 'Next · money & risk') : tx('Devam · onay', 'Next · confirm')}</button>
           : <HoldButton ms={holdMs} tone={params?.mode === 'SHORT' ? 'sell' : 'buy'} disabled={!canStart}
               label={busy || tx(`Basılı tut · ${startWord} grid başlat`, `Hold · start ${startWord} grid`)} onDone={() => void start()}
               hint={tx(`${symbol} ${startWord} gridini başlatmak için basılı tut`, `Press and hold to start the ${symbol} ${startWord} grid`)}/>}
