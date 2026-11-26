@@ -88,6 +88,35 @@ class OriginalStartWithOpenPlanTests(unittest.TestCase):
         self.assertEqual(core.count("tolerate_healthy_plans=unlimited_daily_trades"), 2)
         self.assertIn("tolerate_healthy_plans: bool = False", core)
 
+class OtherBotPositionTests(unittest.TestCase):
+    """DCA/Grid/Farmer'ın açtığı pozisyon, Original V2 (Kais Long) başlatmayı engellemez; bot dışı pozisyon engellemeye devam eder."""
+
+    @staticmethod
+    def app_with_bot(symbols):
+        runner = SimpleNamespace(reserved_risk=lambda user_id, owner=False, exclude=None: {"worst_loss_usdt": 1.0, "pending_entry_notional_usdt": 0.0, "symbols": symbols})
+        return SimpleNamespace(state=SimpleNamespace(live_dca_runner=runner))
+
+    def run_gate(self, application, symbol):
+        state = make_state(positions=[{"symbol": symbol, "direction": "LONG", "quantity": "1", "mark_price": "10"}])
+        with patch.object(live, "readiness", return_value={"ready": True}):
+            return live.live_auto_start_gate(application, state, unlimited_daily_trades=True, tolerate_healthy_plans=True)
+
+    def test_position_owned_by_dca_does_not_block(self):
+        allowed, reason = self.run_gate(self.app_with_bot(["ADAUSDT"]), "ADAUSDT")
+        self.assertTrue(allowed, reason)
+
+    def test_position_not_owned_by_any_bot_still_blocks(self):
+        allowed, reason = self.run_gate(self.app_with_bot(["ADAUSDT"]), "BTCUSDT")
+        self.assertFalse(allowed)
+        self.assertIn("V25 dışı açık pozisyon", reason)
+
+    def test_unreadable_bot_state_stays_safe(self):
+        def boom(*args, **kwargs):
+            raise RuntimeError("x")
+        app = SimpleNamespace(state=SimpleNamespace(live_dca_runner=SimpleNamespace(reserved_risk=boom)))
+        allowed, reason = self.run_gate(app, "ADAUSDT")
+        self.assertFalse(allowed)
+
 
 if __name__ == "__main__":
     unittest.main()

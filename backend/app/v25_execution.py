@@ -6319,6 +6319,15 @@ def live_auto_start_gate(application: Any, state: dict[str, Any], request: Reque
         position for position in snapshot.get("positions", [])
         if str(position.get("symbol") or "").upper() not in tracked_symbols
     ]
+    if unmanaged_positions and live_bot_runners(application):
+        # Grid / DCA / KAIS FARMER kendi pozisyonlarını ve borsa tarafı korumalarını kendileri yönetir; "yönetilmeyen" sayılmaz.
+        # Okunamazsa güvenli taraf: eskisi gibi engeller.
+        try:
+            owned = {normalize_symbol(str(item)) for item in combined_reserved_risk(application, live_reservation_owner(state, request), owner=True).get("symbols") or []}
+        except Exception:  # noqa: BLE001
+            owned = set()
+            logger.warning("BOT_OWNED_SYMBOLS_READ_FAILED")
+        unmanaged_positions = [p for p in unmanaged_positions if normalize_symbol(str(p.get("symbol") or "")) not in owned]
     if unmanaged_positions:
         symbols = ", ".join(str(position.get("symbol") or "UNKNOWN") for position in unmanaged_positions[:3])
         return False, f"V25 dışı açık pozisyon protection kapsamı dışında: {symbols}. Önce manuel pozisyonu yönetin."
