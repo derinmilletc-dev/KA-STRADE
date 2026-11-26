@@ -611,3 +611,6 @@ html body .masterReferenceAnalysis .sqtSlideFoot button[data-on="true"] { color:
 .masterReferenceAnalysis .sqtAddAmt > span { flex: none; color: #8fa4ad; }
 .masterReferenceAnalysis .sqtAddAmt input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border-radius: 9px; border: 0; background: rgba(255, 255, 255, .06); color: #eef7f4; font-size: 13px; font-weight: 700; }
 .masterReferenceAnalysis .sqtAddAmt u { text-decoration: none; color: #8fa4ad; }
+
+.masterReferenceAnalysis .sqtFixLev { margin-left: 8px; min-height: 26px; padding: 0 10px; border-radius: 99px; border: 1px solid #3ddc97; background: #163f37; color: #d9fff0; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.masterReferenceAnalysis .sqtFixLev:disabled { opacity: .5; cursor: not-allowed; }

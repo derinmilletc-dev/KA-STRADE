@@ -2,8 +2,8 @@
 // Seviyeler, risk özeti ve hata metinleri burada; bu yüzden birim testle doğrulanabilir.
 
 export type Side = 'LONG' | 'SHORT'
-export type LevelSource = 'analysis' | 'mirror' | 'default'
-export type Levels = {stop: number; tp1: number; tp2: number; tp3: number; source: LevelSource}
+export type LevelSource = 'analysis' | 'mirror' | 'default' | 'capped'
+export type Levels = {stop: number; tp1: number; tp2: number; tp3: number; source: LevelSource; cappedFrom?: number}
 export type AnalysisLevels = {direction?: string | null; entry?: number | null; stop_loss?: number | null; tp1?: number | null; tp2?: number | null; tp3?: number | null} | null | undefined
 
 /** Dil okuyucusu: ekran bileşeni yükleyince gerçek dili bildirir; testlerde Türkçe kalır. */
@@ -41,7 +41,26 @@ const DEFAULT_PCT = {stop: 1.5, tp1: 1.5, tp2: 3, tp3: 4.5}
  * 3) Analiz yoksa sabit yüzdeler.
  * Çıktı her zaman yön için tutarlıdır; tutarlı üretilemezse null döner (emir gönderilmez).
  */
+/** Stop bundan uzaksa (giriş fiyatının %'si) güvenilmez sayılır ve bu mesafeye çekilir; hedefler aynı oranda yaklaşır. */
+export const MAX_STOP_PCT = 12
+
 export function levelsFor(side: Side, price: number | null | undefined, analysis: AnalysisLevels): Levels | null {
+  const raw = rawLevelsFor(side, price, analysis)
+  if (!raw || !finite(price)) return raw
+  const stopPct = Math.abs(price - raw.stop) / price * 100
+  if (!(stopPct > MAX_STOP_PCT)) return raw
+  const k = MAX_STOP_PCT / stopPct, sign = side === 'LONG' ? 1 : -1
+  const at = (level: number) => round(price + (level - price) * k)
+  const next = {stop: round(price - sign * price * MAX_STOP_PCT / 100), tp1: at(raw.tp1), tp2: at(raw.tp2), tp3: at(raw.tp3)}
+  return coherent(side, price, next.stop, next.tp1, next.tp2, next.tp3) ? {...next, source: 'capped', cappedFrom: stopPct} : fallback(side, price)
+}
+
+/** Stopun likidasyondan önce çalışması için seçilebilecek en yüksek kaldıraç (0 = 1x bile yetmez). */
+export function safeLeverage(stopPct: number): number {
+  return finite(stopPct) && stopPct > 0 ? Math.max(0, Math.ceil(90 / stopPct) - 1) : 0
+}
+
+function rawLevelsFor(side: Side, price: number | null | undefined, analysis: AnalysisLevels): Levels | null {
   if (!finite(price)) return null
   const entry = price
   const sign = side === 'LONG' ? 1 : -1
