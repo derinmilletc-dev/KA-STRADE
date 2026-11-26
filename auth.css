@@ -1698,3 +1698,8 @@ html body #root .authRoot.authNight:has(.authPageLogin) { background-image: line
   html body #root .authPageLogin > header.authMobileIdentity::before { content: ""; position: absolute; z-index: -1; left: -8%; right: -8%; top: -26%; bottom: -34%; pointer-events: none; background: radial-gradient(ellipse 60% 55% at 50% 48%, rgba(6, 10, 16, .5) 0%, rgba(6, 10, 16, .28) 55%, rgba(6, 10, 16, 0) 100%); }
   html body #root .authPageLogin > header.authMobileIdentity p.authTagline { text-shadow: 0 1px 6px rgba(0, 0, 0, .75); }
 }
+
+/* Instagram düğmesi: ikon ve yazı Google düğmesi gibi ortada, ok sağda sabit */
+html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authInstagramFollow { position: relative !important; display: flex !important; align-items: center !important; justify-content: center !important; gap: 12px !important; padding: 0 16px 0 16px !important; padding-right: 50px !important; text-align: center; }
+html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authInstagramFollow > span { flex: 0 1 auto !important; margin: 0 !important; text-align: center !important; }
+html body #root .authRoot > main.authPage.authPageLogin > section.authCardLogin .authInstagramFollow .authInstagramArrow { position: absolute !important; right: 16px; top: 50%; transform: translateY(-50%); }
