@@ -11,6 +11,7 @@ import './analyst-desktop.css'
 import './analyst-mobile.css'
 import './analyst-mobile-minimal.css'
 import './analyst-v2.css'
+import './analyst-command-modern.css'
 import ScrollHintStrip from './ScrollHintStrip'
 
 type Direction = 'LONG'|'SHORT'|'BEKLE'
