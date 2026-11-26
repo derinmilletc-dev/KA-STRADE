@@ -1,3 +1,4 @@
+import Greeting from './Greeting'
 import { Fragment, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {AnalystIcon, SupportIcon} from './MenuIcons'
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type IPriceLine } from 'lightweight-charts'
@@ -1123,7 +1124,7 @@ export default function TestnetFirstApp() {
 
     {view === 'dashboard' && phoneLayout && <MobileHome markets={markets} onNavigate={target => navigate(target)}/>}
     {view === 'dashboard' && !phoneLayout && <section className="v26Dashboard" aria-labelledby="dashboard-title">
-      <header className="v26DashboardHero"><div><h1 id="dashboard-title"><span className="dashboardTitlePlain">İşlem</span>{' '}<span className="dashboardTitleGradient">Terminali</span></h1><p>Bir çalışma alanı seçin.</p></div></header>
+      <header className="v26DashboardHero"><div><h1 id="dashboard-title"><span className="dashboardTitlePlain">İşlem</span>{' '}<span className="dashboardTitleGradient">Terminali</span></h1><p>Bir çalışma alanı seçin.</p></div><Greeting/></header>
       <section className="v26DashboardWorkspaces" aria-label="Çalışma alanları">
         <div className="v26DashboardChoices">
           <button type="button" onClick={() => navigate('trading')}><Activity/><span><b>DEMO İŞLEM</b><small>Demo işlem açın ve yönetin</small></span><em>→</em></button>
