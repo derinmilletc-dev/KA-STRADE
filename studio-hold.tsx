@@ -53,6 +53,6 @@ export function useHold(ms: number, onDone: () => void, disabled: boolean) {
 export function HoldButton({ms, label, tone, disabled, onDone, hint}: {ms: number; label: string; tone: 'buy' | 'sell' | 'danger'; disabled: boolean; onDone: () => void; hint: string}) {
   const {holding, bind} = useHold(ms, onDone, disabled)
   return <button type="button" className="sqtHold" data-tone={tone} data-holding={holding} disabled={disabled} aria-label={hint} style={{'--sqt-hold': `${ms}ms`} as CSSProperties} {...bind}>
-    <span className="sqtHoldFill" aria-hidden="true"/><span className="sqtHoldLabel">{holding ? tx('Bırakma…', 'Keep holding…') : label}</span>
+    <span className="sqtHoldFill" aria-hidden="true"/><svg className="sqtHoldRing" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" pathLength="100"/></svg><span className="sqtHoldLabel">{holding ? tx('Bırakma…', 'Keep holding…') : label}</span>
   </button>
 }

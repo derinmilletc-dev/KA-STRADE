@@ -1,0 +1,98 @@
+/* Grid paneli · modern 3 adımlı akış. studio-grid.css'ten sonra yüklenir. */
+.masterReferenceAnalysis .sqgPanel { width: min(396px, calc(100% - 16px)); }
+.masterReferenceAnalysis .sqgPanel .sgw { display: grid; gap: 10px; align-content: start; min-width: 0; }
+
+/* Üstte sabit özet şeridi */
+.masterReferenceAnalysis .sqgPanel .sgwStrip { position: sticky; top: -10px; z-index: 5; margin: -10px -12px 0; padding: 9px 12px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; background: rgba(14, 24, 34, .96); backdrop-filter: blur(10px); border-bottom: 1px solid var(--sqg-line); box-shadow: inset 0 -2px 0 var(--sgw-tone, #1d2c39); }
+.masterReferenceAnalysis .sqgPanel .sgwStrip[data-tone="low"] { --sgw-tone: #1f8f61; }
+.masterReferenceAnalysis .sqgPanel .sgwStrip[data-tone="mid"] { --sgw-tone: #d19a2e; }
+.masterReferenceAnalysis .sqgPanel .sgwStrip[data-tone="high"] { --sgw-tone: #d6455a; }
+.masterReferenceAnalysis .sqgPanel .sgwStrip small { display: block; font-size: 9.5px; color: var(--sqg-dim); letter-spacing: .03em; }
+.masterReferenceAnalysis .sqgPanel .sgwStrip b { display: block; margin-top: 2px; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.masterReferenceAnalysis .sqgPanel .sgwStrip b u { text-decoration: none; margin-left: 3px; font-size: 9px; font-weight: 500; color: var(--sqg-dim); }
+.masterReferenceAnalysis .sqgPanel .sgwStrip b[data-tone="loss"] { color: #ff8d9a; }
+.masterReferenceAnalysis .sqgPanel .sgwStrip b[data-tone="gain"] { color: #3ee0a0; }
+
+/* Adım göstergesi */
+.masterReferenceAnalysis .sqgPanel .sgwSteps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.masterReferenceAnalysis .sqgPanel .sgwSteps button { width: 100%; display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 12px; border: 1px solid var(--sqg-line); background: var(--sqg-card); color: #8ea3af; font-size: 11px; font-weight: 650; cursor: pointer; text-align: left; min-width: 0; }
+.masterReferenceAnalysis .sqgPanel .sgwSteps button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.masterReferenceAnalysis .sqgPanel .sgwSteps i { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #1a2a37; color: #9fc4d8; }
+.masterReferenceAnalysis .sqgPanel .sgwSteps i svg { width: 13px; height: 13px; }
+.masterReferenceAnalysis .sqgPanel .sgwSteps button[data-on="true"] { background: #12303a; border-color: #3ddc97; color: #fff; }
+.masterReferenceAnalysis .sqgPanel .sgwSteps button[data-on="true"] i { background: #3ddc97; color: #04170f; }
+.masterReferenceAnalysis .sqgPanel .sgwSteps button[data-done] i { background: #1f8f61; color: #04170f; }
+
+.masterReferenceAnalysis .sqgPanel .sgwStep { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.masterReferenceAnalysis .sqgPanel .sgwLabel { margin: 2px 0 -4px; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--sqg-dim); font-weight: 650; }
+
+/* Kais önerisi */
+.masterReferenceAnalysis .sqgPanel .sgwSmart { display: grid; gap: 8px; padding: 10px; border-radius: 14px; background: #0f2a2a; border: 1px solid #1f6f5a; }
+.masterReferenceAnalysis .sqgPanel .sgwSmartHead { display: flex; gap: 9px; align-items: flex-start; }
+.masterReferenceAnalysis .sqgPanel .sgwSmartHead > span { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #3ddc97; color: #04170f; }
+.masterReferenceAnalysis .sqgPanel .sgwSmartHead svg { width: 14px; height: 14px; }
+.masterReferenceAnalysis .sqgPanel .sgwSmartHead b { font-size: 12.5px; }
+.masterReferenceAnalysis .sqgPanel .sgwSmartHead small { display: block; margin-top: 2px; font-size: 11px; line-height: 1.4; color: #a8c9c0; }
+.masterReferenceAnalysis .sqgPanel .sgwSmartBtn { min-height: 36px; border-radius: 10px; border: 1px solid #3ddc97; background: #163f37; color: #d9fff0; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.masterReferenceAnalysis .sqgPanel .sgwSmartBtn svg { width: 13px; height: 13px; }
+.masterReferenceAnalysis .sqgPanel .sgwSmartBtn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Yön seçimi: büyük kartlar */
+.masterReferenceAnalysis .sqgPanel .sgwModes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.masterReferenceAnalysis .sqgPanel .sgwModes button { min-height: 58px; display: grid; place-items: center; align-content: center; gap: 4px; border-radius: 14px; border: 1px solid var(--sqg-line); background: var(--sqg-card); color: #9fb0ba; cursor: pointer; font-size: 12px; }
+.masterReferenceAnalysis .sqgPanel .sgwModes button svg { width: 18px; height: 18px; }
+.masterReferenceAnalysis .sqgPanel .sgwModes button[data-on="true"][data-mode="LONG"] { background: #10392b; border-color: #1f8f61; color: #3ee0a0; }
+.masterReferenceAnalysis .sqgPanel .sgwModes button[data-on="true"][data-mode="SHORT"] { background: #3a1820; border-color: #8f2a3a; color: #ff8d9a; }
+.masterReferenceAnalysis .sqgPanel .sgwModes button[data-on="true"][data-mode="NEUTRAL"] { background: #14283d; border-color: #2c6e8a; color: #9fd0ff; }
+
+/* Büyük canlı aralık önizlemesi */
+.masterReferenceAnalysis .sqgPanel .sqgGrid2 { grid-template-columns: 1fr; gap: 10px; }
+.masterReferenceAnalysis .sqgPanel .sqgFields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.masterReferenceAnalysis .sqgPanel .sqgCount { grid-column: 1 / -1; }
+.masterReferenceAnalysis .sqgPanel .sqgCount > div { height: 44px; border-radius: 12px; }
+.masterReferenceAnalysis .sqgPanel .sqgCount button { width: 52px; font-size: 18px; background: #14283d; }
+.masterReferenceAnalysis .sqgPanel .sqgCount button svg { width: 18px; height: 18px; }
+.masterReferenceAnalysis .sqgPanel .sqgCount output { font-size: 17px; }
+
+/* Teminat ve kaldıraç: hap düğmeler */
+.masterReferenceAnalysis .sqgPanel .sqgParams .sqtParam { display: grid; gap: 6px; }
+.masterReferenceAnalysis .sqgPanel .sqgParams .sqtParam > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.masterReferenceAnalysis .sqgPanel .sqgParams .sqtParam button { min-height: 36px; min-width: 48px; padding: 0 12px; border-radius: 99px; font-weight: 700; }
+.masterReferenceAnalysis .sqgPanel .sqgParams .sqtParam > .sqgLevScroll { flex-wrap: nowrap; }
+.masterReferenceAnalysis .sqgPanel .sqgParams .sqtParam button[data-risk="mid"] { color: #f2c46d; border-color: #6b5520; }
+.masterReferenceAnalysis .sqgPanel .sqgParams .sqtParam button[data-risk="high"] { color: #ff8d9a; border-color: #8f2a3a; background: #2a1419; }
+.masterReferenceAnalysis .sqgPanel .sqgParams .sqtParam button[data-on="true"] { background: #14283d; border-color: #3ddc97; color: #fff; }
+.masterReferenceAnalysis .sqgPanel .sqgParams .sqtParam button[data-risk="high"][data-on="true"] { background: #5a1f2b; border-color: #ff5d73; color: #fff; }
+
+/* Gelişmiş bölüm */
+.masterReferenceAnalysis .sqgPanel .sgwAdv { border-radius: 14px; background: var(--sqg-card); border: 1px solid var(--sqg-line); overflow: hidden; }
+.masterReferenceAnalysis .sqgPanel .sgwAdv summary { list-style: none; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 10px 12px; cursor: pointer; }
+.masterReferenceAnalysis .sqgPanel .sgwAdv summary::-webkit-details-marker { display: none; }
+.masterReferenceAnalysis .sqgPanel .sgwAdv summary span { font-size: 12.5px; font-weight: 700; }
+.masterReferenceAnalysis .sqgPanel .sgwAdv summary small { grid-column: 1; font-size: 10.5px; color: var(--sqg-dim); }
+.masterReferenceAnalysis .sqgPanel .sgwAdv summary svg { grid-column: 2; grid-row: 1 / span 2; width: 16px; height: 16px; color: #8fc1ff; transition: transform .15s; }
+.masterReferenceAnalysis .sqgPanel .sgwAdv[open] summary svg { transform: rotate(180deg); }
+.masterReferenceAnalysis .sqgPanel .sgwAdv .sqgProt { padding: 0 12px 12px; }
+
+/* Risk ölçeri */
+.masterReferenceAnalysis .sqgPanel .sgwMeter { display: grid; gap: 7px; padding: 10px 12px; border-radius: 14px; background: var(--sqg-card); border: 1px solid var(--sgw-tone, var(--sqg-line)); }
+.masterReferenceAnalysis .sqgPanel .sgwMeter[data-tone="low"] { --sgw-tone: #1f8f61; }
+.masterReferenceAnalysis .sqgPanel .sgwMeter[data-tone="mid"] { --sgw-tone: #d19a2e; }
+.masterReferenceAnalysis .sqgPanel .sgwMeter[data-tone="high"] { --sgw-tone: #d6455a; background: #2a1419; }
+.masterReferenceAnalysis .sqgPanel .sgwMeter > div { display: grid; gap: 2px; }
+.masterReferenceAnalysis .sqgPanel .sgwMeter b { font-size: 12px; }
+.masterReferenceAnalysis .sqgPanel .sgwMeter span { font-size: 11px; line-height: 1.4; color: #b4c4cc; }
+.masterReferenceAnalysis .sqgPanel .sgwMeter > i { display: block; height: 7px; border-radius: 99px; background: #1a2a37; overflow: hidden; }
+.masterReferenceAnalysis .sqgPanel .sgwMeter > i u { display: block; height: 100%; border-radius: 99px; background: var(--sgw-tone, #3ddc97); transition: width .25s; }
+
+/* Alt düğmeler */
+.masterReferenceAnalysis .sqgFoot .sgwNext { min-height: 46px; width: 100%; border-radius: 14px; border: 1px solid #3ddc97; background: #163f37; color: #e6fff5; font-size: 13px; font-weight: 700; cursor: pointer; }
+.masterReferenceAnalysis .sqgFoot .sgwNext:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Basılı tut halkası */
+.masterReferenceAnalysis .sqtHold .sqtHoldRing { display: none; }
+.masterReferenceAnalysis .sqgFoot .sqtHold { position: relative; border-radius: 14px; }
+.masterReferenceAnalysis .sqgFoot .sqtHold .sqtHoldRing { display: block; position: absolute; right: 10px; top: 50%; width: 28px; height: 28px; margin-top: -14px; transform: rotate(-90deg); pointer-events: none; }
+.masterReferenceAnalysis .sqgFoot .sqtHold .sqtHoldRing circle { fill: none; stroke: #fff; stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; opacity: .9; }
+.masterReferenceAnalysis .sqgFoot .sqtHold[data-holding="true"] .sqtHoldRing circle { stroke-dashoffset: 0; transition: stroke-dashoffset var(--sqt-hold, 1s) linear; }
+@media (prefers-reduced-motion: reduce) { .masterReferenceAnalysis .sqgPanel .sgwMeter > i u, .masterReferenceAnalysis .sqgPanel .sgwAdv summary svg { transition: none; } }
