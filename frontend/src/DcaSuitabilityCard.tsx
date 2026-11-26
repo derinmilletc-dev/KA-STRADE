@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {API_BASE} from './api'
 import {fetchWithTimeout} from '../../master-trade-request'
 import {currentLang} from '../../i18n'
@@ -94,4 +94,48 @@ export default function DcaSuitabilityCard({symbol, side, price, stepPct, safety
     {body}
     <p className="dsNote">{t.note}</p>
   </div>
+}
+
+// ---- Coin listesi için hafif uygunluk etiketi: yalnız görünen birkaç coin için (önbellekli, 60 sn), Dengeli plan varsayımıyla.
+export type SuitChip = {score: number; level: 'good' | 'caution' | 'poor'}
+const CHIP_CACHE = new Map<string, {at: number; frames: Frames}>()
+const CHIP_TTL = 60_000
+
+export function useDcaSuitMap(items: Array<{symbol: string; price: number}>, side: 'LONG' | 'SHORT', enabled: boolean): Record<string, SuitChip | null> {
+  const [tick, setTick] = useState(0)
+  const key = items.map(item => item.symbol).join(',')
+  const live = useRef(true)
+  useEffect(() => { live.current = true; return () => { live.current = false } }, [])
+  useEffect(() => {
+    if (!enabled || !items.length) return
+    let cancelled = false
+    const queue = items.filter(item => { const hit = CHIP_CACHE.get(item.symbol); return !hit || Date.now() - hit.at > CHIP_TTL })
+    const worker = async () => {
+      for (let item = queue.shift(); item && !cancelled; item = queue.shift()) {
+        try {
+          const get = async (interval: string, limit: number) => {
+            const response = await fetchWithTimeout(`${API_BASE}/klines/${encodeURIComponent(item!.symbol)}?interval=${interval}&limit=${limit}`, {cache: 'no-store'})
+            if (!response.ok) throw new Error('klines')
+            return parse(await response.json())
+          }
+          const [c15, c1h, c4h] = await Promise.all([get('15m', 120), get('1h', 150), get('4h', 100)])
+          CHIP_CACHE.set(item.symbol, {at: Date.now(), frames: {symbol: item.symbol, c15, c1h, c4h}})
+          if (!cancelled && live.current) setTick(n => n + 1)
+        } catch { /* bu coin için etiket gösterilmez */ }
+      }
+    }
+    void Promise.all([worker(), worker()])
+    return () => { cancelled = true }
+  }, [key, enabled])
+  return useMemo(() => {
+    const out: Record<string, SuitChip | null> = {}
+    for (const item of items) {
+      const hit = CHIP_CACHE.get(item.symbol)
+      if (!hit || !(item.price > 0)) { out[item.symbol] = null; continue }
+      const r = computeDcaSuitability({side, price: item.price, stepPct: 1.5, safetyOrders: 3, stopGapPct: 1.5, c15: hit.frames.c15, c1h: hit.frames.c1h, c4h: hit.frames.c4h})
+      out[item.symbol] = r.ok ? {score: r.score, level: r.level} : null
+    }
+    return out
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, side, tick])
 }

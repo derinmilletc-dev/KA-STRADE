@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {BarChart3} from 'lucide-react'
 import DcaWatch from './DcaWatch'
-import DcaSuitabilityCard from './DcaSuitabilityCard'
+import DcaSuitabilityCard, {useDcaSuitMap} from './DcaSuitabilityCard'
 import {computeDca, DCA_LIMITS, DCA_PRESETS, fitToCap, LOSS_HEADROOM, planFit, type DcaPreset, type DcaPresetForm, type DcaResult, type DcaSide} from './dcaMath'
 import {goPositions} from '../../trade-intent'
 import CoinAnalysisSheet, {type AnalysisRow} from './CoinAnalysisSheet'
@@ -157,7 +157,7 @@ function scenarioAt(result: DcaResult, price: number, side: DcaSide, scrub: numb
   return {at, count: filled.length, avg: top.avgEntry, tp: top.tpPrice, qty: top.cumQty, pnl, atStop: scrub >= 0.999}
 }
 
-type ScanItem = {symbol: string; display: string; price: number; change: number; total: number; fixed: boolean; idx: number}
+type ScanItem = {symbol: string; display: string; price: number; change: number; total: number; worst: number; fixed: boolean; idx: number}
 const FILTER_CACHE = new Map<string, {tickSize: number; stepSize: number; minNotional: number}>()
 const fitLabel = (state: 'ok' | 'fix' | 'no') => state === 'ok' ? 'Sana uygun' : state === 'fix' ? 'Küçültülerek uygun' : 'Bu coinde uygun değil'
 
@@ -311,6 +311,7 @@ export default function DcaPanel(props: DcaPanelProps) {
     if (choice) { autoRef.current = key; choosePlan(choice) }
   }, [step, ready, presetId, presetPlans])
 
+  const worstOf = (trial: ReturnType<typeof inputOf>, margin: number | null) => { const r = computeDca({...trial, baseMargin: margin ?? trial.baseMargin}); return r.valid ? r.worstLoss : 0 }
   // Uygun coin tarayıcı: açılınca kendiliğinden çalışır; en hacimli coinlerin borsa kurallarını okur, Dengeli planı gerçek hesapla dener.
   const [scan, setScan] = useState<{state: 'idle' | 'busy' | 'done'; checked: number; total: number; items: ScanItem[]}>({state: 'idle', checked: 0, total: 0, items: []})
   const scanToken = useRef(0)
@@ -331,8 +332,8 @@ export default function DcaPanel(props: DcaPanelProps) {
           const f = await readFilters(coin.symbol)
           const trial = inputOf(DCA_PRESETS[1].form, {price: coin.price, filters: f})
           const fit = planFit(trial, cap, lossCap)
-          if (fit.state === 'ok' && fit.total) found.push({symbol: coin.symbol, display: coin.display || coin.symbol, price: coin.price, change: Number((coin as any).change ?? NaN), total: fit.total, fixed: false, idx})
-          else if (fit.state === 'over-cap') { const fix = fitToCap(trial, cap, lossCap); if (fix) found.push({symbol: coin.symbol, display: coin.display || coin.symbol, price: coin.price, change: Number((coin as any).change ?? NaN), total: fix.total, fixed: true, idx}) }
+          if (fit.state === 'ok' && fit.total) found.push({symbol: coin.symbol, display: coin.display || coin.symbol, price: coin.price, change: Number((coin as any).change ?? NaN), total: fit.total, worst: worstOf(trial, fit.margin), fixed: false, idx})
+          else if (fit.state === 'over-cap') { const fix = fitToCap(trial, cap, lossCap); if (fix) found.push({symbol: coin.symbol, display: coin.display || coin.symbol, price: coin.price, change: Number((coin as any).change ?? NaN), total: fix.total, worst: worstOf({...trial, safetyOrders: fix.safety, volumeMultiplier: fix.volume}, fix.margin), fixed: true, idx}) }
         } catch { /* bu coin atlanır */ }
         checked += 1
         if (token === scanToken.current) setScan({state: 'busy', checked, total: pool.length, items: [...found]})
@@ -358,6 +359,8 @@ export default function DcaPanel(props: DcaPanelProps) {
   }
   const suggestions = useMemo(() => rankScan(6), [scan.items, signals, side])
   const extraPool = useMemo(() => rankScan(12), [scan.items, signals, side])
+  const suitMap = useDcaSuitMap(suggestions.map(item => ({symbol: item.symbol, price: item.price})), side, step === 1 && !query)
+  const suitLabel = (chip: {score: number; level: 'good' | 'caution' | 'poor'} | null | undefined) => chip ? <span className="dkChip" data-level={chip.level} title="DCA uygunluğu">{chip.level === 'good' ? 'Uygun' : chip.level === 'caution' ? 'Dikkat' : 'Riskli'} {chip.score}</span> : null
   const known = new Map(scan.items.map(item => [item.symbol, item]))
   const q = query.trim().toUpperCase().replace('/', '')
   const searchRows = q ? coins.filter(coin => coin.symbol.includes(q) || String(coin.display || '').toUpperCase().replace('/', '').includes(q)).slice(0, 6) : []
@@ -374,7 +377,18 @@ export default function DcaPanel(props: DcaPanelProps) {
     setExtraNote('')
     setExtras(rest.map(item => item.symbol).slice(0, Math.max(0, MAX_BOTS - activeCount - 1)))
   }
-  const pickSide = (next: DcaSide) => { onPickSide?.(next); setPresetId(''); autoRef.current = '' }
+  // Çoklu seçim (en fazla boş bot yeri kadar): satırdaki daireye dokununca seçilir, alttaki şeritten "Devam" ile plan adımına geçilir.
+  const [picks, setPicks] = useState<string[]>([])
+  const togglePick = (sym: string) => setPicks(current => current.includes(sym) ? current.filter(x => x !== sym) : current.length >= Math.max(1, MAX_BOTS - activeCount) ? current : [...current, sym])
+  const goPicks = () => {
+    const [first, ...rest] = picks
+    if (!first) return
+    pickCoin(first)
+    setExtraNote('')
+    setExtras(rest.slice(0, Math.max(0, MAX_BOTS - activeCount - 1)))
+    setPicks([])
+  }
+  const pickSide = (next: DcaSide) => { onPickSide?.(next); setPicks([]); setPresetId(''); autoRef.current = '' }
 
   const smartAvail = status?.smart_entry_enabled === true
   const trailAvail = status?.trailing_enabled === true && num(form.tp) >= 0.4
@@ -564,11 +578,20 @@ export default function DcaPanel(props: DcaPanelProps) {
           <button type="button" role="radio" aria-checked={!dir} data-on={!dir || undefined} data-side="short" onClick={() => pickSide('SHORT')}><b>SHORT</b><small>Düşecek diye düşünüyorum</small></button>
         </div>
 
-        {!query && top3.length >= 2 && <div className="dwKais" data-testid="dca-kais-top">
-          <div><small>KAİS ÖNERİSİ</small><b>{dir ? 'LONG' : 'SHORT'} için şu an en uygun {top3.length} coin</b></div>
-          <ul>{top3.map(item => <li key={item.symbol}><b>{(item.display || item.symbol).replace('/USDT', '')}</b>{signals?.[item.symbol] && signals[item.symbol].lean === side ? <em>AI %{Math.round(signals[item.symbol].confidence)}</em> : Number.isFinite(item.change) ? <em className={item.change >= 0 ? 'up' : 'down'}>{item.change >= 0 ? '+' : ''}{item.change.toFixed(1)}%</em> : null}</li>)}</ul>
-          <button type="button" onClick={pickTop3}>{Math.min(top3.length, 1 + Math.max(0, MAX_BOTS - activeCount - 1))} tanesini birlikte kur</button>
-          <small>Aynı plan her coinde ayrı bot olarak çalışır. Bir sonraki ekranda kontrol edip başlatırsın.</small>
+        {!query && top3.length >= 2 && <div className="dwKais dk" data-testid="dca-kais-top">
+          <div className="dkHead"><small>KAİS ÖNERİSİ</small><b>{dir ? 'LONG' : 'SHORT'} için şu an en uygun {top3.length} coin</b></div>
+          <div className="dkGrid">{top3.map(item => {
+            const sig = signals?.[item.symbol]
+            const on = picks.includes(item.symbol)
+            return <button type="button" key={item.symbol} className="dkCard" data-on={on || undefined} aria-pressed={on} onClick={() => togglePick(item.symbol)}>
+              <i className="dkTick" aria-hidden="true">{on ? '✓' : ''}</i>
+              <b>{(item.display || item.symbol).replace('/USDT', '')}</b>
+              {sig && sig.lean === side ? <em>AI %{Math.round(sig.confidence)}</em> : Number.isFinite(item.change) ? <em className={item.change >= 0 ? 'up' : 'down'}>{item.change >= 0 ? '+' : ''}{item.change.toFixed(1)}%</em> : null}
+              {suitLabel(suitMap[item.symbol])}
+            </button>
+          })}</div>
+          <button type="button" className="dkQuick" onClick={pickTop3}>{Math.min(top3.length, 1 + Math.max(0, MAX_BOTS - activeCount - 1))} tanesini birlikte kur</button>
+          <small>Kartlara dokunarak kendi seçimini yapabilirsin. Aynı plan her coinde ayrı bot olarak çalışır; bir sonraki ekranda kontrol edip başlatırsın.</small>
         </div>}
         <div className="dwSecHead"><b>{dir ? 'LONG' : 'SHORT'} için sana uygun coinler</b>
           <small>{scan.state === 'busy' ? `Taranıyor ${scan.checked}/${scan.total}` : scan.state === 'done' ? `${scan.items.length} uygun coin bulundu` : ''}</small></div>
@@ -579,12 +602,14 @@ export default function DcaPanel(props: DcaPanelProps) {
         {scan.state === 'busy' && suggestions.length === 0 && !query && <ul className="dwCoins" aria-hidden="true">{[0, 1, 2].map(i => <li key={i} className="dwSkel"/>)}</ul>}
         {!query && suggestions.length > 0 && <ul className="dwCoins dwScroll" data-testid="dca-suggestions">{suggestions.map(item => {
           const sig = signals?.[item.symbol]
-          return <li key={item.symbol} className="dwAnaLi"><button type="button" onClick={() => pickCoin(item.symbol)}>
+          const on = picks.includes(item.symbol)
+          return <li key={item.symbol} className="dwAnaLi" data-picked={on || undefined}><button type="button" className="dkPick" role="checkbox" aria-checked={on} aria-label={`${item.display} seç`} onClick={() => togglePick(item.symbol)}><i>{on ? '✓' : ''}</i></button><button type="button" onClick={() => pickCoin(item.symbol)}>
             <span className="dwCoinMain"><b>{item.display}</b><small>{fmtPrice(item.price)}{Number.isFinite(item.change) ? <em className={item.change >= 0 ? 'up' : 'down'}> {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)}%</em> : null}</small></span>
             <span className="dwCoinSide">
               {sig && sig.lean !== 'NEUTRAL' && !item.against && <span className="dwBadge ok">AI {side} %{Math.round(sig.confidence)}</span>}
               {item.against && <span className="dwBadge warn">AI ters yön</span>}
               {!item.against && !(sig && sig.lean !== 'NEUTRAL') && <span className="dwBadge mute">{sig ? 'AI nötr' : 'AI sinyali yok'}</span>}
+              {suitLabel(suitMap[item.symbol])}
               <span className="dwFit">≈{fmtUsd(item.total)}</span>
             </span>
           </button>{sig && <button type="button" className="dwAnaBtn" aria-label={`${item.display} analizini aç`} onClick={() => setAnaSym(item.symbol)}><BarChart3 aria-hidden="true"/></button>}</li>
@@ -598,6 +623,22 @@ export default function DcaPanel(props: DcaPanelProps) {
           </button>{signals?.[coin.symbol] && <button type="button" className="dwAnaBtn" aria-label={`${coin.display || coin.symbol} analizini aç`} onClick={() => setAnaSym(coin.symbol)}><BarChart3 aria-hidden="true"/></button>}</li>
         })}{searchRows.length === 0 && <li className="dwEmpty">Sonuç yok.</li>}</ul>}
         <CoinAnalysisSheet rows={anaRows} symbol={anaSym} signals={signals} onClose={() => setAnaSym(null)} onOpen={setAnaSym} onPick={pickCoin}/>
+        {picks.length > 0 && (() => {
+          const chosen = picks.map(sym => known.get(sym)).filter((item): item is ScanItem => Boolean(item))
+          const sumTotal = chosen.reduce((sum, item) => sum + item.total, 0), sumWorst = chosen.reduce((sum, item) => sum + item.worst, 0)
+          const left = Number(rl?.daily_loss_left ?? rl?.daily_loss_limit)
+          const fits = !(left > 0) || sumWorst <= left * LOSS_HEADROOM + 1e-9
+          return <div className="dkBar" role="region" aria-label="Seçili coinler" data-testid="dca-pick-bar">
+            <div className="dkBarTop"><b>{picks.length} coin seçili</b><button type="button" className="dkClear" onClick={() => setPicks([])}>Temizle</button></div>
+            <div className="dkBarNums">
+              <span><small>Toplam marjin</small><b>{fmtUsd(sumTotal)}</b></span>
+              <span><small>Hepsinde stop olursa</small><b className="down">{fmtUsd(-sumWorst)}</b></span>
+              <span><small>Kalan zarar hakkın</small><b>{left > 0 ? fmtUsd(left) : '—'}</b></span>
+            </div>
+            <p className="dkBarNote" data-ok={fits ? '1' : '0'} role="status">{fits ? '✓ Zarar hakkına sığıyor.' : 'Zarar hakkına sığmıyor; bir sonraki ekranda plan hakkına göre küçültülür.'}</p>
+            <button type="button" className="dkGo" onClick={goPicks}>Devam · plan adımı</button>
+          </div>
+        })()}
       </div>}
 
       {step === 2 && <div className="dwPane" data-testid="dca-step-2">

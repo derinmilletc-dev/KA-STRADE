@@ -570,3 +570,32 @@
 .dsWarn{margin:0;padding:10px 12px 10px 26px;border-radius:12px;background:#2a2410;border:1px solid #5a4a1a;color:#e9d9a0;font-size:12.5px;display:grid;gap:4px}
 .dsNote{margin:0;color:#7d8da0;font-size:11.5px;line-height:1.45}
 .dsBar u[data-tone="mid"]{background:linear-gradient(90deg,#d99a1f,#f5c04a)}.dsBar u[data-tone="low"]{background:linear-gradient(90deg,#d94b4b,#ff6b6b)}
+
+/* DCA coin seçimi: modern kartlar, çoklu seçim, sabit özet şeridi */
+#root .dca .dwKais.dk{display:grid;gap:12px;padding:16px;border-radius:22px;background:linear-gradient(160deg,rgba(61,220,151,.10),rgba(14,26,42,.9) 60%);border:1px solid rgba(61,220,151,.22)}
+.dkHead{display:grid;gap:3px}.dkHead small{font-size:11px;letter-spacing:.09em;color:#7fe0b8;font-weight:750}.dkHead b{font-size:16px}
+.dkGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+#root .dca .dkCard{position:relative;display:grid;gap:4px;justify-items:center;align-content:center;min-height:96px;padding:12px 6px 10px;border-radius:16px;background:#0d1a2a;border:2px solid rgba(255,255,255,.07);color:#e8eef6;text-align:center;transition:border-color .15s,background .15s,transform .1s}
+#root .dca .dkCard:active{transform:scale(.97)}
+#root .dca .dkCard[data-on]{border-color:#3ddc97;background:linear-gradient(160deg,rgba(61,220,151,.16),#0d1a2a)}
+#root .dca .dkCard b{font-size:16px}#root .dca .dkCard em{font-style:normal;font-size:13px;font-weight:750;color:#3ddc97}
+#root .dca .dkCard em.down{color:#ff8a8a}
+.dkTick{position:absolute;top:7px;right:7px;width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.18);display:grid;place-items:center;font:800 12px/1 system-ui;color:#06231a;font-style:normal}
+.dkCard[data-on] .dkTick{background:#3ddc97;border-color:#3ddc97}
+.dkChip{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:750;background:rgba(61,220,151,.14);color:#3ddc97}
+.dkChip[data-level="caution"]{background:rgba(245,192,74,.14);color:#f5c04a}.dkChip[data-level="poor"]{background:rgba(255,107,107,.14);color:#ff8a8a}
+#root .dca .dkQuick{min-height:46px;border-radius:14px;border:0;background:#3ddc97;color:#06231a;font-weight:800;font-size:14.5px}
+#root .dca .dwCoins li.dwAnaLi>button.dkPick{flex:none;width:44px;min-width:44px;height:44px;padding:0;display:grid;place-items:center;border-radius:14px}
+.dkPick i{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.2);display:grid;place-items:center;font:800 13px/1 system-ui;color:#06231a;font-style:normal}
+.dwAnaLi[data-picked] .dkPick i{background:#3ddc97;border-color:#3ddc97}
+#root .dca .dwCoins li.dwAnaLi>button:nth-child(2){flex:1 1 0;width:auto;min-width:0}
+#root .dca .dwCoins li.dwAnaLi[data-picked]>button:nth-child(2){border-color:rgba(61,220,151,.5)}
+#root .dca .dwCoinSide{flex-wrap:wrap;justify-content:flex-end;gap:4px 6px}
+.dkBar{position:sticky;bottom:10px;z-index:20;display:grid;gap:9px;margin:14px 0 4px;padding:14px;border-radius:20px;background:rgba(10,18,30,.96);border:1px solid rgba(61,220,151,.35);box-shadow:0 10px 30px rgba(0,0,0,.45);backdrop-filter:blur(10px)}
+.dkBarTop{display:flex;justify-content:space-between;align-items:center}.dkBarTop b{font-size:15px}
+.dkClear{border:0;background:none;color:#8ea0b4;font-size:12.5px;padding:4px 6px}
+.dkBarNums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dkBarNums span{display:grid;gap:2px;padding:8px 9px;border-radius:12px;background:#101d2e}
+.dkBarNums small{font-size:10.5px;color:#8ea0b4;line-height:1.2}.dkBarNums b{font-size:14px}
+.dkBarNote{margin:0;font-size:12.5px;color:#3ddc97}.dkBarNote[data-ok="0"]{color:#f5c04a}
+#root .dca .dkGo{min-height:50px;border-radius:15px;border:0;background:linear-gradient(135deg,#3ddc97,#2fbf86);color:#06231a;font-weight:850;font-size:15.5px}
