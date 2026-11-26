@@ -1554,3 +1554,10 @@ html body #root .authPageLogin .authCardLogin .authAltActions .authAltBtn:active
 #root .authCardRegister .authCardLead { margin-bottom:14px!important; }
 #root .authCardRegister .authRegisterLinks { flex-direction:column; }
 #root .authCardRegister { position:relative; }
+
+/* Bayraklar yuvarlak yerine ince yuvarlatılmış dikdörtgen: tam görünür */
+#root .authCardRegister .authLangField .langPickerFlag { width:24px!important; min-width:24px!important; height:16px!important; border-radius:3px!important; box-shadow:0 0 0 1px rgba(255,255,255,.18)!important; }
+#root .authCardRegister .authLangField .langPickerList .langPickerFlag { width:28px!important; min-width:28px!important; height:19px!important; }
+#root .authCardRegister .authLangField .langPickerFlag svg { border-radius:3px; }
+#root .authCardRegister .authLangField .langPickerBadge { width:24px!important; min-width:24px!important; height:16px!important; border-radius:3px!important; font-size:9px!important; }
+#root .authCardRegister .authLangField .langPickerList button.on .langPickerFlag { box-shadow:0 0 0 1px rgba(100,227,161,.7)!important; }
