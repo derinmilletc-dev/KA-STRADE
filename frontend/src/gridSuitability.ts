@@ -76,7 +76,7 @@ export function atrPct(candles: readonly SuitCandle[], period = 14): number | nu
   return last > 0 && Number.isFinite(prev) ? prev / last * 100 : null
 }
 
-function emaLast(values: readonly number[], period: number): number | null {
+export function emaLast(values: readonly number[], period: number): number | null {
   if (values.length < period) return null
   const k = 2 / (period + 1)
   let e = values.slice(0, period).reduce((s, v) => s + v, 0) / period
@@ -193,4 +193,126 @@ export function computeSuitability(input: SuitInput, lang: SuitLang = 'tr'): Sui
     adx1h: a1, adx4h: a4, expectedMovePct: expected, rangePct,
     headline: t.h[level], detail: `${t.regime[reg.regime]} ${t.pos[pos.pos]}`, warnings
   }
+}
+
+// ======================================================================
+// DCA uygunluk puanı (Grid'den ayrı). Soru: "Seçtiğim yönde fiyat ters devam ederse bu DCA yapısı bunu kaldırır mı?"
+// Ağırlık: trend/yön uyumu %40, oynaklık-ek alım mesafesi %25, toparlanma yapısı %20, fiyatın aşırı uzaması %15.
+// SAF fonksiyonlar, ağ/emir yok; AI yön puanıyla karıştırılmaz.
+export type DcaSuitLevel = 'good' | 'caution' | 'poor'
+export type DcaSuitInput = {
+  side: 'LONG' | 'SHORT'
+  price: number
+  stepPct: number          // ek emirler arası aralık (%)
+  safetyOrders: number
+  stopGapPct: number       // son ek emrin ötesindeki stop mesafesi (%)
+  c15: readonly SuitCandle[]
+  c1h: readonly SuitCandle[]
+  c4h: readonly SuitCandle[]
+  now?: number             // saniye; verilmezse şimdiki zaman (veri tazeliği)
+}
+export type DcaSuitResult = {
+  ok: boolean
+  score: number
+  level: DcaSuitLevel
+  parts: {trend: number; vol: number; recovery: number; stretch: number}
+  trend: 'with' | 'flat' | 'against' | 'strongAgainst'
+  volState: 'calm' | 'ok' | 'fast' | 'wild'
+  stretch: 'normal' | 'high' | 'extreme'
+  recovery: 'yes' | 'partial' | 'no'
+  spanPct: number
+  expectedMovePct: number | null
+  headline: string
+  detail: string
+  warnings: string[]
+}
+
+
+const DT = {
+  tr: {
+    h: {good: 'DCA için koşullar uygun', caution: 'DCA için koşullar orta', poor: 'DCA koşulları şu an uygun değil'},
+    trend: {with: 'Trend senin yönünde.', flat: 'Piyasa yatay, ters güçlü trend yok.', against: 'Trend senin yönüne ters.', strongAgainst: 'Güçlü trend senin yönüne ters.'},
+    warnAgainst: (side: string) => `${side} DCA seçtin ama güçlü trend ters yönde; ek alımlar zararı büyütebilir.`,
+    warnVol: 'Oynaklık ek alım aralığına göre yüksek; ek alımlar hızla biter, stop yaklaşır.',
+    warnStretch: 'Fiyat son hareketinde aşırı uzamış; tepeden/dipten başlama riski var.',
+    warnRec: 'Toparlanma işareti yok; fiyat hâlâ yeni dip/tepe yapıyor.',
+    noData: 'Piyasa verisi okunamadı; puan hesaplanamadı.', stale: 'Piyasa verisi gecikmiş; güvenilir puan gösterilemiyor.'
+  },
+  en: {
+    h: {good: 'Conditions suit a DCA', caution: 'DCA conditions are moderate', poor: 'DCA conditions are unfavorable right now'},
+    trend: {with: 'Trend is with your direction.', flat: 'Market is flat, no strong opposing trend.', against: 'Trend leans against your direction.', strongAgainst: 'A strong trend runs against your direction.'},
+    warnAgainst: (side: string) => `You chose ${side} DCA but a strong trend runs the other way; extra buys can deepen the loss.`,
+    warnVol: 'Volatility is high for this step size; safety orders may run out fast and the stop gets close.',
+    warnStretch: 'Price looks overextended after its recent move; risk of starting at a top/bottom.',
+    warnRec: 'No sign of recovery; price is still making new lows/highs.',
+    noData: 'Market data could not be read; score unavailable.', stale: 'Market data is stale; a reliable score cannot be shown.'
+  }
+} as const
+
+export function computeDcaSuitability(input: DcaSuitInput, lang: SuitLang = 'tr'): DcaSuitResult {
+  const t = DT[lang]
+  const spanPct = input.stepPct * input.safetyOrders + input.stopGapPct
+  const empty: DcaSuitResult = {ok: false, score: 0, level: 'poor', parts: {trend: 0, vol: 0, recovery: 0, stretch: 0}, trend: 'flat', volState: 'ok', stretch: 'normal', recovery: 'partial', spanPct, expectedMovePct: null, headline: t.noData, detail: '', warnings: []}
+  if (!(input.price > 0) || !(input.stepPct > 0) || input.c15.length < SUIT_MIN_CANDLES || input.c1h.length < SUIT_MIN_CANDLES || input.c4h.length < 30) return empty
+  const now = input.now ?? Date.now() / 1000
+  const last = (l: readonly SuitCandle[]) => l[l.length - 1].time
+  if (now - last(input.c15) > 15 * 60 * 3 || now - last(input.c1h) > 3600 * 3 || now - last(input.c4h) > 4 * 3600 * 3) return {...empty, headline: t.stale}
+
+  const dir = input.side === 'LONG' ? 1 : -1
+  // 1) Trend / yön uyumu (%40): 4sa %45, 1sa %35, 15dk %20; yön ters ve ADX yüksekse sert düşer.
+  const al = trendSign(input.c4h) * 0.45 * dir + trendSign(input.c1h) * 0.35 * dir + trendSign(input.c15) * 0.2 * dir   // -1..+1
+  const a1 = adx(input.c1h), a4 = adx(input.c4h)
+  const adxAvg = [a1, a4].filter((v): v is number => v !== null).reduce((s, v, _, arr) => s + v / arr.length, 0)
+  const k = 0.5 + 0.5 * clamp((adxAvg - 15) / 20, 0, 1)
+  const trendScore = al >= 0 ? 70 + 30 * al : 70 + 70 * al * k
+  const trend = al > 0.3 ? 'with' : al >= -0.3 ? 'flat' : adxAvg >= 25 && al <= -0.55 ? 'strongAgainst' : 'against'
+
+  // 2) Oynaklık / ek alım mesafesi (%25): beklenen günlük hareket, tüm DCA aralığına (ek alımlar + stop) göre.
+  const hourAtr = atrPct(input.c1h), qAtr = atrPct(input.c15)
+  const expected = hourAtr === null ? null : hourAtr * Math.sqrt(24)
+  let volScore = 60
+  if (expected !== null && spanPct > 0) {
+    const r = expected / spanPct
+    volScore = r < 0.35 ? 100 : r < 0.7 ? lerp(r, 0.35, 0.7, 100, 70) : r < 1.2 ? lerp(r, 0.7, 1.2, 70, 30) : lerp(r, 1.2, 2.2, 30, 0)
+    if (qAtr !== null && qAtr > input.stepPct) volScore -= 15   // tek 15dk mum bile ek alım aralığından büyük
+  }
+  volScore = clamp(volScore)
+  const volState = volScore >= 80 ? 'calm' : volScore >= 55 ? 'ok' : volScore >= 30 ? 'fast' : 'wild'
+
+  // 3) Fiyatın aşırı uzaması (%15): seçilen yönde 1sa EMA20'den kaç ATR uzakta + 24 saatlik hareket.
+  const ema20 = emaLast(input.c1h.map(c => c.close), 20)
+  let stretchScore = 100
+  if (ema20 !== null && hourAtr !== null && hourAtr > 0) {
+    const ext = ((input.price - ema20) / ema20 * 100 * dir) / hourAtr   // ATR cinsinden, yönümüzde
+    stretchScore = ext <= 1.5 ? 100 : ext < 3.5 ? lerp(ext, 1.5, 3.5, 100, 20) : lerp(ext, 3.5, 5, 20, 0)
+  }
+  const h24 = input.c1h.slice(-25)
+  const move24 = h24.length >= 25 && h24[0].close > 0 ? (h24[h24.length - 1].close - h24[0].close) / h24[0].close * 100 * dir : null
+  if (move24 !== null && move24 > 8) stretchScore *= 0.6
+  stretchScore = clamp(stretchScore)
+  const stretch = stretchScore >= 70 ? 'normal' : stretchScore >= 35 ? 'high' : 'extreme'
+
+  // 4) Toparlanma yapısı (%20): 15dk yönümüze dönmüş mü, kapanış EMA21 üstünde/altında mı, yükselen dip / alçalan tepe var mı, yeni dip/tepe yok mu.
+  const c15 = input.c15, closes15 = c15.map(c => c.close)
+  const e21 = emaLast(closes15, 21)
+  let rec = 0
+  if (trendSign(c15) * dir > 0) rec += 35
+  if (e21 !== null && (c15[c15.length - 1].close - e21) * dir > 0) rec += 30
+  const recent = c15.slice(-8), before = c15.slice(-16, -8)
+  const higherLow = dir > 0 ? Math.min(...recent.map(c => c.low)) > Math.min(...before.map(c => c.low)) : Math.max(...recent.map(c => c.high)) < Math.max(...before.map(c => c.high))
+  if (higherLow) rec += 35
+  const win = c15.slice(-24)
+  const freshExtreme = dir > 0 ? c15[c15.length - 1].low <= Math.min(...win.map(c => c.low)) * 1.0005 : c15[c15.length - 1].high >= Math.max(...win.map(c => c.high)) * 0.9995
+  if (freshExtreme) rec *= 0.5
+  const recScore = clamp(rec)
+  const recovery = recScore >= 65 ? 'yes' : recScore >= 35 ? 'partial' : 'no'
+
+  const score = Math.round(clamp(trendScore * 0.4 + volScore * 0.25 + recScore * 0.2 + stretchScore * 0.15))
+  const level: DcaSuitLevel = score >= 70 ? 'good' : score >= 45 ? 'caution' : 'poor'
+  const warnings: string[] = []
+  if (trend === 'strongAgainst' || trend === 'against') warnings.push(t.warnAgainst(input.side))
+  if (volState === 'fast' || volState === 'wild') warnings.push(t.warnVol)
+  if (stretch !== 'normal') warnings.push(t.warnStretch)
+  if (recovery === 'no' && trend !== 'with') warnings.push(t.warnRec)
+  return {ok: true, score, level, parts: {trend: Math.round(clamp(trendScore)), vol: Math.round(volScore), recovery: Math.round(recScore), stretch: Math.round(stretchScore)}, trend, volState, stretch, recovery, spanPct, expectedMovePct: expected, headline: t.h[level], detail: t.trend[trend], warnings}
 }

@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {BarChart3} from 'lucide-react'
 import DcaWatch from './DcaWatch'
+import DcaSuitabilityCard from './DcaSuitabilityCard'
 import {computeDca, DCA_LIMITS, DCA_PRESETS, fitToCap, LOSS_HEADROOM, planFit, type DcaPreset, type DcaPresetForm, type DcaResult, type DcaSide} from './dcaMath'
 import {goPositions} from '../../trade-intent'
 import CoinAnalysisSheet, {type AnalysisRow} from './CoinAnalysisSheet'
@@ -603,6 +604,7 @@ export default function DcaPanel(props: DcaPanelProps) {
         <button type="button" className="dwSummary" onClick={() => setStep(1)}><b>{display}</b><span className={dir ? 'up' : 'down'}>{side}</span><span>{fmtPrice(price)} USDT</span><em>Değiştir</em></button>
         <h3 className="dwH">Ne kadar risk?</h3>
         <p className="dwLead">Sürgüyü kaydır, gerisini bot ayarlar. Her planda stop var.</p>
+        <DcaSuitabilityCard symbol={symbol} side={side} price={price} stepPct={num(form.step)} safetyOrders={form.safety} stopGapPct={num(form.gap)} aiConfidence={signals?.[symbol]?.confidence ?? null} aiAgrees={signals?.[symbol]?.lean === side}/>
         {!ready && <p className="dwHint">{filtersError || 'Borsa kuralları okunuyor…'}</p>}
         {ready && presetPlans.every(plan => plan.state === 'no') && <div className="dwWarn" data-testid="dca-advice">
           <b>{display} bu limitle çalışmaz</b>
