@@ -121,35 +121,25 @@ def _clean(value: str, limit: int) -> str:
     return re.sub(r"[\x00-\x1f\x7f]", " ", str(value or "")).strip()[:limit]
 
 
-REGISTRATION_CLOSED_MESSAGE = ("KaisTrade yalnızca davetle üye kabul ediyor. Yeni hesap için geçerli, sana özel bir davet gerekir; "
-                               "davetin yoksa kaistrade.com adresinden üyelik başvurusu yapabilirsin.")
+REGISTRATION_CLOSED_MESSAGE = "Yeni üye kaydı şu an geçici olarak kapalı. Lütfen daha sonra tekrar dene."
 
 
 async def registration_allowed(request: Request, email: str | None = None, invite_token: str | None = None) -> bool:
-    """Yeni hesap yalnız geçerli davetle açılır (KaisTrade kapalı üyelik).
+    """Yeni hesap açma: varsayılan HERKESE AÇIK (başvurusuz kayıt).
 
-    - FOUNDING_REGISTRATION=open|closed ortam değişkeni her şeyi ezer (acil durum / yerel geliştirme).
-    - Yönetici 'herkese açık kayıt' anahtarı (founding_settings.registration_open) açıksa izin verilir.
-    - Aksi halde: e-postaya bağlı, süresi dolmamış, kullanılmamış bir davet gerekir. Parola kaydında davet
-      bağlantısındaki belirteç de eşleşmelidir; Google kaydında doğrulanmış Google e-postası davet e-postası olmalıdır.
-    Veritabanı yoksa (yerel geliştirme) açık kalır. Mevcut hesapların girişi etkilenmez.
+    - FOUNDING_REGISTRATION=closed ortam değişkeni kaydı yeniden kapatır (acil durum): o zaman yalnız e-postaya bağlı,
+      süresi dolmamış, kullanılmamış bir davetle (parola kaydında bağlantıdaki belirteç de eşleşmeli) hesap açılır.
+    - Ortam değişkeni yoksa ya da 'open' ise herkes kayıt olabilir. Mevcut hesapların girişi etkilenmez.
     """
     forced = os.getenv("FOUNDING_REGISTRATION", "").strip().lower()
-    if forced in {"open", "closed"}:
-        return forced == "open"
-    pool = getattr(request.app.state, "db_pool", None)
-    if pool is None:
+    if forced != "closed":
         return True
+    pool = getattr(request.app.state, "db_pool", None)
+    if pool is None or not email:
+        return False
     try:
         await ensure_schema(pool)
         async with pool.acquire() as conn:
-            value = await conn.fetchval("SELECT registration_open FROM founding_settings WHERE id = 1")
-            if value is True:
-                return True
-            if value is not False:  # ayar okunamadı (test/eski şema): mevcut davranış korunur
-                return True
-            if not email:
-                return False
             row = await conn.fetchrow(
                 """SELECT id FROM founding_applications WHERE lower(email) = $1 AND status = 'invited'
                    AND invite_token_hash IS NOT NULL AND invite_expires_at > now()
@@ -157,9 +147,9 @@ async def registration_allowed(request: Request, email: str | None = None, invit
                 email.strip().lower(), _hash(invite_token) if invite_token else None,
             )
             return row is not None
-    except Exception:  # noqa: BLE001 - ayar okunamazsa kayıt akışı kendi hatasını verir
-        logger.warning("Founding registration setting could not be read", exc_info=True)
-        return True
+    except Exception:  # noqa: BLE001 - kapalıyken ayar okunamazsa güvenli taraf: kapalı
+        logger.warning("Founding invite could not be checked", exc_info=True)
+        return False
 
 
 async def require_registration_open(request: Request, email: str | None = None, invite_token: str | None = None) -> None:

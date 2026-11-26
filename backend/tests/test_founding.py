@@ -234,11 +234,12 @@ def _reg_request(value=None, pool=True):
     return SimpleNamespace(app=SimpleNamespace(state=state))
 
 
-def test_registration_closed_by_default_setting(monkeypatch):
+def test_registration_open_by_default_and_closable_by_env(monkeypatch):
     monkeypatch.delenv("FOUNDING_REGISTRATION", raising=False)
     with patch.object(founding, "ensure_schema", noop_limit):
-        assert run(founding.registration_allowed(_reg_request(False))) is False
+        assert run(founding.registration_allowed(_reg_request(False))) is True
         assert run(founding.registration_allowed(_reg_request(True))) is True
+        monkeypatch.setenv("FOUNDING_REGISTRATION", "closed")
         with pytest.raises(HTTPException) as err:
             run(founding.require_registration_open(_reg_request(False)))
     assert err.value.status_code == 403

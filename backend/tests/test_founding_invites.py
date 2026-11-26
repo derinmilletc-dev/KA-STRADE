@@ -53,28 +53,38 @@ def no_env(monkeypatch):
     monkeypatch.delenv("FOUNDING_REGISTRATION", raising=False)
 
 
+@pytest.fixture
+def closed(monkeypatch):
+    monkeypatch.setenv("FOUNDING_REGISTRATION", "closed")
+
+
+def test_registration_is_open_by_default():
+    assert allowed(GateConn(), "ada@example.com") is True
+    assert allowed(GateConn(), None) is True
+
+
 def allowed(conn, email=None, token=None):
     with patch.object(founding, "ensure_schema", noop):
         return run(founding.registration_allowed(req(conn), email, token))
 
 
-def test_no_invite_no_account():
+def test_no_invite_no_account(closed):
     assert allowed(GateConn(), "ada@example.com") is False
     assert allowed(GateConn(invite_hash=founding._hash("t" * 40)), None) is False
 
 
-def test_invite_only_for_its_own_email():
+def test_invite_only_for_its_own_email(closed):
     conn = GateConn(invite_hash=founding._hash("t" * 40))
     assert allowed(conn, "ada@example.com", "t" * 40) is True
     assert allowed(conn, "mehmet@example.com", "t" * 40) is False  # davet başka e-postayla kullanılamaz
 
 
-def test_password_registration_needs_the_exact_token():
+def test_password_registration_needs_the_exact_token(closed):
     conn = GateConn(invite_hash=founding._hash("t" * 40))
     assert allowed(conn, "ada@example.com", "x" * 40) is False
 
 
-def test_google_registration_matches_verified_email_without_token():
+def test_google_registration_matches_verified_email_without_token(closed):
     conn = GateConn(invite_hash=founding._hash("t" * 40))
     assert allowed(conn, "ada@example.com") is True
     assert conn.calls[-1] == ("ada@example.com", None)
