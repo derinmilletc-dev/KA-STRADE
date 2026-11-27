@@ -1,15 +1,17 @@
-/* Sıcak karşılama cümlesi: sessiz, silik, yerini bozmaz */
-.ktGreeting { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 500; letter-spacing: .01em; color: rgba(214, 232, 223, .66); cursor: pointer; animation: ktGreetIn .7s ease both; }
+/* Sıcak karşılama cümlesi: yumuşak cam hap; seçilemez (mavi seçim kutusu çıkmaz), yerini bozmaz */
+.ktGreeting { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 10px; margin: 0; padding: 9px 16px 9px 13px; border: 1px solid rgba(100, 227, 161, .22); border-radius: 999px; background: linear-gradient(135deg, rgba(100, 227, 161, .12), rgba(143, 180, 255, .06)); box-shadow: 0 6px 22px rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .06); font-size: 14.5px; font-weight: 600; line-height: 1.35; letter-spacing: .005em; color: #d8efe3; cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-font-smoothing: antialiased; transition: border-color .2s, background .2s, transform .2s; animation: ktGreetIn .7s ease both; }
+.ktGreeting:hover { border-color: rgba(100, 227, 161, .45); transform: translateY(-1px); }
+.ktGreeting ::selection, .ktGreeting::selection { background: transparent; }
 .ktGreeting:focus-visible { outline: 2px solid rgba(100, 227, 161, .6); outline-offset: 4px; border-radius: 6px; }
-.ktGreeting svg { flex: 0 0 auto; width: 16px; height: 16px; color: #8fe8bd; opacity: .85; }
+.ktGreeting svg { flex: 0 0 auto; width: 18px; height: 18px; color: #64e3a1; opacity: .95; filter: drop-shadow(0 0 6px rgba(100, 227, 161, .45)); }
 .ktGreeting:hover svg { opacity: 1; }
 .ktGreetingRest { visibility: hidden; }
 @keyframes ktGreetIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ktGreeting { animation: none; } }
 /* Trade Terminal başlığı: masaüstünde sağ üst boşluk, telefonda başlığın altı */
 #root > main.v26App .v26DashboardHero { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-#root > main.v26App .v26DashboardHero .ktGreeting { margin-top: 6px; max-width: 340px; text-align: right; font-size: 15px; }
+#root > main.v26App .v26DashboardHero .ktGreeting { margin-top: 6px; max-width: 420px; text-align: left; font-size: 15px; }
 @media (max-width: 767px) {
   #root > main.v26App .v26DashboardHero { flex-direction: column; align-items: flex-start; gap: 10px; }
-  #root > main.v26App .v26DashboardHero .ktGreeting { margin-top: 0; max-width: none; text-align: left; font-size: 13px; color: rgba(143, 232, 189, .8); }
+  #root > main.v26App .v26DashboardHero .ktGreeting { margin-top: 0; max-width: 100%; text-align: left; font-size: 13px; padding: 7px 13px 7px 11px; color: #cfe9dc; }
 }
