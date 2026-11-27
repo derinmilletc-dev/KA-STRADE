@@ -8677,10 +8677,26 @@ async def shutdown_v25_execution(application: Any) -> None:
 
 @router.get("/status")
 async def v25_status(request: Request, fresh: bool = Query(default=False)) -> dict[str, Any]:
+    # Ölçüm: yalnızca yavaş (>1 sn) durum isteklerinde, hangi aşamada beklendiğini tek satırla kaydeder.
+    timing_started = time.monotonic()
+    timing_enter = time.time()
+    timing: dict[str, float] = {}
+    try:
+        return await _v25_status_inner(request, fresh, timing, timing_started)
+    finally:
+        total = time.monotonic() - timing_started
+        if total > 1.0:
+            logger.info("V25_STATUS_SLOW fresh=%s total_ms=%s enter_epoch=%.1f stages_ms=%s", fresh, round(total * 1000), timing_enter,
+                        {key: round(value * 1000) for key, value in timing.items()})
+
+
+async def _v25_status_inner(request: Request, fresh: bool, timing: dict[str, float], started: float) -> dict[str, Any]:
     from .exchange_connections import ensure_session_cache
 
     user = execution_owner(request)
+    mark = time.monotonic()
     await ensure_session_cache(request)
+    timing["session_cache"] = time.monotonic() - mark
     execution_owner(request)
     state = request.app.state.v25_execution
     api_key, secret_key, _ = live_credentials_status(request)
@@ -8695,19 +8711,28 @@ async def v25_status(request: Request, fresh: bool = Query(default=False)) -> di
         if not await account_settings.enabled(request, user):
             raise HTTPException(403, "LIVE hesap bağlantısı için önce 2FA'yı etkinleştirin.")
         guard_execution_ownership(request, claim=True)
-        return await connect_read_only_for_request(request.app, request)
+        mark = time.monotonic()
+        try:
+            return await connect_read_only_for_request(request.app, request)
+        finally:
+            timing["connect_read_only"] = time.monotonic() - mark
     schedule_ledger_warmup(request.app, (api_key, secret_key))
     if fresh and state.get("connected") and usable_live_credentials((api_key, secret_key)):
         # Yeni açılan işlem ekranda geç görünmesin: ekran "taze oku" isterse saklı hesap görüntüsü Binance'ten yenilenir.
         # En fazla 1,5 sn'de bir; hata olursa sessizce eski görüntüyle devam edilir (durum ucu asla bozulmaz).
         if time.monotonic() - float(state.get("_fresh_snapshot_at") or 0.0) > 1.5 and not state["lock"].locked():
             state["_fresh_snapshot_at"] = time.monotonic()
+            mark = time.monotonic()
             try:
                 client = client_for(request.app, request)
                 update_account_snapshot(state, await asyncio.wait_for(account_snapshot(client, source="status_fresh"), timeout=4.0))
             except Exception:
                 logger.info("LIVE_STATUS_FRESH_SKIPPED")
-    return public_status(request.app, request)
+            timing["fresh_snapshot"] = time.monotonic() - mark
+    mark = time.monotonic()
+    result = public_status(request.app, request)
+    timing["public_status"] = time.monotonic() - mark
+    return result
 
 
 def history_record_warning(errors: list[dict[str, str]], symbol: str, field: str) -> None:
