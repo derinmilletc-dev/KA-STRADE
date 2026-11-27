@@ -1233,6 +1233,9 @@ async def lifespan(app: FastAPI):
     # preventing the local API from starting.
     app.state.http = build_http_client()
     app.state.http_loop = asyncio.get_running_loop()
+    from .loop_watchdog import LoopWatchdog
+    app.state.loop_watchdog = LoopWatchdog()
+    app.state.loop_watchdog.start()
     app.state.market_http = None
     app.state.market_http_loop = None
     app.state.public_market_data = PublicMarketData()
@@ -1372,6 +1375,7 @@ async def lifespan(app: FastAPI):
     if LIVE_CHANNEL_ENABLED:
         app.state.runtime_tasks.append(asyncio.create_task(v9_market_twin_loop(app)))
     yield
+    app.state.loop_watchdog.stop()
     await shutdown_notifications(app)
     await shutdown_events(app)
     for task in app.state.runtime_tasks:
