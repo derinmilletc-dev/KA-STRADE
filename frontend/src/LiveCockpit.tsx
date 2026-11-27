@@ -862,28 +862,32 @@ export default function LiveCockpit(props: Props) {
   // Hesap okunamıyorsa metrik ve pozisyon gösterilmez ("—"): eski ya da boş veri gerçekmiş gibi görünmesin.
   const live = verified && guideInput.connected
   const [dcaBots, setDcaBots] = useState<Array<{symbol: string; side: string; bot?: unknown}>>([])
-  const getForDca = props.get
+  // props.get her çizimde yeni bir fonksiyon olarak gelir; effect'lerin bağımlılığı yapılırsa her çizimde /farmer/status ve
+  // /dca/live/status yeniden istenir (emir sonrası saniyelik çizimlerle istek fırtınası → sunucu kuyruğu 20-30 sn). Ref ile sabitlenir.
+  const getRef = useRef(props.get)
+  getRef.current = props.get
+  const hasGet = Boolean(props.get)
   const [farmerBots, setFarmerBots] = useState<Array<{symbol: string; side: string}>>([])
   useEffect(() => {
-    if (demo || !live || !getForDca) { setFarmerBots([]); return }
+    if (demo || !live || !hasGet) { setFarmerBots([]); return }
     let cancelled = false
-    const load = () => { if (document.hidden) return; Promise.resolve(getForDca('/farmer/status')).then(data => {
+    const load = () => { const get = getRef.current; if (document.hidden || !get) return; Promise.resolve(get('/farmer/status')).then(data => {
       const list = ((data as {positions?: Array<{symbol?: string; side?: string}>} | null)?.positions ?? [])
       if (!cancelled) setFarmerBots(list.map(p => ({symbol: String(p.symbol ?? ''), side: String(p.side ?? '')})).filter(p => p.symbol))
     }).catch(() => { /* okunamazsa etiket görünmez, pozisyon yine listelenir */ }) }
     load(); const timer = window.setInterval(load, 15000)
     return () => { cancelled = true; window.clearInterval(timer) }
-  }, [demo, live, getForDca])
+  }, [demo, live, hasGet])
   useEffect(() => {
-    if (demo || !live || !getForDca) { setDcaBots([]); return }
+    if (demo || !live || !hasGet) { setDcaBots([]); return }
     let cancelled = false
-    const load = () => { if (document.hidden) return; Promise.resolve(getForDca('/dca/live/status')).then(data => {
+    const load = () => { const get = getRef.current; if (document.hidden || !get) return; Promise.resolve(get('/dca/live/status')).then(data => {
       const grids = ((data as {grids?: any[]} | null)?.grids ?? []).filter(g => (g?.kind === 'DCA' || g?.spec?.meta?.kind === 'DCA') && !String(g?.grid_id ?? '').startsWith('F') && !['STOPPED', 'COMPLETED', 'EMERGENCY_CLOSED'].includes(g.status))
       if (!cancelled) setDcaBots(grids.map(g => ({symbol: String(g.symbol ?? ''), side: String(g.side ?? g.spec?.side ?? ''), bot: g})))
     }).catch(() => { /* durum okunamazsa kart eski görünümde kalır */ }) }
     load(); const timer = window.setInterval(load, 15000)
     return () => { cancelled = true; window.clearInterval(timer) }
-  }, [demo, live, getForDca])
+  }, [demo, live, hasGet])
   const serverPositions = useMemo(() => (live ? status?.account?.positions : null) ?? [], [live, status?.account?.positions])
   // Kapatma Binance'te onaylanınca pozisyon, sunucu listesi yenilenene kadar beklemeden gizlenir (en fazla 12 sn).
   const [hiddenClosed, setHiddenClosed] = useState<Record<string, number>>({})
