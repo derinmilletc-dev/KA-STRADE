@@ -1535,6 +1535,8 @@ def apply_cors_headers(request, response):
 
 @app.middleware("http")
 async def owner_preview_gate(request, call_next):
+    _t0 = time.monotonic()
+    _marks: dict[str, float] = {}
     if request.url.path == GOOGLE_CALLBACK_PATH:
         google_callback_query(request)
     request.state.request_id = request.headers.get("x-request-id", "").strip()[:100] or str(uuid.uuid4())
@@ -1571,6 +1573,7 @@ async def owner_preview_gate(request, call_next):
     if protected_member_request:
         try:
             request.state.member = await authenticated_user_async(request)
+            _marks["auth"] = time.monotonic()
         except HTTPException as exc:
             response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
             if exc.status_code == 401 and request.cookies.get(USER_SESSION_COOKIE):
@@ -1591,6 +1594,7 @@ async def owner_preview_gate(request, call_next):
         from .member_entitlements import prepare
 
         proof = await prepare(request, request.state.member)
+        _marks["entitlement"] = time.monotonic()
         access = entitlement_access(proof.subscription, request.state.member)
         request.state.premium = access["isPremium"]
         if proof.error and request.url.path.startswith("/api/assistant/"):
@@ -1615,6 +1619,7 @@ async def owner_preview_gate(request, call_next):
         if not chart_ai_request:
             try:
                 await hydrate_authenticated_user_state(request)
+                _marks["hydrate"] = time.monotonic()
             except HTTPException as exc:
                 return apply_cors_headers(request, JSONResponse({"detail": exc.detail}, status_code=exc.status_code))
     request.state.web_owner_authenticated = bool(
@@ -1629,6 +1634,20 @@ async def owner_preview_gate(request, call_next):
                 status_code=410,
             ),
         )
+    _pre = time.monotonic() - _t0
+    if _pre > 1.0:
+        try:
+            _prev = _t0
+            _stages = {}
+            for _name in ("auth", "entitlement", "hydrate"):
+                if _name in _marks:
+                    _stages[_name] = round((_marks[_name] - _prev) * 1000)
+                    _prev = _marks[_name]
+            _pool = getattr(request.app.state, "db_pool", None)
+            _pool_info = f"size={_pool.get_size()} idle={_pool.get_idle_size()} max={_pool.get_max_size()}" if _pool is not None else "none"
+            logger.warning("REQUEST_PRE_SLOW path=%s pre_ms=%s stages_ms=%s pool=%s", request.url.path, round(_pre * 1000), _stages, _pool_info)
+        except Exception:  # noqa: BLE001 - teşhis isteği bozmaz
+            pass
     try:
         response = await call_next(request)
     except Exception as exc:
