@@ -2204,6 +2204,12 @@ class BinanceLiveClient:
             })
             if method == "POST" and path in {"/fapi/v1/order", "/fapi/v1/algoOrder"}:
                 heartbeat["last_successful_order"] = now_iso()
+        if method != "GET" and self.application is not None:
+            # Emir/ayar yanıtı geldi: istek öncesinde silinen hesap özeti bu sırada eski (pozisyonsuz) halde yeniden önbelleğe
+            # girmiş olabilir; açık pozisyon listesi 10-30 sn gecikmesin diye yanıttan sonra bir kez daha geçersiz kıl.
+            store = getattr(self.application.state, "live_account_cache", None)
+            if store is not None:
+                store.update(value=None, expires=0.0, generation=store.get("generation", 0) + 1)
         return payload
 
     @staticmethod
