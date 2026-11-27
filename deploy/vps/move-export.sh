@@ -23,7 +23,7 @@ echo "[1/5] Servis durduruluyor..."
 systemctl stop kaistrade; STOPPED=1
 
 echo "[2/5] Veritabanı yedeği alınıyor..."
-sudo -u postgres pg_dump -Fc "$DB" -f "$OUT/kais.dump"
+sudo -u postgres pg_dump -Fc "$DB" > "$OUT/kais.dump"
 MAJOR=$(( $(sudo -u postgres psql -tAc "show server_version_num") / 10000 ))
 echo "$MAJOR" > "$OUT/pgmajor"
 for t in $(sudo -u postgres psql -d "$DB" -tAc "select tablename from pg_tables where schemaname='public' order by 1"); do
