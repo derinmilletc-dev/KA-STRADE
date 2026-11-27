@@ -1,0 +1,51 @@
+/* Grid kurulum ekranı — tek katman, tek karar. Renkler kokpitle aynı (#3ddc97 yeşil, #ff6b6b kırmızı, #f5c04a amber). */
+#root .gsu{display:grid;gap:14px;color:#e8eef5}
+#root .gsu *{box-sizing:border-box}
+#root .gsu .up{color:#3ddc97}#root .gsu .down{color:#ff8a8a}
+#root .gsu .gsuTop{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#root .gsu .gsuCoin{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+#root .gsu .gsuCoin b{font-size:18px}
+#root .gsu .gsuCoin span{font-size:12px;font-weight:800;letter-spacing:.06em}
+#root .gsu .gsuCoin small{color:#8ea0b4;font-size:13px}
+#root .gsu .gsuMode{font-size:11.5px;font-weight:750;padding:4px 10px;border-radius:99px;background:#122033;color:#8fb4ff}
+#root .gsu .gsuMode[data-live="1"]{background:rgba(61,220,151,.14);color:#3ddc97}
+#root .gsu .gsuPresets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+#root .gsu .gsuPresets button{display:grid;gap:2px;padding:10px 6px;border:1px solid #1f3149;border-radius:12px;background:#0f1824;color:#e8eef5;text-align:center;cursor:pointer}
+#root .gsu .gsuPresets button:hover:not(:disabled){border-color:#3ddc97}
+#root .gsu .gsuPresets button:disabled{opacity:.45;cursor:not-allowed}
+#root .gsu .gsuPresets small{font-size:11px;color:#8ea0b4}
+#root .gsu .gsuVerdict{display:grid;gap:6px;padding:14px 16px;border-radius:16px;border:1px solid #1f3149;background:#0f1824}
+#root .gsu .gsuVerdict b{font-size:15px}
+#root .gsu .gsuVerdict small{color:#9fb2c8;font-size:12.5px;line-height:1.45}
+#root .gsu .gsuVerdict[data-state="ok"]{border-color:#1f6b4e;background:linear-gradient(135deg,rgba(61,220,151,.14),#0f1824 70%)}
+#root .gsu .gsuVerdict[data-state="ok"] b{color:#3ddc97}
+#root .gsu .gsuVerdict[data-state="fix"]{border-color:#6b3a3a;background:linear-gradient(135deg,rgba(255,107,107,.12),#0f1824 70%)}
+#root .gsu .gsuVerdict[data-state="fix"]>b{color:#ff9b9b}
+#root .gsu .gsuVerdict ul{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px;line-height:1.45;color:#e8eef5}
+#root .gsu .gsuVerdict li[data-unknown="1"]{color:#f5c04a}
+#root .gsu .gsuFix{justify-self:start;margin-top:4px;border:0;border-radius:12px;padding:10px 14px;background:#3ddc97;color:#06231a;font-weight:800;font-size:13px;cursor:pointer}
+#root .gsu .gsuFields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#root .gsu .gsuFields .liveWsField{min-width:0}
+#root .gsu .gsuFields input{width:100%;min-width:0}
+#root .gsu .gsuMore{border:1px solid #1f3149;border-radius:14px;background:#0b1522;padding:0}
+#root .gsu .gsuMore>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;font-weight:750;font-size:14px}
+#root .gsu .gsuMore>summary::-webkit-details-marker{display:none}
+#root .gsu .gsuMore>summary::after{content:'›';margin-left:auto;color:#8ea0b4;transition:transform .15s}
+#root .gsu .gsuMore[open]>summary::after{transform:rotate(90deg)}
+#root .gsu .gsuMore>summary span{font-weight:500;font-size:12px;color:#8ea0b4}
+#root .gsu .gsuMore>.gsuFields{padding:0 14px 14px}
+#root .gsu .gsuDetails>*:not(summary){margin-left:14px;margin-right:14px}
+#root .gsu .gsuDetails>*:last-child{margin-bottom:14px}
+#root .gsu .gsuNums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#root .gsu .gsuNums span{display:grid;gap:3px;padding:12px 10px;border-radius:14px;background:#0f1824;border:1px solid #1f3149}
+#root .gsu .gsuNums small{font-size:11.5px;color:#8ea0b4}
+#root .gsu .gsuNums b{font-size:16px}
+#root .gsu .gsuTip{margin:0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:12px;background:#2a2410;border:1px solid #5a4a1a;color:#c9b777;font-size:12.5px}
+#root .gsu .gsuTip button{border:0;border-radius:10px;padding:8px 12px;background:#18324a;color:#bfe4ff;font-weight:750;font-size:12px;cursor:pointer}
+#root .gsu .mgpMap{height:220px}
+#root .gsu .mgpLive{margin:0}
+@media (max-width:520px){
+  #root .gsu .gsuNums b{font-size:14px}
+  #root .gsu .gsuNums span{padding:10px 8px}
+  #root .gsu .gsuMore>summary span{display:none}
+}

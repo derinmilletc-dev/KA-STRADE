@@ -30,8 +30,10 @@ import {CoinIcon} from '../../src/components/CoinIcon'
 import {useKaisErrorReaction} from '../../useKaisPageReactions'
 import {useTradingPreferences} from '../../useTradingPreferences'
 import {marginForLoss, preferredRiskMargin} from '../../account-risk-sizing'
-import {computeGrid, GRID_MAX_COUNT, GRID_MIN_COUNT, type GridFilters} from './gridMath'
-import {buildGridAlerts, type FiltersState} from './gridAlerts'
+import {computeGrid, GRID_MAX_COUNT, GRID_MIN_COUNT, type GridFilters, type GridInput, type GridLimits} from './gridMath'
+import {explainGrid, suggestGridFix} from './gridDecision'
+import type {FiltersState} from './gridAlerts'
+import './gridSetup.css'
 import GridSuitabilityCard from './GridSuitabilityCard'
 import {openPositionsRiskToStop} from './gridPortfolio'
 import {MasterOnlyGate, PremiumWorkspace, TrialLiveGate, useMemberAccess} from '../../premium-access'
@@ -2278,14 +2280,17 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       setGrid(current => ({...current, lower: presetPrice(Math.min(near, far)), upper: presetPrice(Math.max(near, far)), stop: presetPrice(stopAt)}))
     }
     const gridOpenRisk = openPositionsRiskToStop(status?.account?.positions || [], [...(status?.account?.open_orders || []), ...(((status?.account as any)?.open_algo_orders as Array<Record<string, unknown>>) || [])])
-    const gridResult = computeGrid({side: gridSide, price: gridPrice, lower: Number(grid.lower), upper: Number(grid.upper), count: Number(grid.count), totalMargin: Number(grid.margin), leverage: Number(grid.leverage), stop: Number(grid.stop), filters: gridFilters.data ?? undefined}, {
+    const gridInput: GridInput = {side: gridSide, price: gridPrice, lower: Number(grid.lower), upper: Number(grid.upper), count: Number(grid.count), totalMargin: Number(grid.margin), leverage: Number(grid.leverage), stop: Number(grid.stop), filters: gridFilters.data ?? undefined}
+    const gridLimits: GridLimits = {
       maxPositions: numericPolicy('max_positions', 2), maxLossPerTrade: numericPolicy('max_loss_per_trade', 1), maxTotalExposure: numericPolicy('max_total_exposure_usdt', 350),
       maxMarginPerTrade: Number.isFinite(Number(status?.policy?.max_margin_per_trade)) ? Number(status?.policy?.max_margin_per_trade) : undefined,
       currentExposure: liveExposure, openPositions: (status?.account?.positions || []).length,
       dailyLossBudgetLeft: typeof status?.daily?.remaining_loss_budget === 'number' ? status.daily.remaining_loss_budget : null,
       openPositionRisk: gridOpenRisk.total,
-    })
-    const gridAlerts = buildGridAlerts({result: gridResult, filters: gridFilters.state, filtersError: gridFilters.error, openRisk: gridOpenRisk.total, hasOpenPositions: (status?.account?.positions || []).length > 0})
+    }
+    const gridResult = computeGrid(gridInput, gridLimits)
+    const gridReasons = explainGrid(gridResult, gridFilters.state)
+    const gridFix = gridResult.allOk ? null : suggestGridFix(computeGrid, gridInput, gridLimits)
     const liveGridRow = liveGrid?.grid && !LIVE_GRID_FINAL.includes(liveGrid.grid.status) ? liveGrid.grid : null
     const liveGridLast = liveGrid?.grid && LIVE_GRID_FINAL.includes(liveGrid.grid.status) ? liveGrid.grid : null
     const liveGridMargin = Number(grid.margin), liveGridCount = Number(grid.count)
@@ -2338,10 +2343,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     </div> : null
     // Akıllı özet: yalnız hesaplanmış verilerden (kademeler, limit kontrolleri) türetilir; emir göndermez.
     const gridLevelsSorted = [...gridResult.levels].sort((a, b) => Math.abs(a.entry - gridPrice) - Math.abs(b.entry - gridPrice))
-    const gridChecksOk = gridResult.checks.filter(check => check.ok).length
     const gridTooTight = gridResult.levels.length > 1 && gridResult.spacingPct > 0 && gridResult.spacingPct < 0.4
-    const gridScore = gridResult.levels.length === 0 ? 0 : Math.max(0, Math.round(100 * gridChecksOk / Math.max(1, gridResult.checks.length)) - (gridTooTight ? 12 : 0) - (gridAlerts.some(item => item.level === 'kritik') ? 25 : 0))
-    const gridScoreName = gridScore >= 80 ? 'İyi' : gridScore >= 55 ? 'Orta' : 'Zayıf'
     const gridRangePct = gridResult.spacingPct * Math.max(1, gridResult.levels.length - 1)
     const gridFitCount = Math.max(GRID_MIN_COUNT, Math.min(GRID_MAX_COUNT, Math.floor(gridRangePct / 0.5) + 1))
     const gridMapPrices = gridResult.levels.length ? [gridPrice, Number(grid.stop), ...gridResult.levels.map(level => level.entry)].filter(value => value > 0) : []
@@ -2358,48 +2360,71 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <li>Stop <b>{grid.stop || '—'}</b> olursa toplam zarar <b className="down">{money(gridResult.worstLoss)}</b> (hepsi dolmuşsa).</li>
       <li>Fiyat ilk kademeye hiç gelmezse emir dolmaz, kâr da zarar da olmaz.</li>
     </ul> : null
-    const gridSmart = gridResult.levels.length > 0 ? <div className="mgpSmart">
-      <div className="mgpScore" data-level={gridScoreName}><span className="mgpRing" style={{background: `conic-gradient(var(--mgp-c) 0 ${gridScore}%, #1a283a 0)`}}><b>{gridScore}</b></span><span><b>Plan puanı: {gridScoreName}</b><small>{gridChecksOk}/{gridResult.checks.length} limit kontrolü geçti{gridTooTight ? ' · kademeler çok sık' : ''}</small></span></div>
-      {gridTooTight && <div className="mgpFix"><span><b>Kademeler çok sık</b><small>Aralık %{gridResult.spacingPct.toFixed(2)}; ücretler kârı yer.</small></span>{gridFitCount < Number(grid.count) && <button type="button" onClick={() => setGridField('count', String(gridFitCount))}>{gridFitCount} kademeye düşür</button>}</div>}
-    </div> : null
-    const gridBody = <div className="mwz mgp">
-      <div className="mwzCard">
-        <small className="mwzKicker">{liveGrid?.enabled ? 'GRID · CANLI' : 'GRID · ÖNİZLEME'}</small>
-        <h4>Kademeli alım planı</h4>
-        {liveGrid?.enabled ? <p><b>Canlı grid AÇIK.</b> En fazla {liveGrid.max_levels ?? 20} kademe. Planın en kötü zararı tek işlem ve günlük zarar sınırını, toplam büyüklüğü de maruziyet sınırını aşıyorsa grid başlamaz. Aşağıdaki kontroller geçmeden emir gitmez.</p> : <p>Bu ekran sadece hesaplar. <b>Hiçbir emir gönderilmez.</b> Gerçek grid sunucuda kapalı; açıldığında bu plan, aynı kontrollerden geçerek canlı başlatılabilir.</p>}
-        <div className="mwzMini"><span>{selectedRow?.display || order.symbol || 'Coin seçilmedi'}</span><span className={gridSide === 'LONG' ? 'up' : 'down'}>{gridSide}</span><span>Fiyat {gridPrice > 0 ? presetPrice(gridPrice) : '—'}</span></div>
-        <div className="liveWsChips manualPresets" role="group" aria-label="Hazır aralık"><small className="liveWsHint">Hazır plan:</small>{[[3, 'Dar', 3], [5, 'Dengeli', 5], [8, 'Geniş', 5]].map(([pct, name, cnt]) => <button type="button" key={pct as number} disabled={!(gridPrice > 0)} onClick={() => { gridAuto(pct as number); setGridField('count', String(Math.min(cnt as number, GRID_MAX_COUNT))) }}><b>{name}</b><small>%{pct} · {Math.min(cnt as number, GRID_MAX_COUNT)} kademe</small></button>)}</div>
-        <GridSuitabilityCard symbol={order.symbol} price={gridPrice} lower={Number(grid.lower)} upper={Number(grid.upper)} side={gridSide} active={active && manualMode === 'grid'}/>
-        {gridSmart}{gridMap}
-        <div className="liveWsTwo">
-          <label className="liveWsField">Alt sınır<input type="number" value={grid.lower} onChange={event => setGridField('lower', event.target.value)}/></label>
-          <label className="liveWsField">Üst sınır<input type="number" value={grid.upper} onChange={event => setGridField('upper', event.target.value)}/></label>
-          <label className="liveWsField">Kademe sayısı ({GRID_MIN_COUNT}-{GRID_MAX_COUNT})<input type="number" min={GRID_MIN_COUNT} max={GRID_MAX_COUNT} value={grid.count} onChange={event => setGridField('count', event.target.value)}/></label>
-          <label className="liveWsField">Toplam marjin (USDT)<input type="number" min="5" value={grid.margin} onChange={event => setGridField('margin', event.target.value)}/></label>
-          <label className="liveWsField">Kaldıraç (x)<input type="number" min="1" max="50" value={grid.leverage} onChange={event => setGridField('leverage', event.target.value)}/></label>
-          <label className="liveWsField">Ortak stop<input type="number" value={grid.stop} onChange={event => setGridField('stop', event.target.value)}/></label>
+    const gridHasPlan = gridResult.levels.length > 0
+    const gridVerdict: 'ok' | 'fix' | 'wait' = !(gridPrice > 0) ? 'wait' : gridResult.allOk ? 'ok' : 'fix'
+    const gridShown = gridReasons.slice(0, 3)
+    const gridBody = <div className="mgp gsu">
+      <div className="gsuTop">
+        <div className="gsuCoin"><b>{selectedRow?.display || order.symbol || 'Coin seçilmedi'}</b><span className={gridSide === 'LONG' ? 'up' : 'down'}>{gridSide}</span><small>{gridPrice > 0 ? `Fiyat ${presetPrice(gridPrice)}` : 'Fiyat yok'}</small></div>
+        <span className="gsuMode" data-live={liveGrid?.enabled ? '1' : '0'}>{liveGrid?.enabled ? (demo ? 'Demo' : 'Canlı') : 'Önizleme · emir gitmez'}</span>
+      </div>
+      <div className="gsuPresets" role="group" aria-label="Hazır aralık">{[[3, 'Dar', 3], [5, 'Dengeli', 5], [8, 'Geniş', 5]].map(([pct, name, cnt]) => <button type="button" key={pct as number} disabled={!(gridPrice > 0)} onClick={() => { gridAuto(pct as number); setGridField('count', String(Math.min(cnt as number, GRID_MAX_COUNT))) }}><b>{name}</b><small>±%{pct} · {cnt} kademe</small></button>)}</div>
+
+      <div className="gsuVerdict" data-state={gridVerdict} role="status">
+        {gridVerdict === 'wait' && <><b>Önce bir coin seç</b><small>Fiyat gelince hazır planlardan birine dokun.</small></>}
+        {gridVerdict === 'ok' && <><b>✓ Plan limitlerin içinde</b><small>{liveGrid?.enabled ? 'Aşağıdan başlatabilirsin; başlatmadan emir gitmez.' : 'Canlı grid sunucuda kapalı; emir gönderilmez.'}</small></>}
+        {gridVerdict === 'fix' && <>
+          <b>Bu haliyle başlamaz</b>
+          {gridShown.length > 0 && <ul>{gridShown.map(item => <li key={item.key} data-unknown={item.unknown ? '1' : undefined}>{item.text}</li>)}</ul>}
+          {gridReasons.length > gridShown.length && <small>+{gridReasons.length - gridShown.length} neden daha (aşağıda “Ayrıntılar”da)</small>}
+          {gridFix && <button type="button" className="gsuFix" onClick={() => { setGridField('count', String(gridFix.count)); setGridField('margin', String(gridFix.margin)) }}>Düzelt: {gridFix.count} kademe · {gridFix.margin} USDT marjin</button>}
+        </>}
+      </div>
+
+      <div className="gsuFields">
+        <label className="liveWsField">Alt sınır<input type="number" inputMode="decimal" value={grid.lower} onChange={event => setGridField('lower', event.target.value)}/></label>
+        <label className="liveWsField">Üst sınır<input type="number" inputMode="decimal" value={grid.upper} onChange={event => setGridField('upper', event.target.value)}/></label>
+        <label className="liveWsField">Kademe ({GRID_MIN_COUNT}–{GRID_MAX_COUNT})<input type="number" inputMode="numeric" min={GRID_MIN_COUNT} max={GRID_MAX_COUNT} value={grid.count} onChange={event => setGridField('count', event.target.value)}/></label>
+        <label className="liveWsField">Toplam marjin (USDT)<input type="number" inputMode="decimal" min="5" value={grid.margin} onChange={event => setGridField('margin', event.target.value)}/></label>
+      </div>
+      <details className="gsuMore">
+        <summary>Kaldıraç ve stop <span>{grid.leverage}x · stop {grid.stop || '—'}</span></summary>
+        <div className="gsuFields">
+          <label className="liveWsField">Kaldıraç (x)<input type="number" inputMode="numeric" min="1" max="50" value={grid.leverage} onChange={event => setGridField('leverage', event.target.value)}/></label>
+          <label className="liveWsField">Ortak stop<input type="number" inputMode="decimal" value={grid.stop} onChange={event => setGridField('stop', event.target.value)}/></label>
         </div>
+      </details>
+
+      {gridHasPlan && <>
+        <div className="gsuNums">
+          <span><small>En kötü zarar</small><b className="down">{money(gridResult.worstLoss)}</b></span>
+          <span><small>Tahmini kâr</small><b className="up">{money(gridResult.bestGain)}</b></span>
+          <span><small>Toplam büyüklük</small><b>{money(gridResult.totalNotional)}</b></span>
+        </div>
+        {gridTooTight && <p className="gsuTip">Kademeler çok sık (%{gridResult.spacingPct.toFixed(2)}); ücretler kârı yer.{gridFitCount < Number(grid.count) && <button type="button" onClick={() => setGridField('count', String(gridFitCount))}>{gridFitCount} kademeye düşür</button>}</p>}
+        {gridMap}
+      </>}
+
+      {gridLiveBlock}
+
+      <details className="gsuMore gsuDetails">
+        <summary>Ayrıntılar <span>puan, kontroller, ücretler, kademe tablosu</span></summary>
+        <GridSuitabilityCard symbol={order.symbol} price={gridPrice} lower={Number(grid.lower)} upper={Number(grid.upper)} side={gridSide} active={active && manualMode === 'grid'}/>
         <p className="liveWsHint mgpRules">{gridFilters.state === 'ok' && gridFilters.data ? `Borsa kuralları: fiyat adımı ${gridFilters.data.tickSize} · miktar adımı ${gridFilters.data.stepSize} · en düşük emir ${gridFilters.data.minNotional} USDT` : gridFilters.state === 'loading' ? 'Borsa kuralları okunuyor…' : gridFilters.state === 'error' ? 'Borsa kuralları okunamadı.' : 'Coin seçince borsa kuralları okunur.'}{gridOpenRisk.items.length > 0 && ` · Açık pozisyonların stopa kadar zararı: ${gridOpenRisk.total === null ? 'bilinmiyor' : money(gridOpenRisk.total)}`}</p>
-        {gridAlerts.length > 0 && <ul className="mgpAlerts" role="alert" aria-label="Grid uyarıları">{gridAlerts.map((item, index) => <li key={index} data-level={item.level}><b>{item.level === 'kritik' ? 'KRİTİK' : item.level === 'uyari' ? 'UYARI' : 'BİLGİ'}</b><span>{item.text}</span></li>)}</ul>}
-        {gridResult.levels.length > 0 && <>
+        {gridHasPlan && <>
+          <ul className="mgpChecks" aria-label="Limit kontrolleri">{gridResult.checks.map(check => <li key={check.id} data-ok={check.ok ? '1' : '0'}><i aria-hidden="true">{check.ok ? '✓' : '!'}</i><span><b>{check.label}</b><small>{check.detail}</small></span></li>)}</ul>
           <div className="liveWsSumGrid mgpSum">
             <span><small>Kademe aralığı</small><b>%{gridResult.spacingPct.toFixed(2)}</b></span>
-            <span><small>Tüm kademeler dolarsa büyüklük</small><b>{money(gridResult.totalNotional)}</b></span>
-            <span><small>En kötü zarar (hepsi dolar, stop)</small><b className="down">{money(gridResult.worstLoss)}</b></span>
-            <span><small>Tahmini kâr (hepsi hedefe)</small><b className="up">{money(gridResult.bestGain)}</b></span>
             <span><small>Maker ücreti (giriş+hedef, %0.02)</small><b>{money(gridResult.entryFees)}</b></span>
             <span><small>Taker ücreti (stop vurursa, %0.05)</small><b>{money(gridResult.exitFees)}</b></span>
             <span><small>Tahmini likidasyon (hepsi dolarsa)</small><b>{gridResult.liquidation ? presetPrice(gridResult.liquidation) : '—'}</b></span>
           </div>
-          <ul className="mgpChecks" aria-label="Limit kontrolleri">{gridResult.checks.map(check => <li key={check.id} data-ok={check.ok ? '1' : '0'}><i aria-hidden="true">{check.ok ? '✓' : '!'}</i><span><b>{check.label}</b><small>{check.detail}</small></span></li>)}</ul>
           {gridWhatIf}
           <div className="mgpTable" role="table" aria-label="Kademeler (USDT)"><div role="row" className="mgpHead"><span>#</span><span>Giriş</span><span>Hedef</span><span>Boyut</span><span>Zarar</span></div>
             {gridResult.levels.map(level => <div role="row" key={level.index}><span>{level.index}</span><span>{presetPrice(level.entry)}</span><span>{presetPrice(level.target)}</span><span>{level.notional.toFixed(1)}</span><span className="down">{level.lossAtStop.toFixed(2)}</span></div>)}</div>
-          <p className={gridResult.allOk ? 'liveWsHint' : 'liveWsWarn'} role="status">{gridResult.allOk ? (liveGrid?.enabled ? 'Plan limitlerin içinde. Aşağıdan canlı grid olarak başlatabilirsin; başlatmadan emir gitmez.' : 'Hesap mevcut limitlerin içinde. Canlı grid sunucuda kapalı olduğu için emir gönderilmez.') : 'Bir ya da daha fazla limit aşılıyor; bu planla canlı grid başlamaz.'}</p>
         </>}
-        {gridLiveBlock}
-        <p className="liveWsHint">Hepsi tahmindir: funding ücreti, kayma ve borsanın gerçek teminat tablosu dahil değil; gerçek sonuç farklı olabilir. Zarar, her kademenin ayrı stopu değil, <b>hepsinin toplamı</b> olarak hesaplanır.</p>
-      </div>
+        <p className="liveWsHint">Hepsi tahmindir: funding ücreti, kayma ve borsanın gerçek teminat tablosu dahil değil. Zarar, her kademenin ayrı stopu değil, <b>hepsinin toplamı</b> olarak hesaplanır.</p>
+      </details>
     </div>
     return <div className="liveWsOrder liveUxOrderGrid">
       {!wizard && progressEl}
