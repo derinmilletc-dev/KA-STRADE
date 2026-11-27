@@ -1,5 +1,5 @@
 /* Grid kurulum ekranı — tek katman, tek karar. Renkler kokpitle aynı (#3ddc97 yeşil, #ff6b6b kırmızı, #f5c04a amber). */
-#root .gsu{display:grid;gap:14px;color:#e8eef5}
+#root .gsu{display:grid;gap:14px;color:#e8eef5;container-type:inline-size;container-name:gsu}
 #root .gsu *{box-sizing:border-box}
 #root .gsu .up{color:#3ddc97}#root .gsu .down{color:#ff8a8a}
 #root .gsu .gsuTop{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
@@ -49,3 +49,42 @@
   #root .gsu .gsuNums span{padding:10px 8px}
   #root .gsu .gsuMore>summary span{display:none}
 }
+
+/* ---- akıllı plan */
+#root .gsu .gsuSmart{display:grid;gap:8px;padding:14px 16px;border-radius:16px;border:1px solid #1d3a5a;background:linear-gradient(135deg,rgba(143,180,255,.12),#0f1824 70%)}
+#root .gsu .gsuSmart[data-state="no"]{border-color:#4a4020;background:#16150f}
+#root .gsu .gsuSmartHead{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+#root .gsu .gsuSmartHead span{color:#8fb4ff}
+#root .gsu .gsuSmartHead b{font-size:15px}
+#root .gsu .gsuSmartHead small{color:#8ea0b4;font-size:12px;margin-left:auto}
+#root .gsu .gsuSmart p{margin:0;font-size:13px;line-height:1.5;color:#c6d3e2}
+#root .gsu .gsuSmart p b{color:#e8eef5}
+#root .gsu .gsuSmart button{justify-self:start;border:0;border-radius:12px;padding:10px 16px;background:#8fb4ff;color:#07182e;font-weight:800;font-size:13px;cursor:pointer}
+#root .gsu .gsuSmart button:hover{filter:brightness(1.08)}
+/* ---- iki sütun (geniş ekran) */
+#root .gsu .gsuCols{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+#root .gsu .gsuCol{display:grid;gap:14px;align-content:start;min-width:0}
+@container gsu (min-width:760px){
+  #root .gsu .gsuCols{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+  #root .gsu .gsuPresets{max-width:560px}
+  #root .gsu .mgpMap{height:300px}
+}
+/* ---- ipuçları */
+#root .gsu .gsuHint{margin:-4px 0 0;font-size:12.5px;color:#8ea0b4;line-height:1.5}
+#root .gsu .gsuHint button{border:0;background:rgba(61,220,151,.14);color:#3ddc97;font-weight:800;border-radius:8px;padding:2px 8px;cursor:pointer}
+#root .gsu .gsuRisk{margin:0;padding:12px 14px;border-radius:14px;background:#0f1824;border:1px solid #1f3149;font-size:13px;line-height:1.55;color:#c6d3e2}
+/* ---- canlı grid */
+#root .gsu .gsuLive{display:grid;gap:12px;padding:16px;border-radius:18px;border:1px solid #1d3a3a;background:linear-gradient(135deg,rgba(61,220,151,.08),#0f1824 60%)}
+#root .gsu .gsuLiveHead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#root .gsu .gsuLiveHead b{font-size:17px;margin-right:8px}
+#root .gsu .gsuLiveHead span.up,#root .gsu .gsuLiveHead span.down{font-size:12px;font-weight:800}
+#root .gsu .gsuLiveState{font-size:12px;font-weight:700;padding:4px 10px;border-radius:99px;background:rgba(61,220,151,.14);color:#3ddc97;max-width:100%}
+#root .gsu .gsuLiveState[data-warn="1"]{background:rgba(255,107,107,.16);color:#ff9b9b}
+#root .gsu .gsuRange{margin:0;padding:10px 12px;border-radius:12px;font-size:13px;line-height:1.45}
+#root .gsu .gsuRange[data-level="outside"]{background:rgba(255,107,107,.14);color:#ffb0b0;border:1px solid #6b3a3a}
+#root .gsu .gsuRange[data-level="near"]{background:#2a2410;color:#e6cf86;border:1px solid #5a4a1a}
+#root .gsu .gsuHistList{list-style:none;margin:0;padding:0 14px;display:grid;gap:6px}
+#root .gsu .gsuHistList li{display:grid;grid-template-columns:minmax(0,1.4fr) auto auto;gap:4px 10px;align-items:center;padding:9px 0;border-top:1px solid #1f3149;font-size:13px}
+#root .gsu .gsuHistList li:first-child{border-top:0}
+#root .gsu .gsuHistList li small{grid-column:1/-1;color:#8ea0b4;font-size:11.5px}
+#root .gsu .gsuHist>p{padding:0 14px 12px}
