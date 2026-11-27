@@ -1231,7 +1231,15 @@ def persist_state(state: dict[str, Any]) -> None:
             tasks = set()
             application.state._v25_persistence_tasks = tasks
         payload = sanitized_state(state)
-        task = asyncio.create_task(_persist_state_snapshot(application, payload, key))
+        # Her olayda ayrı yazma görevi, aynı satıra onlarca eşzamanlı UPSERT'ü sıraya dizip havuzu dolduruyordu.
+        # Anahtar başına tek yazma çalışır, araya gelenlerin yalnız en yenisi yazılır (DB zaten en yüksek
+        # persistence_revision'ı kabul ediyor; bu yüzden anlam değişmez).
+        from . import snapshot_coalesce
+
+        def write_failed(error: BaseException) -> None:
+            logger.warning("V25_STATE_PERSIST_FAILED error=%s", type(error).__name__)
+
+        task = snapshot_coalesce.queue(application, "v25_live", key, payload, _persist_state_snapshot_keyed, write_failed)
         tasks.add(task)
         task.add_done_callback(tasks.discard)
         return
@@ -1386,6 +1394,10 @@ async def _persist_state_snapshot(
         raise RuntimeError(f"Unexpected persistence write status: {write_status}")
     application.state.v25_last_persistence_write = {"result": write_status, "submitted_revision": payload.get("persistence_revision"), "checked_at": now_iso()}
     return write_status
+
+
+async def _persist_state_snapshot_keyed(application: Any, key: str, payload: dict[str, Any]) -> None:
+    await _persist_state_snapshot(application, payload, key)
 
 
 def _member_state_has_activity(state: dict[str, Any]) -> bool:
