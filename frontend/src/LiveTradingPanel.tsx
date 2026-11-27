@@ -31,7 +31,8 @@ import {useKaisErrorReaction} from '../../useKaisPageReactions'
 import {useTradingPreferences} from '../../useTradingPreferences'
 import {marginForLoss, preferredRiskMargin} from '../../account-risk-sizing'
 import {computeGrid, GRID_MAX_COUNT, GRID_MIN_COUNT, type GridFilters, type GridInput, type GridLimits} from './gridMath'
-import {explainGrid, suggestGridFix} from './gridDecision'
+import {explainGrid, suggestGridFix, maxAffordableMargin, riskSentence, liveSummary, rangeStatus, type LiveGridStats} from './gridDecision'
+import GridSmartPlan from './GridSmartPlan'
 import type {FiltersState} from './gridAlerts'
 import './gridSetup.css'
 import GridSuitabilityCard from './GridSuitabilityCard'
@@ -220,8 +221,11 @@ export function liveBlockerMessage(status: LiveStatus | null, liveArmed: boolean
 type LiveGridOrder = {client_id: string; role: string; level: number; side: string; type: string; price: number; stop_price: number; qty: number; filled: number; status: string}
 type LiveGridStatus = {
   enabled?: boolean; max_levels?: number; max_margin_usdt?: number; loop_running?: boolean
-  grid: null | {grid_id: string; symbol: string; side: string; status: string; reason: string; position_qty: number; needs_user: boolean; orders: LiveGridOrder[]; alerts: Array<{level: string; text: string}>}
+  grid: null | LiveGridRowT
+  grids?: LiveGridRowT[]
+  day?: {grids?: number; cycles?: number; realized_usdt?: number; fees_usdt?: number} | null
 }
+type LiveGridRowT = {grid_id: string; symbol: string; side: string; status: string; reason: string; position_qty: number; needs_user: boolean; orders: LiveGridOrder[]; alerts: Array<{level: string; text: string}>; stats?: LiveGridStats; updated_at?: number}
 const LIVE_GRID_FINAL = ['STOPPED', 'COMPLETED', 'EMERGENCY_CLOSED']
 const LIVE_GRID_STATUS_TEXT: Record<string, string> = {
   RUNNING: 'Çalışıyor', PAUSED: 'Durduruldu (açık pozisyon varsa stop/hedefle duruyor)', STOPPED: 'Bitti (stop çalıştı ya da kullanıcı durdurdu)', COMPLETED: 'Tamamlandı',
@@ -2291,6 +2295,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     const gridResult = computeGrid(gridInput, gridLimits)
     const gridReasons = explainGrid(gridResult, gridFilters.state)
     const gridFix = gridResult.allOk ? null : suggestGridFix(computeGrid, gridInput, gridLimits)
+    const gridMaxMargin = gridResult.levels.length > 0 || gridResult.errors.length === 0 ? maxAffordableMargin(computeGrid, gridInput, gridLimits) : null
+    const gridRisk = riskSentence(gridResult.worstLoss, gridResult.bestGain, gridLimits.dailyLossBudgetLeft)
     const liveGridRow = liveGrid?.grid && !LIVE_GRID_FINAL.includes(liveGrid.grid.status) ? liveGrid.grid : null
     const liveGridLast = liveGrid?.grid && LIVE_GRID_FINAL.includes(liveGrid.grid.status) ? liveGrid.grid : null
     const liveGridMargin = Number(grid.margin), liveGridCount = Number(grid.count)
@@ -2320,15 +2326,33 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       expected: 'ACİL DURDUR',
       action: async () => { setLiveGrid(await call<LiveGridStatus>(GRID, gridPath(`/grid/live/emergency${liveGridRow ? `?grid_id=${encodeURIComponent(liveGridRow.grid_id)}` : ''}`), {method: 'POST', timeoutMs: 90000})) },
     })
-    const gridLiveBlock = liveGrid?.enabled || liveGridRow || liveGridLast ? <div className="mgpLive" role="group" aria-label="Canlı grid">
-      {liveGridRow && <>
-        <h4>Canlı grid · {liveGridRow.symbol} {liveGridRow.side}</h4>
-        <p className={liveGridRow.needs_user ? 'liveWsWarn' : 'liveWsHint'} role="status"><b>{LIVE_GRID_STATUS_TEXT[liveGridRow.status] || liveGridRow.status}</b>{liveGridRow.reason ? ` — ${liveGridRow.reason}` : ''}</p>
-        <p className="liveWsHint">Grid pozisyonu: {liveGridRow.position_qty} · döngü {liveGrid?.loop_running ? 'çalışıyor' : 'DURMUŞ (sunucu yeniden başlamış olabilir)'}</p>
-        <div className="mgpTable" role="table" aria-label="Grid emirleri">
-          {liveGridRow.orders.filter(o => o.status !== 'CANCELED' && o.status !== 'REJECTED' || o.filled > 0).map(o => <div role="row" key={o.client_id}><span>{o.role === 'E' ? 'Giriş' : o.role === 'T' ? 'Hedef' : o.role === 'S' ? 'Stop' : 'Kapat'} {o.level || ''}</span><span>{presetPrice(o.price || o.stop_price)}</span><span>{o.filled}/{o.qty}</span><span>{o.status}</span></div>)}
+    const gridHistory = (liveGrid?.grids || []).filter(item => LIVE_GRID_FINAL.includes(item.status)).slice(0, 5)
+    const gridLiveSum = liveGridRow ? liveSummary(liveGridRow.stats, new Set(liveGridRow.orders.filter(o => o.role === 'E').map(o => o.level)).size) : null
+    const gridLiveEntries = liveGridRow ? liveGridRow.orders.filter(o => o.role === 'E').map(o => o.price) : []
+    const gridLivePrice = liveGridRow ? Number(rows.find(r => r.symbol === liveGridRow.symbol)?.price) : NaN
+    const gridLiveRange = liveGridRow ? rangeStatus(gridLivePrice, gridLiveEntries) : 'unknown'
+    const gridLiveBlock = liveGrid?.enabled || liveGridRow || liveGridLast || gridHistory.length > 0 ? <div className="mgpLive gsuLive" role="group" aria-label="Canlı grid">
+      {liveGridRow && gridLiveSum && <>
+        <div className="gsuLiveHead">
+          <div><b>{liveGridRow.symbol}</b><span className={liveGridRow.side === 'LONG' ? 'up' : 'down'}>{liveGridRow.side}</span></div>
+          <span className="gsuLiveState" data-warn={liveGridRow.needs_user ? '1' : undefined}>{LIVE_GRID_STATUS_TEXT[liveGridRow.status] || liveGridRow.status}</span>
         </div>
-        {liveGridRow.alerts.length > 0 && <ul className="mgpAlerts" role="alert" aria-label="Canlı grid uyarıları">{liveGridRow.alerts.slice(-5).map((item, index) => <li key={index} data-level={item.level}><b>{item.level === 'kritik' ? 'KRİTİK' : item.level === 'uyari' ? 'UYARI' : 'BİLGİ'}</b><span>{item.text}</span></li>)}</ul>}
+        {liveGridRow.reason && <p className={liveGridRow.needs_user ? 'liveWsWarn' : 'liveWsHint'} role="status">{liveGridRow.reason}</p>}
+        {gridLiveRange === 'outside' && <p className="gsuRange" data-level="outside" role="alert"><b>Fiyat aralığın dışına çıktı.</b> Grid şu an işe yaramıyor; durdurmak isteyebilirsin.</p>}
+        {gridLiveRange === 'near-edge' && <p className="gsuRange" data-level="near" role="status"><b>Fiyat aralığın kenarına yaklaştı.</b> Dikkat et.</p>}
+        <div className="gsuNums">
+          <span><small>Biten tur</small><b>{gridLiveSum.cycles}</b></span>
+          <span><small>Net kazanç</small><b className={gridLiveSum.net >= 0 ? 'up' : 'down'}>{gridLiveSum.net >= 0 ? '+' : ''}{money(gridLiveSum.net)}</b></span>
+          <span><small>Açık kademe</small><b>{gridLiveSum.filled}/{gridLiveSum.levels}</b></span>
+        </div>
+        <p className="liveWsHint">{gridLiveSum.text} Pozisyon: {liveGridRow.position_qty} · döngü {liveGrid?.loop_running ? 'çalışıyor' : 'DURMUŞ (sunucu yeniden başlamış olabilir)'}</p>
+        {liveGridRow.alerts.length > 0 && <ul className="mgpAlerts" role="alert" aria-label="Canlı grid uyarıları">{liveGridRow.alerts.slice(-3).map((item, index) => <li key={index} data-level={item.level}><b>{item.level === 'kritik' ? 'KRİTİK' : item.level === 'uyari' ? 'UYARI' : 'BİLGİ'}</b><span>{item.text}</span></li>)}</ul>}
+        <details className="gsuMore">
+          <summary>Emirler <span>{liveGridRow.orders.filter(o => o.status !== 'CANCELED' && o.status !== 'REJECTED' || o.filled > 0).length} satır</span></summary>
+          <div className="mgpTable" role="table" aria-label="Grid emirleri">
+            {liveGridRow.orders.filter(o => o.status !== 'CANCELED' && o.status !== 'REJECTED' || o.filled > 0).map(o => <div role="row" key={o.client_id}><span>{o.role === 'E' ? 'Giriş' : o.role === 'T' ? 'Hedef' : o.role === 'S' ? 'Stop' : 'Kapat'} {o.level || ''}</span><span>{presetPrice(o.price || o.stop_price)}</span><span>{o.filled}/{o.qty}</span><span>{o.status}</span></div>)}
+          </div>
+        </details>
         <div className="mxtNav">
           <button type="button" className="mxtBtn ghost" disabled={busy !== ''} onClick={stopLiveGrid}>Grid'i durdur</button>
           <button type="button" className="mxtBtn primary" disabled={busy !== ''} onClick={emergencyLiveGrid}>ACİL DURDUR</button>
@@ -2336,10 +2360,14 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       </>}
       {!liveGridRow && liveGrid?.enabled && <>
         <h4>Canlı grid başlat</h4>
-        {liveGridLast && <p className="liveWsHint">Son grid: {liveGridLast.symbol} — {LIVE_GRID_STATUS_TEXT[liveGridLast.status] || liveGridLast.status}</p>}
         {liveGridWhy && <p className="liveWsWarn" role="status">{liveGridWhy}</p>}
         <div className="mxtNav"><button type="button" className="mxtBtn primary" disabled={busy !== '' || liveGridWhy !== ''} onClick={startLiveGrid}>{demo ? 'DEMO GRID BAŞLAT' : 'CANLI GRID BAŞLAT'}</button></div>
       </>}
+      {(gridHistory.length > 0 || (liveGrid?.day?.grids ?? 0) > 0) && <details className="gsuMore gsuHist">
+        <summary>Geçmiş <span>{(liveGrid?.day?.grids ?? 0) > 0 ? `bugün ${Number(liveGrid?.day?.realized_usdt) >= 0 ? '+' : ''}${money(liveGrid?.day?.realized_usdt ?? 0)} · ${liveGrid?.day?.cycles ?? 0} tur` : 'biten gridler'}</span></summary>
+        <ul className="gsuHistList">{gridHistory.map(item => { const net = Number(item.stats?.realized_usdt) || 0; return <li key={item.grid_id}><span><b>{item.symbol}</b> <small className={item.side === 'LONG' ? 'up' : 'down'}>{item.side}</small></span><span>{Number(item.stats?.cycles) || 0} tur</span><b className={net >= 0 ? 'up' : 'down'}>{net >= 0 ? '+' : ''}{money(net)}</b><small>{LIVE_GRID_STATUS_TEXT[item.status] ? String(LIVE_GRID_STATUS_TEXT[item.status]).split(' (')[0] : item.status}</small></li> })}</ul>
+        <p className="liveWsHint">Net kazanç, biten turların ücret düşülmüş kârıdır; stop ya da acil kapanış zararı borsadaki gerçek fiyata göre farklı olabilir.</p>
+      </details>}
     </div> : null
     // Akıllı özet: yalnız hesaplanmış verilerden (kademeler, limit kontrolleri) türetilir; emir göndermez.
     const gridLevelsSorted = [...gridResult.levels].sort((a, b) => Math.abs(a.entry - gridPrice) - Math.abs(b.entry - gridPrice))
@@ -2369,7 +2397,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <span className="gsuMode" data-live={liveGrid?.enabled ? '1' : '0'}>{liveGrid?.enabled ? (demo ? 'Demo' : 'Canlı') : 'Önizleme · emir gitmez'}</span>
       </div>
       <div className="gsuPresets" role="group" aria-label="Hazır aralık">{[[3, 'Dar', 3], [5, 'Dengeli', 5], [8, 'Geniş', 5]].map(([pct, name, cnt]) => <button type="button" key={pct as number} disabled={!(gridPrice > 0)} onClick={() => { gridAuto(pct as number); setGridField('count', String(Math.min(cnt as number, GRID_MAX_COUNT))) }}><b>{name}</b><small>±%{pct} · {cnt} kademe</small></button>)}</div>
-
+      <GridSmartPlan symbol={order.symbol} side={gridSide} price={gridPrice} margin={Number(grid.margin)} leverage={Number(grid.leverage)} active={active && manualMode === 'grid'}
+        evaluate={plan => computeGrid({...gridInput, lower: plan.lower, upper: plan.upper, count: plan.count, totalMargin: plan.margin, stop: plan.stop}, gridLimits)}
+        onApply={plan => setGrid(current => ({...current, lower: String(plan.lower), upper: String(plan.upper), count: String(plan.count), margin: String(plan.margin), stop: String(plan.stop)}))}/>
+      <div className="gsuCols">
+      <div className="gsuCol">
       <div className="gsuVerdict" data-state={gridVerdict} role="status">
         {gridVerdict === 'wait' && <><b>Önce bir coin seç</b><small>Fiyat gelince hazır planlardan birine dokun.</small></>}
         {gridVerdict === 'ok' && <><b>✓ Plan limitlerin içinde</b><small>{liveGrid?.enabled ? 'Aşağıdan başlatabilirsin; başlatmadan emir gitmez.' : 'Canlı grid sunucuda kapalı; emir gönderilmez.'}</small></>}
@@ -2387,6 +2419,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         <label className="liveWsField">Kademe ({GRID_MIN_COUNT}–{GRID_MAX_COUNT})<input type="number" inputMode="numeric" min={GRID_MIN_COUNT} max={GRID_MAX_COUNT} value={grid.count} onChange={event => setGridField('count', event.target.value)}/></label>
         <label className="liveWsField">Toplam marjin (USDT)<input type="number" inputMode="decimal" min="5" value={grid.margin} onChange={event => setGridField('margin', event.target.value)}/></label>
       </div>
+      {gridPrice > 0 && (gridMaxMargin !== null
+        ? <p className="gsuHint">Bu aralık ve kademeyle en fazla <button type="button" onClick={() => setGridField('margin', String(gridMaxMargin))}>{gridMaxMargin} USDT</button> yazabilirsin (limitlere sığan en yüksek marjin).</p>
+        : gridResult.levels.length > 0 && <p className="gsuHint">Bu aralık ve kademeyle limitlere sığan marjin yok; kademeyi azalt ya da aralığı daralt.</p>)}
       <details className="gsuMore">
         <summary>Kaldıraç ve stop <span>{grid.leverage}x · stop {grid.stop || '—'}</span></summary>
         <div className="gsuFields">
@@ -2394,8 +2429,10 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
           <label className="liveWsField">Ortak stop<input type="number" inputMode="decimal" value={grid.stop} onChange={event => setGridField('stop', event.target.value)}/></label>
         </div>
       </details>
-
+      </div>
+      <div className="gsuCol">
       {gridHasPlan && <>
+        <p className="gsuRisk">En kötü ihtimalde <b className="down">{gridRisk.loss}</b> kaybedersin{gridRisk.pct !== null ? ` (bugünkü kalan zarar hakkının %${gridRisk.pct}'i)` : ''}; hedeflerin hepsi dolarsa yaklaşık <b className="up">{gridRisk.gain}</b> kazanırsın.</p>
         <div className="gsuNums">
           <span><small>En kötü zarar</small><b className="down">{money(gridResult.worstLoss)}</b></span>
           <span><small>Tahmini kâr</small><b className="up">{money(gridResult.bestGain)}</b></span>
@@ -2404,6 +2441,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
         {gridTooTight && <p className="gsuTip">Kademeler çok sık (%{gridResult.spacingPct.toFixed(2)}); ücretler kârı yer.{gridFitCount < Number(grid.count) && <button type="button" onClick={() => setGridField('count', String(gridFitCount))}>{gridFitCount} kademeye düşür</button>}</p>}
         {gridMap}
       </>}
+      </div>
+      </div>
 
       {gridLiveBlock}
 

@@ -43,3 +43,38 @@ assert(g.computeGrid({...big, totalMargin: f2!.margin, count: f2!.count}, tight)
 // borsa kuralları okunamadı
 assert(d.explainGrid(g.computeGrid({...ok, filters: undefined}, lim), 'error')[0].unknown)
 console.log('gridDecision OK')
+
+// ---- akıllı plan
+const hours = (range: number) => Array.from({length: 30}, (_, i) => ({high: 100 + range / 2 + (i % 3), low: 100 - range / 2 - (i % 2), close: 100}))
+const sm: any = d
+const mv = sm.recentMove(hours(4), 100); assert(mv && mv.dayPct > 4 && mv.hourPct > 3)
+assert.strictEqual(sm.recentMove(hours(4).slice(0, 5), 100), null, 'az mum → null')
+const evalOf = (limits: any) => (p: any) => g.computeGrid({side: 'LONG', price: 100, lower: p.lower, upper: p.upper, count: p.count, totalMargin: p.margin, leverage: 2, stop: p.stop, filters: {tickSize: 0.01, stepSize: 0.001, minNotional: 5}} as any, limits)
+const calm = sm.smartGridPlan({side: 'LONG', price: 100, candles: hours(0.5), margin: 60, leverage: 2}, evalOf(lim))
+const wild = sm.smartGridPlan({side: 'LONG', price: 100, candles: hours(12), margin: 60, leverage: 2}, evalOf(lim))
+assert(calm && wild && wild.rangePct > calm.rangePct, 'hareketli coin daha geniş aralık')
+assert(calm.upper < 100 && calm.lower < calm.upper && calm.stop < calm.lower, 'LONG: aralık fiyatın altında, stop altında')
+assert(calm.ok && wild.ok)
+const sh = sm.smartGridPlan({side: 'SHORT', price: 100, candles: hours(4), margin: 60, leverage: 2}, (p: any) => g.computeGrid({side: 'SHORT', price: 100, lower: p.lower, upper: p.upper, count: p.count, totalMargin: p.margin, leverage: 2, stop: p.stop, filters: {tickSize: 0.01, stepSize: 0.001, minNotional: 5}} as any, lim))
+assert(sh.lower > 100 && sh.stop > sh.upper, 'SHORT: aralık fiyatın üstünde')
+const tightLim = {...lim, maxLossPerTrade: 0.3}
+const fitted = sm.smartGridPlan({side: 'LONG', price: 100, candles: hours(12), margin: 400, leverage: 2}, evalOf({...lim, maxLossPerTrade: 8, dailyLossBudgetLeft: 40}))
+assert(fitted && fitted.ok && fitted.fitted && fitted.margin < 400, JSON.stringify(fitted))
+const none = sm.smartGridPlan({side: 'LONG', price: 100, candles: hours(12), margin: 60, leverage: 2}, evalOf({...lim, currentExposure: 5000}))
+assert(none && !none.ok, 'sığmıyorsa ok=false (uydurma yok)')
+// ---- marjin tavanı
+const mm = sm.maxAffordableMargin(g.computeGrid, {...base, count: 2, totalMargin: 10}, {...lim, maxLossPerTrade: 12, dailyLossBudgetLeft: 40})
+assert(mm && mm >= 10, String(mm))
+assert(g.computeGrid({...base, count: 2, totalMargin: mm}, {...lim, maxLossPerTrade: 12, dailyLossBudgetLeft: 40}).allOk)
+assert(!g.computeGrid({...base, count: 2, totalMargin: mm + 3}, {...lim, maxLossPerTrade: 12, dailyLossBudgetLeft: 40}).allOk, 'tavan gerçekten tavan')
+assert.strictEqual(sm.maxAffordableMargin(g.computeGrid, {...base, count: 2}, {...lim, currentExposure: 5000}), null)
+// ---- risk cümlesi, özet, aralık
+assert.deepStrictEqual(sm.riskSentence(14.2, 3.1, 40), {loss: '$14.20', gain: '$3.10', pct: 36})
+assert.strictEqual(sm.riskSentence(14.2, 3.1, null).pct, null)
+assert(/Henüz/.test(sm.liveSummary({cycles: 0, filled_levels: 0}, 5).text))
+assert(/2 tur/.test(sm.liveSummary({cycles: 2, realized_usdt: 0.4, filled_levels: 1}, 5).text))
+assert.strictEqual(sm.rangeStatus(95, [90, 100]), 'inside')
+assert.strictEqual(sm.rangeStatus(100.1, [90, 100]), 'near-edge')
+assert.strictEqual(sm.rangeStatus(85, [90, 100]), 'outside')
+assert.strictEqual(sm.rangeStatus(0, [90, 100]), 'unknown')
+console.log('gridDecision smart OK')
