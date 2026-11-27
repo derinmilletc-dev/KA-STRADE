@@ -427,7 +427,15 @@ def _queue_v21_snapshot(state: dict[str, Any], user_id: str, payload: dict[str, 
     except RuntimeError:
         asyncio.run(_persist_v21_snapshot_db(application, user_id, payload))
         return True
-    task = loop.create_task(_persist_v21_snapshot_db(application, user_id, payload))
+    if payload.get("legacy_loss_guard"):
+        task = loop.create_task(_persist_v21_snapshot_db(application, user_id, payload))
+    else:
+        from . import snapshot_coalesce
+
+        def write_failed(error: BaseException) -> None:
+            logger.error("Demo snapshot persistence failed: error=%s", type(error).__name__)
+
+        task = snapshot_coalesce.queue(application, "v21_demo", user_id, payload, _persist_v21_snapshot_db, write_failed)
     tasks.add(task)
     def snapshot_done(completed: asyncio.Task[Any]) -> None:
         tasks.discard(completed)
