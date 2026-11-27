@@ -1408,12 +1408,15 @@ def persist_runtime(state: dict[str, Any]) -> None:
                 import asyncio
                 loop = asyncio.get_running_loop()
                 if loop.is_running():
-                    task = loop.create_task(_persist_demo_snapshot_db(app, user_id, snapshot))
+                    from . import snapshot_coalesce
+                    task = snapshot_coalesce.queue(app, "binance_demo", user_id, snapshot, _persist_demo_snapshot_db)
                     pending = getattr(app.state, "_binance_demo_persistence_tasks", None)
                     if not isinstance(pending, dict):
                         pending = {}
                         app.state._binance_demo_persistence_tasks = pending
-                    pending.setdefault(user_id, []).append(task)
+                    waiting = pending.setdefault(user_id, [])
+                    if task not in waiting:
+                        waiting.append(task)
                     return
             except RuntimeError:
                 pass
