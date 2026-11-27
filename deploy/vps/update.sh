@@ -2,6 +2,8 @@
 # Yeni sürümü çekip servisi yeniden başlatır (root): bash /opt/kaistrade/deploy/vps/update.sh
 set -euo pipefail
 APP_DIR=/opt/kaistrade
+# Klasör kais kullanıcısına ait; root olarak ikinci çalıştırmada git "dubious ownership" hatası vermesin.
+git config --global --get-all safe.directory | grep -qx "$APP_DIR" || git config --global --add safe.directory "$APP_DIR"
 git -C "$APP_DIR" fetch origin main
 git -C "$APP_DIR" reset --hard origin/main
 chown -R kais:kais "$APP_DIR"
