@@ -160,6 +160,9 @@ def session_row(request, payload):
             "exp": payload["exp"], "auth_version": payload.get("ver", 1), "revoked": False}
 
 
+SESSION_SEEN_WRITE_INTERVAL_SECONDS = 60.0
+
+
 async def track_session(request, token, *, force=False, issued=False):
     payload = verify_token(token, auth.runtime(request)["secret"], expected_kind="USER")
     if not payload.get("jti"):
@@ -169,6 +172,22 @@ async def track_session(request, token, *, force=False, issued=False):
     # no inferred devices or unobserved session counts are fabricated.
     if doc is None and not force:
         return
+    if doc is not None and not force and not issued:
+        # Her istekte "son görülme" yazmak, aynı kullanıcının eşzamanlı isteklerini tek bir kilitte sıraya dizip
+        # her biri bir veritabanı bağlantısı tutarken havuzu dolduruyordu (emir sonrası ekran ~20 sn donuyordu).
+        # Oturum kayıtlıysa ve son yazım yakınsa yalnız okuyup aynı iptal denetimlerini uygular, yazmayı atlarız.
+        known = (doc.get("sessions") or {}).get(payload["jti"])
+        if known is not None:
+            if known.get("issued_at", payload.get("iat", 0)) <= doc.get("sessions_valid_after", 0) and payload["jti"] != doc.get("preserved_session"):
+                raise HTTPException(401, "Oturum iptal edildi")
+            if known.get("revoked"):
+                raise HTTPException(401, "Oturum iptal edildi")
+            try:
+                seen = datetime.fromisoformat(str(known.get("last_seen_at"))).timestamp()
+            except (TypeError, ValueError):
+                seen = 0.0
+            if 0.0 < time.time() - seen < SESSION_SEEN_WRITE_INTERVAL_SECONDS:
+                return
     async with store.edit(request, payload["sub"]) as doc:
         row = doc.setdefault("sessions", {}).get(payload["jti"])
         if not issued and (row or {}).get("issued_at", payload.get("iat", 0)) <= doc.get("sessions_valid_after", 0) and payload["jti"] != doc.get("preserved_session"):
