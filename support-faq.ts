@@ -56,13 +56,13 @@ export const FAQS: Faq[] = [
     "id": "f5",
     "category": "billing",
     "q": "Ücretsiz deneme nasıl çalışır?",
-    "a": "Yeni üyelere 7 günlük ücretsiz deneme sunulur. Deneme süresince Master Trade özelliklerini kullanabilirsin. Süre sonunda üyelik kendiliğinden yenilenmez. Devam etmek istersen abonelik sayfasından Binance ile ödeme yaparsın."
+    "a": "Yeni üyelere 7 günlük ücretsiz deneme sunulur. Deneme süresince Master Trade özelliklerini kullanabilirsin. Süre sonunda üyelik kendiliğinden yenilenmez. Devam etmek istersen abonelik sayfasından kripto ile ödeme yaparsın."
   },
   {
     "id": "f6",
     "category": "billing",
     "q": "Aboneliğimi nasıl iptal ederim?",
-    "a": "Ödemeler Binance ile yapıldığı için otomatik ödeme veya bir sonraki ay kendiliğinden para çekme yoktur; iptal etmen gereken bir şey de yok. Üyeliğin bittiğinde devam etmek istersen yeniden ödeme yaparak üyeliğini uzatırsın, istemezsen hiçbir şey yapmana gerek kalmaz ve üyeliğin süre sonunda kendiliğinden biter. Yapılan ödemelerin iadesi yapılmaz."
+    "a": "Ödemeler kripto ile yapıldığı için otomatik ödeme veya bir sonraki ay kendiliğinden para çekme yoktur; iptal etmen gereken bir şey de yok. Üyeliğin bittiğinde devam etmek istersen yeniden ödeme yaparak üyeliğini uzatırsın, istemezsen hiçbir şey yapmana gerek kalmaz ve üyeliğin süre sonunda kendiliğinden biter. Yapılan ödemelerin iadesi yapılmaz."
   },
   {
     "id": "f8",

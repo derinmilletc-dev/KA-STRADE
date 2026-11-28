@@ -104,7 +104,7 @@
       "paket",
       "üyelik"
     ],
-    "content": "Üç seçenek var. {TRIAL_DAYS} günlük Ücretsiz Deneme: ödeme bilgisi istenmez, hesap başına bir kez kullanılır ve işlemler yalnız Demo hesapta yapılır. SMART TRADE: {PAID_PERIOD_DAYS} gün için {SMART_PRICE} {CURRENCY}. Demo ve canlı manuel işlem, Grid işlemleri, Master Trade ekranının tamamı, stop/hedef/pozisyon koruması, AI Analist, Scanner, Analiz Stüdyosu, KAIS Rehber ve KAIS AI dahildir; canlı hesapta KAIS stratejileri ve Auto Trade yoktur, Demo hesapta hepsi açıktır. MASTER MODE: {PAID_PERIOD_DAYS} gün için {MASTER_PRICE} {CURRENCY}. Smart Trade'deki her şeye ek olarak canlı hesapta KAIS stratejileri, canlı Auto Trade ve öncelikli destek vardır. Günlük haklar: SMART TRADE'de KAIS AI {KAIS_SMART_DAILY} mesaj, Grafik AI {CHART_SMART_DAILY} analiz, AI Analist {ANALYST_SMART_DAILY} analiz; MASTER MODE'da KAIS AI {KAIS_PAID_DAILY} mesaj, Grafik AI {CHART_PAID_DAILY} analiz, AI Analist {ANALYST_PAID_DAILY} analiz. Ödeme Binance Pay ile {CURRENCY} olarak yapılır ve otomatik yenileme yoktur. Planları Ana sayfa → ABONELİK (telefonda Menü → Abonelik) ekranında görürsün.",
+    "content": "Üç seçenek var. {TRIAL_DAYS} günlük Ücretsiz Deneme: ödeme bilgisi istenmez, hesap başına bir kez kullanılır ve işlemler yalnız Demo hesapta yapılır. SMART TRADE: {PAID_PERIOD_DAYS} gün için {SMART_PRICE} {CURRENCY}. Demo ve canlı manuel işlem, Grid işlemleri, Master Trade ekranının tamamı, stop/hedef/pozisyon koruması, AI Analist, Scanner, Analiz Stüdyosu, KAIS Rehber ve KAIS AI dahildir; canlı hesapta KAIS stratejileri ve Auto Trade yoktur, Demo hesapta hepsi açıktır. MASTER MODE: {PAID_PERIOD_DAYS} gün için {MASTER_PRICE} {CURRENCY}. Smart Trade'deki her şeye ek olarak canlı hesapta KAIS stratejileri, canlı Auto Trade ve öncelikli destek vardır. Günlük haklar: SMART TRADE'de KAIS AI {KAIS_SMART_DAILY} mesaj, Grafik AI {CHART_SMART_DAILY} analiz, AI Analist {ANALYST_SMART_DAILY} analiz; MASTER MODE'da KAIS AI {KAIS_PAID_DAILY} mesaj, Grafik AI {CHART_PAID_DAILY} analiz, AI Analist {ANALYST_PAID_DAILY} analiz. Ödeme kripto ile yapılır, otomatik onaylanır ve otomatik yenileme yoktur. Planları Ana sayfa → ABONELİK (telefonda Menü → Abonelik) ekranında görürsün.",
     "code_sources": [
       "BillingCenter.tsx",
       "BinanceManualPayment.tsx",
@@ -131,10 +131,10 @@
       "düşür",
       "dönem"
     ],
-    "content": "Ücretli planlar {PAID_PERIOD_DAYS} gün geçerlidir ve otomatik yenilenmez; süre bitince ücret alınmaz, plan kendiliğinden kapanır. Bu yüzden iptal etmen gerekmez. Devam etmek istersen süre bitmeden veya bittikten sonra yeniden ödeme yaparsın. Plan sürerken yaptığın ödeme onaylanırsa yeni {PAID_PERIOD_DAYS} gün mevcut sürenin bitişinden sonra eklenir; kalan günlerin kaybolmaz. Smart Trade'den Master Mode'a hemen geçmek istiyorsan ödeme yapmadan önce Destek'e yaz. Mevcut planın, durumu ve bitiş tarihi Ana sayfa → ABONELİK ekranının üstünde görünür. İade, ödeme veya fatura sorunları için Destek bölümünden talep oluştur. KAIS AI aboneliğini değiştiremez ve ödeme alamaz.",
+    "content": "Ücretli planlar {PAID_PERIOD_DAYS} gün geçerlidir ve otomatik yenilenmez; süre bitince ücret alınmaz, plan kendiliğinden kapanır. Bu yüzden iptal etmen gerekmez. Devam etmek istersen süre bitmeden veya bittikten sonra yeniden ödeme yaparsın. Plan sürerken yaptığın ödeme tamamlanırsa yeni {PAID_PERIOD_DAYS} gün mevcut sürenin bitişinden sonra eklenir; kalan günlerin kaybolmaz. Smart Trade'den Master Mode'a hemen geçmek istiyorsan ödeme yapmadan önce Destek'e yaz. Mevcut planın, durumu ve bitiş tarihi Ana sayfa → ABONELİK ekranının üstünde görünür. İade, ödeme veya fatura sorunları için Destek bölümünden talep oluştur. KAIS AI aboneliğini değiştiremez ve ödeme alamaz.",
     "code_sources": [
       "BillingCenter.tsx",
-      "BinanceManualPayment.tsx",
+      "NowPaymentsPay.tsx",
       "backend/app/product_catalog.py"
     ]
   },
@@ -186,7 +186,7 @@
   },
   {
     "id": "payment",
-    "title": "Binance Pay ile ödeme nasıl yapılır?",
+    "title": "Kripto ile ödeme nasıl yapılır?",
     "keywords": [
       "ödeme",
       "öde",
@@ -205,11 +205,19 @@
       "bekliyor",
       "reddedildi",
       "kart",
-      "havale"
+      "havale",
+      "kripto",
+      "crypto",
+      "coin",
+      "nowpayments",
+      "ağ",
+      "adres"
     ],
-    "content": "Ödemeler yalnız Binance Pay ile {CURRENCY} olarak yapılır; kart veya cüzdan bilgin kaydedilmez. Ana sayfa → ABONELİK (telefonda Menü → Abonelik) ekranında planı seç ve “Binance ile öde”ye bas. Adımlar: önce sana özel bir referans kodu oluşur. Sonra plan tutarını (Smart Trade {SMART_PRICE} {CURRENCY}, Master Mode {MASTER_PRICE} {CURRENCY}) Binance uygulamasından Binance Pay ile ödeme ekranında gösterilen Pay ID'ye gönder ve ödeme notuna referans kodunu yaz. Son olarak Binance'teki işlem/sipariş numarasını {PAYMENT_WINDOW_HOURS} saat içinde aynı ekrana gir. Her ödeme kontrol edilir ve genelde birkaç saat içinde onaylanır; onaylanınca erişimin açılır ve bildirim gelir. Ödeme durumunu (Bekliyor, Onaylandı, Reddedildi, Süresi doldu) aynı ekranda görürsün. Numara {PAYMENT_WINDOW_HOURS} saat içinde girilmezse talebin süresi dolar; yeni talep oluşturabilirsin. Reddedilen, uzun süre bekleyen veya yanlış tutarla gönderilen ödeme için Destek bölümünden talep oluştur.",
+    "content": "Ödeme şu an yalnız kripto ile alınır ve otomatik onaylanır; kart veya cüzdan bilgin kaydedilmez. Binance Pay ile elle ödeme ve işlem numarası girme yoktur. Ana sayfa → ABONELİK (telefonda Menü → Abonelik) ekranında planı seç ve “Kripto ile öde”ye bas. Adımlar: güvenli ödeme sayfası açılır; orada istediğin kripto parayı ve ağı seçersin, sayfa gönderilecek adresi ve tutarı gösterir. Plan fiyatı (Smart Trade {SMART_PRICE}, Master Mode {MASTER_PRICE} USD karşılığı) seçtiğin coine çevrilir; ağ ücreti ayrıca ödenir ve sayfadaki tutarın tamamı gönderilmelidir. Ödeme ağda onaylanınca üyeliğin kendiliğinden açılır, işlem numarası girmen gerekmez; genelde birkaç dakika sürer, kesin süre garanti edilmez. Açılmadıysa aynı ekranda “Durumu yenile”ye bas. Ödeme sayfası kapanırsa yeniden “Kripto ile öde”ye basabilirsin. Eksik tutar gönderdiysen, ödeme yaptığın halde üyelik açılmadıysa veya yanlış ağa gönderdiysen Destek bölümünden talep oluştur. Otomatik yenileme yoktur; her {PAID_PERIOD_DAYS} günlük dönem için yeniden ödersin.",
     "code_sources": [
       "BillingCenter.tsx",
+      "NowPaymentsPay.tsx",
+      "backend/app/nowpayments_payments.py",
       "backend/app/product_catalog.py"
     ]
   },
@@ -1038,7 +1046,7 @@
       "soru",
       "kais"
     ],
-    "content": "KAIS AI sitedeki bölümleri, ekranları ve terimleri açıklar; planlar, fiyatlar, Binance Pay ödemesi, deneme, günlük haklar ve destek konularında yanıt verir ve seni doğru menüye yönlendirir. Profilinde izin verdiysen kendi işlemlerini, pozisyonlarını ve ayarlarını okuyup özetler; coinleri karşılaştırır ve piyasa özeti verir. Hangi ekranda olduğunu bilir; “bu ne?” diye sorarsan o bölümü anlatır. İşlem açmaz, al-sat tavsiyesi vermez, aboneliğini değiştirmez, ödeme almaz; şifre veya API Secret istemez. Destek ekibinin yapması gereken işler için seni Destek bölümüne yönlendirir. KAIS AI tüm planlarda aynı asistandır; planlara göre yalnız günlük mesaj hakkı değişir.",
+    "content": "KAIS AI sitedeki bölümleri, ekranları ve terimleri açıklar; planlar, fiyatlar, kripto ile ödeme, deneme, günlük haklar ve destek konularında yanıt verir ve seni doğru menüye yönlendirir. Profilinde izin verdiysen kendi işlemlerini, pozisyonlarını ve ayarlarını okuyup özetler; coinleri karşılaştırır ve piyasa özeti verir. Hangi ekranda olduğunu bilir; “bu ne?” diye sorarsan o bölümü anlatır. İşlem açmaz, al-sat tavsiyesi vermez, aboneliğini değiştirmez, ödeme almaz; şifre veya API Secret istemez. Destek ekibinin yapması gereken işler için seni Destek bölümüne yönlendirir. KAIS AI tüm planlarda aynı asistandır; planlara göre yalnız günlük mesaj hakkı değişir.",
     "code_sources": [
       "frontend/src/LiveCockpit.tsx",
       "AssistantChat.tsx"
