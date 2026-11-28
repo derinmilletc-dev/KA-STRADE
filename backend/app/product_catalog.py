@@ -109,7 +109,7 @@ def plans(assistant: AssistantConfig | None = None, credits: CreditConfig | None
                 "Ödeme ağda onaylanınca üyeliğin kendiliğinden açılır; işlem numarası girmen gerekmez",
                 "Açılmadıysa aynı ekranda “Durumu yenile”ye bas",
             ],
-            "amount_note": "Plan fiyatı USD karşılığıdır; ödeme sayfası seçilen coine göre tutarı hesaplar. Gönderirken ağ ücreti (gas) ayrıca ödenir; ödeme sayfasında gösterilen tutarın tamamı gönderilmelidir",
+            "amount_note": "Plan fiyatı USD karşılığıdır; ödeme sayfası seçilen coine göre tutarı hesaplar. Gönderen cüzdan veya borsa küçük bir gönderim ücreti alır; karşıya sayfada gösterilen tutarın tamamı ulaşmalıdır, bu yüzden ücret tutarın içinden değil üstüne eklenmelidir",
             "approval": "Otomatik onaylanır; ağ onayından sonra genelde birkaç dakika içinde açılır (kesin süre sözü verilmez)",
             "card_or_wallet_stored": False,
             "not_available": ["Binance Pay ile elle ödeme", "kart", "havale"],
