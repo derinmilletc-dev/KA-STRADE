@@ -89,6 +89,9 @@ async def start(conn, user):
                  AND p.revoked_at IS NULL AND p.period_end>clock_timestamp())""", user["id"],
         ):
             raise HTTPException(409, "MASTER MODE döneminiz zaten mevcut.")
+        from . import nowpayments_payments as nowpay
+        if nowpay.enabled() and await nowpay.active_period(conn, user["id"]) is not None:
+            raise HTTPException(409, "Üyeliğiniz zaten aktif.")
         await conn.execute(
             """INSERT INTO member_free_trials(user_hash,user_id) VALUES ($1,$2)
                ON CONFLICT (user_hash) DO NOTHING""", account_hash(user["id"]), user["id"],
