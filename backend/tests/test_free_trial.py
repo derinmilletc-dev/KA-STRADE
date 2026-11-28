@@ -374,3 +374,26 @@ def test_demo_new_entry_allowed_until_expiry_but_protection_and_close_continue()
             await client.signed("POST","/fapi/v1/order",{"symbol":"BTCUSDT","type":"STOP_MARKET","closePosition":"true"})
             assert client._request.await_count == 3
     asyncio.run(run())
+
+
+def test_active_crypto_member_cannot_start_a_free_trial(monkeypatch):
+    from app import nowpayments_payments as nowpay
+    monkeypatch.setenv("NOWPAYMENTS_API_KEY", "key")
+    monkeypatch.setenv("NOWPAYMENTS_IPN_SECRET", "secret")
+    conn = TrialConnection()
+    monkeypatch.setattr(nowpay, "active_period", AsyncMock(return_value={"payment_id": "a" * 32}))
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(free_trial.start(conn, USER))
+    assert error.value.status_code == 409 and conn.trials == {}
+
+
+def test_trial_still_starts_when_crypto_is_off_or_member_has_no_crypto_period(monkeypatch):
+    from app import nowpayments_payments as nowpay
+    monkeypatch.delenv("NOWPAYMENTS_API_KEY", raising=False)
+    monkeypatch.delenv("NOWPAYMENTS_IPN_SECRET", raising=False)
+    trial = asyncio.run(free_trial.start(TrialConnection(), USER))
+    assert trial["active"] is True
+    monkeypatch.setenv("NOWPAYMENTS_API_KEY", "key")
+    monkeypatch.setenv("NOWPAYMENTS_IPN_SECRET", "secret")
+    monkeypatch.setattr(nowpay, "active_period", AsyncMock(return_value=None))
+    assert asyncio.run(free_trial.start(TrialConnection(), USER))["active"] is True
