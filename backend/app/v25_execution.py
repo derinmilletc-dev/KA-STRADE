@@ -97,7 +97,7 @@ from .exchange_connections import session_account_identity, session_credentials_
 from .local_storage import DATA_DIR, migrate_legacy_files
 from .trade_review import write_trade_review
 from .trade_r_metrics import calculate_r_multiple, initial_entry_risk_usdt
-from .liquidation_risk import isolated_liquidation_risk
+from .liquidation_risk import friendly_reason, isolated_liquidation_risk
 from .web_security import env_flag
 from . import signal_journal as observation
 from . import live_access
@@ -2515,7 +2515,7 @@ async def live_liquidation_risk(client: BinanceLiveClient, spec: dict[str, Any],
     except ValueError as exc:
         observation.emit("candidate", symbol=spec["symbol"], liquidation_passed=False, first_reject="LIQUIDATION_BUFFER")
         logger.warning("LIVE_LIQUIDATION_GATE_REJECTED symbol=%s reason=%s", spec["symbol"], exc)
-        raise LiveExchangeError(f"Likidasyon güvenliği doğrulanamadı: {exc}", http_status=409) from exc
+        raise LiveExchangeError(f"Likidasyon güvenliği doğrulanamadı: {friendly_reason(str(exc))}", http_status=409) from exc
 
 
 async def ticker_price(client: BinanceLiveClient, symbol: str) -> Decimal:

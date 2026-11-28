@@ -229,3 +229,6 @@ html body #root .originalManualOrder .manualLockStrip.permFocus .manualRenewBtn{
 
 /* Seçili kaldıraçta tasfiyeden sonra kalan stop önerisi soluk görünür (yine de seçilebilir; uyarı çıkar). */
 .mxtMPk[data-far],.mxtPick[data-far]{opacity:.55}
+.mxtPreFixes{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-start}
+.mxtPreFix{display:grid;gap:3px;justify-items:start}
+.mxtPreFix>small{font-size:11.5px;font-weight:500;color:#c9a9a4;padding-left:4px}
