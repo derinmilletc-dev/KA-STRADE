@@ -3,7 +3,7 @@
     python -m app.watchdog
 
 Ardışık 3 başarısız kontrolde (≈3 dk) "düştü" e-postası, 6 saatte bir hatırlatma, düzelince "tekrar çalışıyor" e-postası.
-Alıcı: ALERT_EMAIL (yoksa FOUNDING_NOTIFY_EMAIL). Ek adresler: WATCHDOG_URLS (virgülle). Sunucunun kendisi tamamen kapanırsa
+Alıcı: ALERT_EMAIL (yoksa FOUNDING_NOTIFY_EMAIL, o da yoksa site sahibi adresi). Ek adresler: WATCHDOG_URLS (virgülle). Sunucunun kendisi tamamen kapanırsa
 bu bekçi de çalışmaz; onun için dışarıdan bir izleme servisi gerekir.
 """
 import json
@@ -75,8 +75,12 @@ def message(kind: str, failed: list[str], down_since: float | None, now: float) 
 
 
 def recipient() -> str:
-    return (os.getenv("ALERT_EMAIL", "").strip() or os.getenv("FOUNDING_NOTIFY_EMAIL", "").strip()
-            or os.getenv("PROTREBOT_BOOTSTRAP_OWNER_EMAIL", "").strip())
+    found = (os.getenv("ALERT_EMAIL", "").strip() or os.getenv("FOUNDING_NOTIFY_EMAIL", "").strip()
+             or os.getenv("PROTREBOT_BOOTSTRAP_OWNER_EMAIL", "").strip())
+    if found:
+        return found
+    from .v22_commercial import BOOTSTRAP_OWNER_EMAIL  # hiçbiri tanımlı değilse site sahibinin adresi
+    return BOOTSTRAP_OWNER_EMAIL or ""
 
 
 def run() -> int:
