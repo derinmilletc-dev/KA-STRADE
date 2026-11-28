@@ -1757,6 +1757,9 @@ app.include_router(founding_admin_router)
 app.include_router(binance_manual_admin_router)
 app.include_router(nowpayments_router)
 app.include_router(nowpayments_admin_router)
+from .trial_live_admin import admin_router as trial_live_admin_router, mod_router as trial_live_mod_router
+app.include_router(trial_live_admin_router)
+app.include_router(trial_live_mod_router)
 app.include_router(moderator_events_router)
 app.include_router(campaign_router)
 from .account_settings import router as account_settings_router

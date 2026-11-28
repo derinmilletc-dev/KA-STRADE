@@ -1,0 +1,12 @@
+.trialLive{display:grid;gap:12px;padding:16px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:rgba(255,255,255,.03)}
+.trialLive header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.trialLive small{font-size:11px;letter-spacing:.08em;opacity:.7}
+.trialLive h2{margin:2px 0 4px;font-size:18px}
+.trialLive p{margin:0;font-size:13px;opacity:.75}
+.trialLive button{display:inline-flex;gap:6px;align-items:center;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:transparent;color:inherit;cursor:pointer}
+.trialLiveRow{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,.08);font-size:14px}
+.trialLiveRow .who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trialLiveRow .count.full{color:#f5a524;font-weight:600}
+.trialLiveRow .week{opacity:.65}
+.trialLiveError{padding:10px;border-radius:10px;background:rgba(220,60,60,.15);font-size:13px}
+@media(max-width:600px){.trialLiveRow{grid-template-columns:1fr auto}.trialLiveRow .week{grid-column:1/-1}}
