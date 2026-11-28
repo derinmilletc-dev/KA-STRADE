@@ -390,3 +390,90 @@ def test_email_failure_never_breaks_payment(monkeypatch):
             raise RuntimeError("db down")
 
     asyncio.run(mailer.notify_paid(Boom(), "a" * 32))
+
+
+# ---------------------------------------------------------------- bitiş hatırlatması
+
+class ReminderConn:
+    def __init__(self, rows, fail_table=False):
+        self.rows, self.claimed, self.deleted, self.fail_table = rows, set(), [], fail_table
+
+    async def fetch(self, sql, *args):
+        if self.fail_table:
+            from asyncpg import UndefinedTableError
+            raise UndefinedTableError("missing")
+        return self.rows
+
+    async def execute(self, sql, *args):
+        if sql.startswith("INSERT INTO nowpayments_reminders"):
+            if args[0] in self.claimed:
+                return "INSERT 0 0"
+            self.claimed.add(args[0])
+            return "INSERT 0 1"
+        if sql.startswith("DELETE FROM nowpayments_reminders"):
+            self.deleted.append(args[0])
+            self.claimed.discard(args[0])
+        return "OK"
+
+    async def fetchval(self, sql, *args):
+        return "tr"
+
+
+def _due_row():
+    end = datetime.now(timezone.utc) + timedelta(days=3, hours=1)
+    return {"payment_id": "b" * 32, "user_id": "user-a", "period_end": end, "plan": "SMART_TRADE", "email": "a@example.com"}
+
+
+def _reminder_env(monkeypatch):
+    monkeypatch.setenv("APP_BASE_URL", "http://localhost:5173")
+
+
+def test_reminder_email_turkish_and_english_with_days_left():
+    from app import nowpayments_reminder as reminder
+    now = datetime(2026, 11, 28, 12, 0, tzinfo=timezone.utc)
+    end = now + timedelta(days=3, hours=2)
+    subject, text, html = reminder.reminder_content(language="tr", plan="SMART_TRADE", period_end=end, link="https://kaistrade.com/billing", now=now)
+    assert "4 gün" in subject and "otomatik yenilenmez" in text and "Üyeliği yenile" in html and "Smart Trade" in text
+    subject, text, _ = reminder.reminder_content(language="en", plan="MASTER_MODE", period_end=end, link="https://kaistrade.com/billing", now=now)
+    assert "4 days" in subject and "do not renew automatically" in text and "Master Mode" in text
+
+
+def test_reminder_is_sent_once_per_period(monkeypatch):
+    from app import nowpayments_reminder as reminder
+    _reminder_env(monkeypatch)
+    sent = []
+    monkeypatch.setattr(reminder.mail, "send_email_message", lambda **kw: sent.append(kw))
+    conn = ReminderConn([_due_row()])
+    assert asyncio.run(reminder.send_due(conn)) == 1
+    assert asyncio.run(reminder.send_due(conn)) == 0
+    assert len(sent) == 1 and sent[0]["to_email"] == "a@example.com"
+
+
+def test_failed_reminder_is_retried_next_round(monkeypatch):
+    from app import nowpayments_reminder as reminder
+    _reminder_env(monkeypatch)
+
+    def boom(**kw):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(reminder.mail, "send_email_message", boom)
+    conn = ReminderConn([_due_row()])
+    assert asyncio.run(reminder.send_due(conn)) == 0
+    assert conn.deleted == ["b" * 32] and conn.claimed == set()
+
+
+def test_missing_reminder_table_is_skipped_quietly(monkeypatch):
+    from app import nowpayments_reminder as reminder
+    assert asyncio.run(reminder.send_due(ReminderConn([], fail_table=True))) == 0
+
+
+def test_reminder_disabled_without_keys_or_when_switched_off(monkeypatch):
+    from app import nowpayments_reminder as reminder
+    monkeypatch.delenv("NOWPAYMENTS_API_KEY", raising=False)
+    monkeypatch.delenv("NOWPAYMENTS_IPN_SECRET", raising=False)
+    assert reminder.enabled() is False
+    monkeypatch.setenv("NOWPAYMENTS_API_KEY", "key")
+    monkeypatch.setenv("NOWPAYMENTS_IPN_SECRET", SECRET)
+    assert reminder.enabled() is True
+    monkeypatch.setenv("NOWPAYMENTS_REMINDER_ENABLED", "false")
+    assert reminder.enabled() is False

@@ -1341,6 +1341,8 @@ async def lifespan(app: FastAPI):
     from .founding_invites import sweep_enabled as founding_sweep_enabled, sweep_loop as founding_sweep_loop
     if founding_sweep_enabled():  # havuz yoksa her tur sessizce atlanır
         app.state.runtime_tasks.append(asyncio.create_task(founding_sweep_loop(app)))
+    from .nowpayments_reminder import reminder_loop as nowpayments_reminder_loop
+    app.state.runtime_tasks.append(asyncio.create_task(nowpayments_reminder_loop(app)))  # kripto üyelik bitiş hatırlatması (anahtarlar yoksa boşta bekler)
     from .closed_account_retention import closed_account_retention_loop, retention_enabled
     if retention_enabled():
         app.state.runtime_tasks.append(asyncio.create_task(closed_account_retention_loop(app)))
