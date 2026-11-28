@@ -142,10 +142,11 @@ async def activate(request: Request):
         raise HTTPException(503, "Deneme başlatılamadı; erişim açılmadı.") from None
 
 
-async def require_background_entry(application, user_id: str, *, live: bool):
+async def require_background_entry(application, user_id: str, *, live: bool, trial_entry: bool = False, count: bool = True) -> bool:
+    """Döner: deneme üyesinin günlük hakkından biri kullanıldıysa True (emir reddedilirse geri verilir)."""
     from . import live_registry
     if not enabled() and not live_registry.enabled():
-        return
+        return False
     pool = getattr(application.state, "db_pool", None)
     if pool is None or not user_id:
         raise HTTPException(503, "İşlem üyeliği doğrulanamadı.")
@@ -158,11 +159,21 @@ async def require_background_entry(application, user_id: str, *, live: bool):
             if user is None:
                 raise HTTPException(403, "İşlem üyeliği bulunamadı.")
             if user["role"] == "OWNER":
-                return
+                return False
             subscription = await target_subscription(conn, application.state.v22_commercial["state"], user_id)
             rights = access(subscription, {"role": user["role"]})
-            if not rights["canExecuteLive" if live else "canExecuteMasterTrade"]:
-                raise HTTPException(403, LIVE_MESSAGE if live else "Deneme sona erdi. MASTER MODE'a geçin.")
+            if live and not rights["canExecuteLive"]:
+                from . import live_access
+                if trial_entry and live_access.trial_manual(subscription):
+                    if not count:
+                        return False
+                    if await live_access.consume_trial_entry(conn, user_id):
+                        return True
+                    raise HTTPException(403, live_access.TRIAL_LIVE_LIMIT_MESSAGE)
+                raise HTTPException(403, LIVE_MESSAGE)
+            if not live and not rights["canExecuteMasterTrade"]:
+                raise HTTPException(403, "Deneme sona erdi. MASTER MODE'a geçin.")
+            return False
     except (PostgresError, OSError, RuntimeError) as exc:
         logger.warning("Background entry entitlement failed type=%s", type(exc).__name__)
         raise HTTPException(503, "İşlem üyeliği doğrulanamadı.") from None

@@ -1833,7 +1833,11 @@ def execution_owner(request: Request) -> dict[str, Any]:
             "/api/v25/adopt-external-position", "/api/v25/farmer/start", "/api/v25/farmer/settings",
         } and not live_access.entitled(subscription):
             from .free_trial import LIVE_MESSAGE
-            raise HTTPException(403, LIVE_MESSAGE)
+            if live_access.trial_manual(subscription):
+                if request.url.path not in {"/api/v25/order", "/api/v25/order/test", "/api/v25/arm"}:
+                    raise HTTPException(403, live_access.TRIAL_AUTOMATION_MESSAGE)
+            else:
+                raise HTTPException(403, LIVE_MESSAGE)
         if subscription.get("plan") == "SMART_TRADE" and request.url.path == "/api/v25/auto/start":
             from .premium_access import AUTOMATION_LOCKED_MESSAGE
             raise HTTPException(403, AUTOMATION_LOCKED_MESSAGE)
@@ -2039,13 +2043,17 @@ class BinanceLiveClient:
             raise LiveExchangeError("İzin verilmeyen canlı hesap API işlemi.", http_status=500)
         if self.background_session and not await background_authorization_recent(self.application, self.diagnostic_state):
             raise LiveExchangeError("Canlı oturum iptal edildi veya yetki kanıtı doğrulanamadı.", http_status=423)
+        trial_slot, trial_user = False, ""
         if self.application is not None and method == "POST" and path in {"/fapi/v1/order", "/fapi/v1/order/test"} \
                 and str((params or {}).get("reduceOnly", "false")).lower() != "true" \
                 and str((params or {}).get("closePosition", "false")).lower() != "true":
             from .free_trial import require_background_entry
             authorization = (self.diagnostic_state or {}).get("live_session_authorization") or {}
+            trial_user = str(authorization.get("user_id") or "")
             try:
-                await require_background_entry(self.application, str(authorization.get("user_id") or ""), live=True)
+                # Deneme üyesi yalnız elle (arka plan olmayan) girişte ve günlük 5 yeni pozisyon sınırıyla geçer.
+                trial_slot = await require_background_entry(self.application, trial_user, live=True,
+                                                            trial_entry=not self.background_session, count=path == "/fapi/v1/order")
             except HTTPException as exc:
                 raise LiveExchangeError(str(exc.detail), http_status=exc.status_code) from exc
         self._require_global_ban_clear(method, path)
@@ -2054,7 +2062,23 @@ class BinanceLiveClient:
         # hemen "hız sınırı, X sn sonra" bilgisiyle dön; ekran bekleme süresini gösterir.
         self._require_global_ban_clear(method, path)
         payload = {key: value for key, value in dict(params or {}).items() if value is not None}
-        return await self._request(method, path, payload, signed=True)
+        try:
+            return await self._request(method, path, payload, signed=True)
+        except LiveExchangeError as exc:
+            if trial_slot and not exc.unknown_execution and not exc.timed_out:
+                await self._refund_trial_slot(trial_user)  # borsa emri açıkça reddetti: deneme hakkı yenmez
+            raise
+
+    async def _refund_trial_slot(self, user_id: str) -> None:
+        pool = getattr(getattr(self.application, "state", None), "db_pool", None)
+        if pool is None:
+            return
+        try:
+            from . import live_access
+            async with pool.acquire() as conn:
+                await live_access.refund_trial_entry(conn, user_id)
+        except Exception as exc:  # noqa: BLE001 -- geri verme başarısızsa hak harcanmış kalır (güvenli taraf)
+            logger.warning("Trial entry refund failed type=%s", type(exc).__name__)
 
     async def api_key_request(self, method: str, path: str) -> Any:
         """Call the official USER_STREAM endpoints without a request signature."""

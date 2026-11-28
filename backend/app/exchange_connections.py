@@ -455,7 +455,7 @@ def _require_live_owner(user: dict[str, Any], request: Request | None = None, *,
         if not need_entitlement:
             return
         from .member_entitlements import subscription_for_request
-        if live_access.entitled(subscription_for_request(request, user)):
+        if live_access.entitled_manual(subscription_for_request(request, user)):
             return
         raise HTTPException(403, live_access.LIVE_MESSAGE)
     raise HTTPException(403, "LIVE bağlantısını yalnız OWNER yönetebilir.")

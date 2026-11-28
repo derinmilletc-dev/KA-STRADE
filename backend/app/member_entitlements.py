@@ -78,6 +78,11 @@ def access(subscription: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]
         live = owner or live_access.entitled(subscription)
         result["canExecuteLive"] = live
         result["entitlements"]["canExecuteLive"] = live
+        # Deneme üyesi: yalnız elle canlı işlem (günde 5 yeni pozisyon); otomatik canlı stratejiler kapalıdır.
+        manual = live or live_access.trial_manual(subscription)
+        result["canExecuteLiveManual"] = manual
+        result["entitlements"]["canExecuteLiveManual"] = manual
+        result["liveTrialDailyLimit"] = live_access.TRIAL_LIVE_DAILY_LIMIT if (manual and not live) else None
     return result
 
 
@@ -261,7 +266,7 @@ def public_account_entitlement(request: Request, user: dict[str, Any]) -> tuple[
         raise HTTPException(503, "Üyelik sahipliği doğrulanamadı.")
     subscription = stripe_subscription(request.app.state.v22_commercial["state"], user["id"])
     rights = access(subscription, user)
-    rights.update(isPremium=False, canExecuteMasterTrade=False, canExecuteLive=False,
+    rights.update(isPremium=False, canExecuteMasterTrade=False, canExecuteLive=False, canExecuteLiveManual=False,
                   assistantAllowed=False, freeTrial=False)
     rights["entitlements"] = {
         **rights.get("entitlements", {}),
