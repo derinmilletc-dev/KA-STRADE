@@ -1213,5 +1213,80 @@
     "code_sources": [
       "InstallPrompt.tsx"
     ]
+  },
+  {
+    "id": "payment-troubleshoot",
+    "title": "Kripto ödedim ama üyelik açılmadı / ödeme sorunları",
+    "keywords": [
+      "ödedim",
+      "açılmadı",
+      "üyelik açılmadı",
+      "ödeme bekleniyor",
+      "bekliyor",
+      "onaylanmadı",
+      "gelmedi",
+      "eksik tutar",
+      "yanlış ağ",
+      "yanlış coin",
+      "süre doldu",
+      "sayfa kapandı",
+      "durumu yenile",
+      "ödeme sorunu",
+      "kripto",
+      "para gitti"
+    ],
+    "content": "Önce aynı ekranda “Durumu yenile”ye bas. “Ödeme bekleniyor” görüyorsan ödeme ağda onay bekliyor demektir; ağ yoğunluğuna göre birkaç dakika sürebilir, kesin süre garanti edilmez. “Ödeme alındı” görünce üyeliğin açılmıştır; menü hâlâ eski görünüyorsa sayfayı yenile. Üyeliğin açılması için e-postanın doğrulanmış olması gerekir. Ödeme sayfası kapandıysa veya süresi dolduysa yeniden “Kripto ile öde”ye basıp yeni sayfa açabilirsin. “Eksik tutar gönderilmiş görünüyor” uyarısı çıkarsa, ödeme sayfasında gösterilen tutarın tamamı gönderilmemiştir (ağ ücreti tutardan düşülmemeli, ayrıca ödenmelidir); bu durumda Destek bölümünden talep oluştur. Yanlış ağa veya yanlış adrese gönderilen kripto geri alınamayabilir; bu yüzden ödeme sayfasındaki adres ve ağı birebir kullan. Ödeme yaptığın halde uzun süre bir şey değişmezse Destek bölümünden talep oluştur ve şunları ekle: ödeme zamanı, gönderdiğin coin ve ağ, işlem kimliği (TXID) ve ekran görüntüsü. Kais AI ödemeyi elle onaylayamaz, iade veremez ve sonuç sözü vermez.",
+    "code_sources": [
+      "NowPaymentsPay.tsx",
+      "backend/app/nowpayments_payments.py"
+    ]
+  },
+  {
+    "id": "payment-safety",
+    "title": "Kripto ödeme güvenli mi? Başka sayfaya neden yönlendiriliyorum?",
+    "keywords": [
+      "güvenli",
+      "güvenlik",
+      "yönlendir",
+      "başka sayfa",
+      "nowpayments",
+      "nowpayments.io",
+      "dolandırıcı",
+      "gerçek mi",
+      "cüzdan",
+      "özel anahtar",
+      "seed",
+      "şifre",
+      "kart"
+    ],
+    "content": "“Kripto ile öde”ye basınca kripto ödeme hizmetinin güvenli ödeme sayfasına (adresi nowpayments.io ile biter) yönlendirilirsin; bu beklenen ve normal davranıştır. Sitede kart veya cüzdan bilgin saklanmaz. Ödeme sayfasında yalnızca coin ve ağ seçip, gösterilen adrese gösterilen tutarı gönderirsin. KaisTrade senden hiçbir zaman cüzdanının özel anahtarını, kurtarma (seed) kelimelerini, parolanı veya API Secret'ını istemez; böyle bir şey isteyen sayfayı veya mesajı kullanma. Adres çubuğunda nowpayments.io görmüyorsan ödeme yapma ve Destek'e haber ver. Ödeme tamamlanınca üyeliğin sitede kendiliğinden açılır.",
+    "code_sources": [
+      "NowPaymentsPay.tsx"
+    ]
+  },
+  {
+    "id": "payment-which-coin",
+    "title": "Hangi kripto paralarla ödenir? Tutar neden farklı görünüyor?",
+    "keywords": [
+      "hangi coin",
+      "hangi kripto",
+      "usdt",
+      "btc",
+      "bitcoin",
+      "eth",
+      "trx",
+      "ağ ücreti",
+      "komisyon",
+      "tutar farklı",
+      "kur",
+      "fiyat",
+      "usd karşılığı",
+      "tron",
+      "bnb"
+    ],
+    "content": "Plan fiyatı USD olarak belirlidir; ödeme sayfasında seçtiğin coine göre güncel kurla çevrilmiş tutarı görürsün. Hangi coinlerin listelendiğini ödeme sayfası gösterir; Kais AI listeyi önceden bilmez veya garanti etmez. Gönderirken ağ ücreti ayrıca ödenir ve ücretler ağa göre değişir; ağ ücreti ödeme tutarının içinde sayılmaz. Gönderdiğin tutar sayfada gösterilenin altında kalırsa ödeme eksik sayılır. Coin ve ağı (ör. TRON veya BNB Smart Chain) sayfada seçtiğinle birebir aynı gönder. Ücreti düşük olan bir ağ seçmek istersen ödeme sayfasındaki seçeneklere bakabilirsin. Ücretler hakkında kesin rakam vermem.",
+    "code_sources": [
+      "backend/app/nowpayments_payments.py"
+    ]
   }
 ]

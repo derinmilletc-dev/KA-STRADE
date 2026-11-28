@@ -1178,5 +1178,78 @@
     "code_sources": [
       "InstallPrompt.tsx"
     ]
+  },
+  {
+    "id": "payment-troubleshoot",
+    "title": "I paid with crypto but my membership did not open / payment problems",
+    "keywords": [
+      "paid",
+      "not opened",
+      "membership not active",
+      "waiting for payment",
+      "pending",
+      "not confirmed",
+      "underpaid",
+      "wrong network",
+      "wrong coin",
+      "expired",
+      "page closed",
+      "refresh status",
+      "payment problem",
+      "crypto",
+      "money sent"
+    ],
+    "content": "First press “Durumu yenile” (Refresh status) on the same screen. If you see “Ödeme bekleniyor” (Waiting for payment), the payment is waiting for network confirmation; this can take a few minutes depending on network load, and no exact time is guaranteed. When you see “Ödeme alındı” (Payment received), your membership is open; if the menu still looks old, refresh the page. Your email must be verified for the membership to open. If the payment page closed or expired, press “Kripto ile öde” again to open a new one. If you see “an incomplete amount seems to have been sent”, the full amount shown on the payment page was not sent (the network fee is paid on top, not taken out of the amount); in that case send a request from the Support section. Crypto sent to the wrong network or address may not be recoverable, so use the address and network on the payment page exactly. If nothing changes for a long time after paying, send a Support request including: the payment time, the coin and network you sent, the transaction ID (TXID) and a screenshot. Kais AI cannot approve payments by hand, issue refunds or promise an outcome.",
+    "code_sources": [
+      "NowPaymentsPay.tsx",
+      "backend/app/nowpayments_payments.py"
+    ]
+  },
+  {
+    "id": "payment-safety",
+    "title": "Is crypto payment safe? Why am I redirected to another page?",
+    "keywords": [
+      "safe",
+      "security",
+      "redirect",
+      "another page",
+      "nowpayments",
+      "nowpayments.io",
+      "scam",
+      "real",
+      "wallet",
+      "private key",
+      "seed",
+      "password",
+      "card"
+    ],
+    "content": "When you press “Kripto ile öde” you are taken to the crypto payment provider's secure payment page (its address ends in nowpayments.io); this is expected and normal. No card or wallet details are stored on the site. On the payment page you only choose a coin and network and send the shown amount to the shown address. KaisTrade never asks for your wallet's private key, recovery (seed) words, password or API Secret; do not use any page or message that asks for these. If you do not see nowpayments.io in the address bar, do not pay and tell Support. When the payment completes, your membership opens on the site automatically.",
+    "code_sources": [
+      "NowPaymentsPay.tsx"
+    ]
+  },
+  {
+    "id": "payment-which-coin",
+    "title": "Which cryptocurrencies can I pay with? Why does the amount look different?",
+    "keywords": [
+      "which coin",
+      "which crypto",
+      "usdt",
+      "btc",
+      "bitcoin",
+      "eth",
+      "trx",
+      "network fee",
+      "fee",
+      "amount different",
+      "rate",
+      "usd equivalent",
+      "tron",
+      "bnb"
+    ],
+    "content": "The plan price is set in USD; on the payment page you see the amount converted at the current rate for the coin you choose. The payment page shows which coins are listed; Kais AI does not know the list in advance or guarantee it. The network fee is paid on top when you send, and fees vary by network; the network fee is not counted inside the payment amount. If the amount you send is below the one shown, the payment counts as incomplete. Send the coin and network (e.g. TRON or BNB Smart Chain) exactly as selected on the page. If you want a cheaper network, look at the options on the payment page. I do not quote exact fee figures.",
+    "code_sources": [
+      "backend/app/nowpayments_payments.py"
+    ]
   }
 ]
