@@ -100,6 +100,12 @@ async def resolve(conn: Any, state: dict[str, Any], user_id: str) -> dict[str, A
             logger.warning("Free trial entitlement lookup failed type=%s", type(exc).__name__)
             raise HTTPException(503, "Deneme kaydı doğrulanamadı.") from None
     if not enabled():
+        # Kripto (NOWPayments) üyeliği, Binance elle ödeme ayarından bağımsız açılır.
+        from . import nowpayments_payments as nowpay
+        if conn is not None and nowpay.enabled():
+            np_row = await nowpay.active_period(conn, user_id)
+            if np_row is not None:
+                return nowpayments_snapshot(original, np_row, user_id)
         return snapshot(original, trial)
     if conn is None:
         raise HTTPException(503, "Binance üyelik kaydı doğrulanamadı.")

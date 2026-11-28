@@ -50,6 +50,7 @@ import AdminAccountDetail, {subscriptionTone} from './AdminAccountDetail'
 import AdminAccountUsers from './AdminAccountUsers'
 import AdminApprovals from './AdminApprovals'
 import AdminBinancePayments from './AdminBinancePayments'
+import AdminNowPayments from './AdminNowPayments'
 import AdminFounding from './AdminFounding'
 import AdminOriginalRisk from './AdminOriginalRisk'
 import AdminMaintenanceSchedule from './AdminMaintenanceSchedule'
@@ -98,7 +99,7 @@ const SECTION_META:Record<Section,[string,string]> = {
   founding:['Founding 30','Başvurular, davetler ve kurucu üye koltukları.'],
   users:['Kullanıcılar','Hesaplar, üyelik ve güvenlik durumu.'],
   subscriptions:['Abonelikler','Kim hangi planda; başlangıç ve bitiş tarihleri.'],
-  'binance-payments':['Ödemeler','Binance ile gelen ödemeleri doğrula ve onayla.'],
+  'binance-payments':['Ödemeler','Kripto ödemeleri izle; Binance ile gelen elle ödemeleri doğrula ve onayla.'],
   approvals:['Onaylar','Moderatörlerden gelen talepler.'],
   system:['Sistem durumu','Servis sağlığı, bakım modu ve canlı işlem hataları.'],
   incidents:['Olaylar','Açık hata kayıtları: incele, not düş, çözüldü işaretle.'],
@@ -178,7 +179,7 @@ export default function AdminPanel({token,onBack}:{token:string;onBack:()=>void}
         {section === 'incidents' && <IncidentsSection health={health} />}
         {section === 'trading' && <div className="adminContent"><AdminOriginalRisk token={token}/></div>}
         {section === 'approvals' && <AdminApprovals/>}
-        {section === 'binance-payments' && <AdminBinancePayments/>}
+        {section === 'binance-payments' && <><AdminNowPayments/><AdminBinancePayments/></>}
         {section === 'founding' && <AdminFounding/>}
       </div>
     </section>
