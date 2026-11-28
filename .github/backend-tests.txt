@@ -253,3 +253,4 @@ tests/test_coinbase_limits_suggest_watch.py
 tests/test_coinbase_activity.py
 tests/test_coinbase_watch_alerts.py
 tests/test_coinbase_stats.py
+tests/test_nowpayments.py

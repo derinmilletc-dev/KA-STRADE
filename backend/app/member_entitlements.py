@@ -121,6 +121,13 @@ async def resolve(conn: Any, state: dict[str, Any], user_id: str) -> dict[str, A
     except (PostgresError, OSError, RuntimeError) as exc:
         logger.warning("Binance entitlement lookup failed type=%s", type(exc).__name__)
         raise HTTPException(503, "Binance üyelik kaydı doğrulanamadı.") from None
+    from . import nowpayments_payments as nowpay
+    np_row = await nowpay.active_period(conn, user_id)
+    if np_row is not None:
+        np_end = parse_datetime(np_row.get("period_end"))
+        binance_end = parse_datetime(row.get("period_end")) if row is not None else None
+        if binance_end is None or (np_end is not None and np_end > binance_end):
+            return nowpayments_snapshot(original, np_row, user_id)
     if row is None:
         return snapshot(original, trial)
     start, end = parse_datetime(row.get("period_start")), parse_datetime(row.get("period_end"))
@@ -140,6 +147,28 @@ async def resolve(conn: Any, state: dict[str, Any], user_id: str) -> dict[str, A
         "current_period_end": end.isoformat(), "next_payment_amount": None, "currency": "USDT",
         "features": SMART_TRADE_FEATURES if smart else ["Master Trade access", "30 günlük erişim", "Elle yenileme"],
         "entitlements": {"canAccessMasterTrade": True, **({"canUseAutomation": False} if smart else {})}, "mode": "BINANCE_MANUAL",
+        "cancel_at_period_end": True, "cancelAtPeriodEnd": True, "grace_until": None,
+    }
+
+
+def nowpayments_snapshot(original: dict[str, Any], row: Any, user_id: str) -> dict[str, Any]:
+    """Kripto (NOWPayments) ödemesinin verdiği dönem; kalan sistem için Binance elle üyelikle aynı biçimde görünür."""
+    start, end = parse_datetime(row.get("period_start")), parse_datetime(row.get("period_end"))
+    now = datetime.now(timezone.utc)
+    plan = row.get("plan")
+    if (row.get("user_id") != user_id or row.get("payment_user_id") != user_id or row.get("status") != "finished"
+            or plan not in PAID_PLANS or start is None or end is None
+            or end - start != timedelta(days=30) or not start <= now < end):
+        logger.warning("NOWPayments entitlement record failed validation")
+        raise HTTPException(503, "Kripto üyelik kaydı doğrulanamadı.")
+    smart = plan == "SMART_TRADE"
+    return {
+        **original, "status": "ACTIVE", "plan": plan, "master_trade_access": True,
+        "trial_start": None, "trial_end": None, "current_period_start": start.isoformat(),
+        "current_period_end": end.isoformat(), "next_payment_amount": None, "currency": "USD",
+        "features": SMART_TRADE_FEATURES if smart else ["Master Trade access", "30 günlük erişim", "Elle yenileme"],
+        "entitlements": {"canAccessMasterTrade": True, **({"canUseAutomation": False} if smart else {})}, "mode": "BINANCE_MANUAL",
+        "payment_method": "nowpayments",
         "cancel_at_period_end": True, "cancelAtPeriodEnd": True, "grace_until": None,
     }
 

@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import {Check, Sparkles} from 'lucide-react'
 import {API_BASE, userSessionToken} from './api'
 import BinanceManualPayment from './BinanceManualPayment'
+import NowPaymentsPay from './NowPaymentsPay'
 import {PLAN_BY_CODE} from './subscription'
 import './free-trial-pricing.css'
 
@@ -97,6 +98,6 @@ export default function FreeTrialPricing({trialEnabled,binanceEnabled,onBilling}
         <button type="button" disabled={!binanceEnabled || !authenticated} onClick={() => setPaymentOpen(true)}>{binanceEnabled ? 'Binance ile öde' : 'Yakında'}</button>
       </article>
     </section>
-    {paymentOpen && binanceEnabled && <div className="freeTrialPayment"><BinanceManualPayment/></div>}
+    {paymentOpen && binanceEnabled && <div className="freeTrialPayment"><NowPaymentsPay/><BinanceManualPayment/></div>}
   </>
 }
