@@ -322,6 +322,19 @@ async def process_notification(conn: payments.PaymentConnection, data: Mapping[s
 
 # ---------------------------------------------------------------- üyelik (member_entitlements kullanır)
 
+async def paid_until(conn: Any, user_id: str) -> datetime | None:
+    """Ödenmiş son bitiş tarihi (erken yenilemeyle eklenen dönemler dahil); yoksa None."""
+    try:
+        return await conn.fetchval(
+            """SELECT MAX(p.period_end) FROM nowpayments_periods p
+               JOIN nowpayments_payments r ON r.id=p.payment_id
+               WHERE p.user_id=$1 AND r.user_id=$1 AND r.status='finished' AND r.erased_at IS NULL
+                 AND p.revoked_at IS NULL AND p.period_end > clock_timestamp()""", user_id,
+        )
+    except (UndefinedTableError, PostgresError, OSError, RuntimeError):
+        return None
+
+
 async def active_period(conn: Any, user_id: str) -> Mapping[str, Any] | None:
     """Şu an geçerli NOWPayments dönemi; tablo henüz kurulmadıysa None (Binance akışı etkilenmez)."""
     try:
