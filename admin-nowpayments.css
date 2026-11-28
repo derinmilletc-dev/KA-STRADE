@@ -1,0 +1,19 @@
+.adminCrypto { margin: 24px clamp(16px,3vw,40px) 8px; color: var(--admin-text); min-width: 0; }
+.adminCrypto > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.adminCrypto h2 { margin: 4px 0 6px; }
+.adminCrypto p, .adminCrypto span, .adminCrypto small { color: var(--admin-muted); line-height: 1.6; }
+.adminCrypto > header button { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 9px; background: #24313f; color: var(--admin-text); padding: 10px 14px; cursor: pointer; }
+.adminCrypto > header button:disabled { opacity: .5; cursor: not-allowed; }
+.adminCryptoStats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin: 18px 0; }
+.adminCryptoStats > div { display: grid; gap: 6px; background: var(--admin-elevated,#13222b); border-radius: 14px; padding: 16px; }
+.adminCryptoStats strong { font-size: 26px; font-variant-numeric: tabular-nums; }
+.adminCryptoList { display: grid; gap: 10px; }
+.adminCryptoList article { display: grid; gap: 6px; background: var(--admin-elevated,#13222b); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+.adminCryptoList article > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.adminCryptoList article > div > strong { overflow-wrap: anywhere; }
+.adminCryptoStatus { font-style: normal; font-size: 12.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: rgba(166,191,255,.12); color: #c7d9ff !important; }
+.adminCryptoStatus.is-ok { background: rgba(61,220,151,.14); color: #6fe3b0 !important; }
+.adminCryptoStatus.is-bad { background: rgba(241,122,122,.14); color: #ffb4b4 !important; }
+.adminCryptoNote { color: #f6dca4 !important; }
+.adminCryptoError { padding: 12px 14px; border-radius: 12px; background: rgba(241,122,122,.1); color: #ffc6c6; margin-top: 14px; }
+@media (max-width: 640px) { .adminCryptoStats { grid-template-columns: 1fr; } }

@@ -300,3 +300,51 @@ def test_ipn_endpoint_rejects_oversized_body(monkeypatch):
     response = client.post("/api/v22/payments/nowpayments/ipn", content=b"{" + b" " * 70000 + b"}",
                            headers={"x-nowpayments-sig": "x"})
     assert response.status_code == 413
+
+
+# ---------------------------------------------------------------- üyelik: Binance elle ödeme ayarından bağımsız
+
+class PeriodConn:
+    def __init__(self, with_period=True, plan="SMART_TRADE"):
+        now = datetime.now(timezone.utc)
+        self.period = {"payment_id": "a" * 32, "user_id": "user-a", "period_start": now - timedelta(days=1),
+                       "period_end": now + timedelta(days=29), "plan": plan, "status": "finished",
+                       "payment_user_id": "user-a"} if with_period else None
+        self.queries = []
+
+    async def fetchrow(self, sql, *args):
+        self.queries.append(sql)
+        return self.period if "nowpayments_periods" in sql else None
+
+
+def resolve_for(conn):
+    from app import member_entitlements as entitlements
+    return asyncio.run(entitlements.resolve(conn, {"subscriptions": []}, "user-a"))
+
+
+def test_crypto_membership_opens_even_when_binance_manual_access_is_off(monkeypatch):
+    monkeypatch.setenv("BINANCE_MANUAL_ACCESS_ENABLED", "false")
+    monkeypatch.setenv("FREE_TRIAL_ENABLED", "false")
+    monkeypatch.setenv("NOWPAYMENTS_API_KEY", "key")
+    monkeypatch.setenv("NOWPAYMENTS_IPN_SECRET", SECRET)
+    subscription = resolve_for(PeriodConn())
+    assert subscription["master_trade_access"] is True
+    assert subscription["plan"] == "SMART_TRADE" and subscription["payment_method"] == "nowpayments"
+
+
+def test_no_crypto_period_means_no_access_when_binance_manual_access_is_off(monkeypatch):
+    monkeypatch.setenv("BINANCE_MANUAL_ACCESS_ENABLED", "false")
+    monkeypatch.setenv("FREE_TRIAL_ENABLED", "false")
+    monkeypatch.setenv("NOWPAYMENTS_API_KEY", "key")
+    monkeypatch.setenv("NOWPAYMENTS_IPN_SECRET", SECRET)
+    assert resolve_for(PeriodConn(with_period=False))["master_trade_access"] is False
+
+
+def test_crypto_lookup_is_skipped_when_nowpayments_is_not_configured(monkeypatch):
+    monkeypatch.setenv("BINANCE_MANUAL_ACCESS_ENABLED", "false")
+    monkeypatch.setenv("FREE_TRIAL_ENABLED", "false")
+    monkeypatch.delenv("NOWPAYMENTS_API_KEY", raising=False)
+    monkeypatch.delenv("NOWPAYMENTS_IPN_SECRET", raising=False)
+    conn = PeriodConn()
+    assert resolve_for(conn)["master_trade_access"] is False
+    assert conn.queries == []
