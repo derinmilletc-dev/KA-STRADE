@@ -85,6 +85,7 @@ async def current(request: Request, response: Response):
     async with connection(request) as conn:
         row = await nowpay.current_payment(conn, user["id"])
         period = await nowpay.active_period(conn, user["id"])
+        paid_until = await nowpay.paid_until(conn, user["id"])
     return {
         "payment": None if row is None else {
             "id": row["id"], "plan": row["plan"], "amount": str(row["price_amount"]), "status": row["status"],
@@ -92,7 +93,8 @@ async def current(request: Request, response: Response):
             "completed_at": row["completed_at"].isoformat() if row["completed_at"] else None,
         },
         "period": None if period is None else {
-            "period_start": period["period_start"].isoformat(), "period_end": period["period_end"].isoformat(),
+            "period_start": period["period_start"].isoformat(),
+            "period_end": (paid_until or period["period_end"]).isoformat(),
         },
     }
 
@@ -125,6 +127,10 @@ async def notification(request: Request):
             await advance_member(request.app, granted_user, "active")
         except Exception as exc:  # noqa: BLE001
             logger.warning("NOWPayments founding advance failed type=%s", type(exc).__name__)
+    if result == "granted":
+        from .nowpayments_email import notify_paid
+        async with connection(request) as conn:
+            await notify_paid(conn, str(data.get("order_id") or ""))
     return {"ok": True, "result": result}
 
 

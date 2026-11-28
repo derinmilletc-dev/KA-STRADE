@@ -348,3 +348,45 @@ def test_crypto_lookup_is_skipped_when_nowpayments_is_not_configured(monkeypatch
     conn = PeriodConn()
     assert resolve_for(conn)["master_trade_access"] is False
     assert conn.queries == []
+
+
+# ---------------------------------------------------------------- ödeme e-postası
+
+def _mail(language, start_offset_days=0, plan="SMART_TRADE", amount=Decimal("39.90")):
+    from app import nowpayments_email as mailer
+    now = datetime(2026, 11, 28, 12, 0, tzinfo=timezone.utc)
+    start = now + timedelta(days=start_offset_days)
+    return mailer.email_content(language=language, plan=plan, amount=amount, period_start=start,
+                                period_end=start + timedelta(days=30), link="https://kaistrade.com/billing", now=now)
+
+
+def test_first_payment_email_turkish():
+    subject, text, html = _mail("tr")
+    assert "Ödemen alındı" in subject and "Smart Trade" in text and "39,90 USD" in text
+    assert "28 Aralık 2026" in text and "Panele git" in html and "https://kaistrade.com/billing" in html
+
+
+def test_first_payment_email_english():
+    subject, text, html = _mail("en")
+    assert "Payment received" in subject and "39.90 USD" in text and "28 December 2026" in text and "Go to panel" in html
+
+
+def test_early_renewal_email_says_extended_with_new_end_date():
+    subject, text, _ = _mail("tr", start_offset_days=3)
+    assert "uzatıldı" in subject and "31 Aralık 2026" in text
+    assert "extended" in _mail("en", start_offset_days=3)[0]
+
+
+def test_unknown_language_falls_back_to_turkish_and_values_are_escaped():
+    assert "Ödemen alındı" in _mail("de")[0]
+    assert "<script>" not in _mail("tr", plan="<script>")[2]
+
+
+def test_email_failure_never_breaks_payment(monkeypatch):
+    from app import nowpayments_email as mailer
+
+    class Boom:
+        async def fetchrow(self, *a):
+            raise RuntimeError("db down")
+
+    asyncio.run(mailer.notify_paid(Boom(), "a" * 32))
