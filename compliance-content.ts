@@ -6,7 +6,7 @@ export const PUBLIC_POLICIES = {
   privacy: {
     title: 'Gizlilik Politikası',
     paragraphs: [
-      'Son güncelleme: 28 Kasım 2026. Bu politika, KaisTrade hizmetlerindeki kişisel veri işleme faaliyetleri hakkında bilgilendirmedir. Veri sorumlusu: KaisTrade. Kayıtlı adres, iletişim adresi ve uygulanacak hukuk henüz belirlenmemiştir: Florida, ABD, privacykais@gmail.com, [UYGULANACAK HUKUK].',
+      'Son güncelleme: 28 Kasım 2026. Bu politika, KaisTrade hizmetlerindeki kişisel veri işleme faaliyetleri hakkında bilgilendirmedir. Veri sorumlusu: KaisTrade. Kayıtlı adres: Florida, ABD. İletişim: privacykais@gmail.com. Uygulanacak hukuk: Güney Afrika Cumhuriyeti.',
       '1. İşlenen veriler: Hesap oluşturma ve hizmet sunma kapsamında ad, e-posta, parola özeti, hesap rolü, e-posta doğrulama durumu, oturum ve güvenlik kayıtları işlenir. Google ile giriş seçildiğinde doğrulanmış kimlik bilgileri kullanılır. Gereksiz kişisel bilgiler talep edilmemelidir.',
       '2. Kullanım amaçları: Kimlik doğrulama, hesap güvenliği, abonelik erişimi, hizmet sunumu, destek, hata inceleme ve kötüye kullanımın önlenmesi için gerekli veriler işlenir. Kullanıcı sözleşmesinin kabulü, isteğe bağlı pazarlama izni veya canlı işlem yetkisi yerine geçmez.',
       '3. Borsa bağlantısı: Binance API anahtarları sunucu tarafındaki şifreli kasada işlenir; ham anahtarlar tarayıcı depolamasında tutulmaz ve herkese açık yanıtlarda gösterilmez. Bağlantı etkinleştirme, emir yetkilendirme ve risk kontrolleri ayrıdır. Para çekme yetkisi açık veya doğrulanamayan LIVE anahtarları kabul edilmez.',
