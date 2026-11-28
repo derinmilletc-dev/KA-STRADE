@@ -16,3 +16,9 @@ install -m 644 "$APP_DIR/deploy/vps/kaistrade-watchdog.service" /etc/systemd/sys
 install -m 644 "$APP_DIR/deploy/vps/kaistrade-watchdog.timer" /etc/systemd/system/kaistrade-watchdog.timer
 systemctl daemon-reload
 systemctl enable --now kaistrade-watchdog.timer
+# Gece yedeği: her gün 01:15 UTC; ilk kurulumda hemen bir yedek de alınır.
+install -m 644 "$APP_DIR/deploy/vps/kaistrade-backup.service" /etc/systemd/system/kaistrade-backup.service
+install -m 644 "$APP_DIR/deploy/vps/kaistrade-backup.timer" /etc/systemd/system/kaistrade-backup.timer
+systemctl daemon-reload
+systemctl enable --now kaistrade-backup.timer
+[ -f /var/backups/kaistrade/LAST_OK ] || systemctl start --no-block kaistrade-backup.service

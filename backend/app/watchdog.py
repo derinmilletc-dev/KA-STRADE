@@ -40,6 +40,22 @@ def probe(url: str) -> bool:
         return False
 
 
+BACKUP_MARKER = Path(os.getenv("WATCHDOG_BACKUP_MARKER", "/var/backups/kaistrade/LAST_OK"))
+BACKUP_MAX_AGE = 36 * 3600
+
+
+def backup_ok(now: float, marker: Path | None = None) -> bool:
+    """Yedek kurulu değilse (işaret dosyası yok) sorun sayılmaz; kuruluysa son yedek 36 saatten yeni olmalı."""
+    marker = marker or BACKUP_MARKER
+    try:
+        last = float(marker.read_text().strip())
+    except FileNotFoundError:
+        return True
+    except (OSError, ValueError):
+        return False
+    return now - last <= BACKUP_MAX_AGE
+
+
 def decide(state: dict, failed: list[str], now: float) -> tuple[dict, str | None]:
     """Yeni durum ve gönderilecek e-posta türü: 'down', 'remind', 'recovered' ya da None."""
     state = dict(state)
@@ -81,6 +97,8 @@ def recipient() -> str:
 
 def run() -> int:
     failed = [name for name, url in checks() if not probe(url)]
+    if not backup_ok(time.time()):
+        failed.append("Gece yedeği (36 saattir alınmadı)")
     try:
         state = json.loads(STATE_FILE.read_text())
     except Exception:  # noqa: BLE001
@@ -114,6 +132,24 @@ def run() -> int:
     return 1 if failed else 0
 
 
+def notify(subject: str, text: str) -> int:
+    """Tek seferlik bildirim e-postası (ör. yedek betiği): python -m app.watchdog --notify "Konu" "Metin"."""
+    to_email = recipient()
+    if not to_email:
+        return 1
+    from .email_service import send_email_message
+    html = (f'<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px">'
+            f'<h2 style="margin:0 0 12px;color:#dc2626">{escape(subject)}</h2><p style="font-size:15px;line-height:1.5">{escape(text)}</p></div>')
+    try:
+        send_email_message(to_email=to_email, subject=subject, text=text, html=html)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Bildirim gönderilemedi: %s", type(exc).__name__)
+        return 1
+    return 0
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    if len(sys.argv) == 4 and sys.argv[1] == "--notify":
+        sys.exit(notify(sys.argv[2], sys.argv[3]))
     sys.exit(run())

@@ -51,3 +51,9 @@ _Yayın yenileme notu: site dosyaları 2026-11-10 tarihinde yeniden yayınlandı
 - Alıcı: `/etc/kaistrade.env` içinde `ALERT_EMAIL=adresin@...` (yoksa `FOUNDING_NOTIFY_EMAIL` kullanılır).
 - Test: `systemctl stop kaistrade`, 3-4 dakika bekle, e-posta gelmeli; sonra `systemctl start kaistrade`.
 - Sunucunun kendisi tamamen kapanırsa bekçi de kapanır; bunun için dışarıdan ücretsiz bir izleme servisi (ör. UptimeRobot) ayrıca eklenmeli.
+
+## Gece yedeği
+`update.sh` yedeği de kurar: her gün 01:15 UTC'de `/var/backups/kaistrade` içine veritabanı (`db-*.dump`) ve veri klasörü + ayar dosyası (`files-*.tgz`, içinde şifreler var, yalnız root okur) yazılır; 14 gün tutulur. Yedek alınamazsa ya da 36 saat alınmazsa e-posta gelir.
+- Hemen yedek al: `systemctl start kaistrade-backup`; sonuç: `journalctl -u kaistrade-backup -n 20`.
+- Geri yükleme (önce servisi durdur): `systemctl stop kaistrade; sudo -u postgres pg_restore --clean --if-exists -d kaistrade /var/backups/kaistrade/db-TARİH.dump; systemctl start kaistrade`
+- Yedekler aynı sunucuda durur; sunucu giderse onlar da gider. Sunucu dışı kopya için `rclone` kur ve `/etc/kaistrade.env` içine `BACKUP_RCLONE_REMOTE=uzak:klasor` yaz.

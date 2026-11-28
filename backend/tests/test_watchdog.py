@@ -69,3 +69,23 @@ def test_failed_send_is_retried_next_minute(monkeypatch, tmp_path):
     (tmp_path / "s.json").write_text(json.dumps({"fails": 2}))
     assert watchdog.run() == 1 and len(sent) == 1
     assert watchdog.run() == 1 and len(sent) == 2   # ilk gönderim başarısızdı, tekrar denendi
+
+
+def test_backup_freshness(tmp_path):
+    marker = tmp_path / "LAST_OK"
+    assert watchdog.backup_ok(T, marker) is True                     # yedek kurulu değil: sorun değil
+    marker.write_text(str(T - 3600))
+    assert watchdog.backup_ok(T, marker) is True
+    marker.write_text(str(T - 37 * 3600))
+    assert watchdog.backup_ok(T, marker) is False                    # 36 saatten eski
+    marker.write_text("bozuk")
+    assert watchdog.backup_ok(T, marker) is False
+
+
+def test_notify_sends_one_mail(monkeypatch):
+    from app import email_service
+    sent = []
+    monkeypatch.setenv("ALERT_EMAIL", "a@example.com")
+    monkeypatch.setattr(email_service, "send_email_message", lambda **kw: sent.append(kw))
+    assert watchdog.notify("Konu <x>", "Metin") == 0
+    assert sent[0]["to_email"] == "a@example.com" and "<x>" not in sent[0]["html"]
