@@ -45,3 +45,9 @@ Kişi anahtarıyla girer ve yalnız `sudo /usr/local/sbin/kais-update` çalışt
 Güncellemeyi açık pozisyon yokken yaptır; Binance anahtarında para çekme kapalı ve IP kısıtlı olsun.
 
 _Yayın yenileme notu: site dosyaları 2026-11-10 tarihinde yeniden yayınlandı._
+
+## Düşerse e-posta (bekçi)
+`update.sh` her çalışınca bekçiyi kurar: her dakika sunucu, veritabanı ve kaistrade.com kontrol edilir; 3 dakika üst üste başarısız olursa e-posta gelir, düzelince "tekrar çalışıyor" e-postası gelir.
+- Alıcı: `/etc/kaistrade.env` içinde `ALERT_EMAIL=adresin@...` (yoksa `FOUNDING_NOTIFY_EMAIL` kullanılır).
+- Test: `systemctl stop kaistrade`, 3-4 dakika bekle, e-posta gelmeli; sonra `systemctl start kaistrade`.
+- Sunucunun kendisi tamamen kapanırsa bekçi de kapanır; bunun için dışarıdan ücretsiz bir izleme servisi (ör. UptimeRobot) ayrıca eklenmeli.
