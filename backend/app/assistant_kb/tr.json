@@ -213,7 +213,7 @@
       "ağ",
       "adres"
     ],
-    "content": "Ödeme şu an yalnız kripto ile alınır ve otomatik onaylanır; kart veya cüzdan bilgin kaydedilmez. Binance Pay ile elle ödeme ve işlem numarası girme yoktur. Ana sayfa → ABONELİK (telefonda Menü → Abonelik) ekranında planı seç ve “Kripto ile öde”ye bas. Adımlar: güvenli ödeme sayfası açılır; orada istediğin kripto parayı ve ağı seçersin, sayfa gönderilecek adresi ve tutarı gösterir. Plan fiyatı (Smart Trade {SMART_PRICE}, Master Mode {MASTER_PRICE} USD karşılığı) seçtiğin coine çevrilir; ağ ücreti ayrıca ödenir ve sayfadaki tutarın tamamı gönderilmelidir. Ödeme ağda onaylanınca üyeliğin kendiliğinden açılır, işlem numarası girmen gerekmez; genelde birkaç dakika sürer, kesin süre garanti edilmez. Açılmadıysa aynı ekranda “Durumu yenile”ye bas. Ödeme sayfası kapanırsa yeniden “Kripto ile öde”ye basabilirsin. Eksik tutar gönderdiysen, ödeme yaptığın halde üyelik açılmadıysa veya yanlış ağa gönderdiysen Destek bölümünden talep oluştur. Otomatik yenileme yoktur; her {PAID_PERIOD_DAYS} günlük dönem için yeniden ödersin.",
+    "content": "Ödeme şu an yalnız kripto ile alınır ve otomatik onaylanır; kart veya cüzdan bilgin kaydedilmez. Binance Pay ile elle ödeme ve işlem numarası girme yoktur. Ana sayfa → ABONELİK (telefonda Menü → Abonelik) ekranında planı seç ve “Kripto ile öde”ye bas. Adımlar: güvenli ödeme sayfası açılır; orada istediğin kripto parayı ve ağı seçersin, sayfa gönderilecek adresi ve tutarı gösterir. Plan fiyatı (Smart Trade {SMART_PRICE}, Master Mode {MASTER_PRICE} USD karşılığı) seçtiğin coine çevrilir; Sayfada yazan tutarı eksiksiz gönder. Ödeme ağda onaylanınca üyeliğin kendiliğinden açılır, işlem numarası girmen gerekmez; genelde birkaç dakika sürer, kesin süre garanti edilmez. Açılmadıysa aynı ekranda “Durumu yenile”ye bas. Ödeme sayfası kapanırsa yeniden “Kripto ile öde”ye basabilirsin. Eksik tutar gönderdiysen, ödeme yaptığın halde üyelik açılmadıysa veya yanlış ağa gönderdiysen Destek bölümünden talep oluştur. Otomatik yenileme yoktur; her {PAID_PERIOD_DAYS} günlük dönem için yeniden ödersin.",
     "code_sources": [
       "BillingCenter.tsx",
       "NowPaymentsPay.tsx",
@@ -1212,6 +1212,81 @@
     "content": "iPhone'da Safari, web sitelerinin adres ve sekme çubuğunu gizlemesine izin vermez; bu yüzden Analiz Studio Safari'de tüm ekranı kaplayamaz, üstte tarayıcı çubukları ve altta küçük bir boşluk kalır. Soldaki veya sağdaki siyah alan telefonun çentiğidir. Çözüm: siteyi Ana Ekrana eklemek. Safari'de siteyi aç, adres çubuğunun yanındaki üç nokta (⋯) düğmesine bas ve Paylaş'ı seç (eski iOS sürümlerinde alttaki Paylaş düğmesi), aşağı kaydırıp Ana Ekrana Ekle'yi seç, Web Uygulaması Olarak Aç seçeneği görünüyorsa açık bırakıp Ekle'ye bas ve oluşan KaisTrade simgesinden aç. Böyle açınca tarayıcı çubukları olmaz, Studio yatayda gerçekten tam ekran olur; ayrıca telefon bildirimleri de yalnız bu şekilde çalışır. Chrome veya uygulama içi tarayıcılarda (Instagram gibi) Ana Ekrana Ekle çalışmaz; siteyi Safari'de aç.",
     "code_sources": [
       "InstallPrompt.tsx"
+    ]
+  },
+  {
+    "id": "payment-troubleshoot",
+    "title": "Kripto ödedim ama üyelik açılmadı / ödeme sorunları",
+    "keywords": [
+      "ödedim",
+      "açılmadı",
+      "üyelik açılmadı",
+      "ödeme bekleniyor",
+      "bekliyor",
+      "onaylanmadı",
+      "gelmedi",
+      "eksik tutar",
+      "yanlış ağ",
+      "yanlış coin",
+      "süre doldu",
+      "sayfa kapandı",
+      "durumu yenile",
+      "ödeme sorunu",
+      "kripto",
+      "para gitti"
+    ],
+    "content": "Önce aynı ekranda “Durumu yenile”ye bas. “Ödeme bekleniyor” görüyorsan ödeme ağda onay bekliyor demektir; ağ yoğunluğuna göre birkaç dakika sürebilir, kesin süre garanti edilmez. “Ödeme alındı” görünce üyeliğin açılmıştır; menü hâlâ eski görünüyorsa sayfayı yenile. Üyeliğin açılması için e-postanın doğrulanmış olması gerekir. Ödeme sayfası kapandıysa veya süresi dolduysa yeniden “Kripto ile öde”ye basıp yeni sayfa açabilirsin. “Eksik tutar gönderilmiş görünüyor” uyarısı çıkarsa, ödeme sayfasında gösterilen tutarın tamamı gönderilmemiştir; bu durumda Destek bölümünden talep oluştur. Yanlış ağa veya yanlış adrese gönderilen kripto geri alınamayabilir; bu yüzden ödeme sayfasındaki adres ve ağı birebir kullan. Ödeme yaptığın halde uzun süre bir şey değişmezse Destek bölümünden talep oluştur ve şunları ekle: ödeme zamanı, gönderdiğin coin ve ağ, işlem kimliği (TXID) ve ekran görüntüsü. Kais AI ödemeyi elle onaylayamaz, iade veremez ve sonuç sözü vermez.",
+    "code_sources": [
+      "NowPaymentsPay.tsx",
+      "backend/app/nowpayments_payments.py"
+    ]
+  },
+  {
+    "id": "payment-safety",
+    "title": "Kripto ödeme güvenli mi? Başka sayfaya neden yönlendiriliyorum?",
+    "keywords": [
+      "güvenli",
+      "güvenlik",
+      "yönlendir",
+      "başka sayfa",
+      "nowpayments",
+      "nowpayments.io",
+      "dolandırıcı",
+      "gerçek mi",
+      "cüzdan",
+      "özel anahtar",
+      "seed",
+      "şifre",
+      "kart"
+    ],
+    "content": "“Kripto ile öde”ye basınca kripto ödeme hizmetinin güvenli ödeme sayfasına (adresi nowpayments.io ile biter) yönlendirilirsin; bu beklenen ve normal davranıştır. Sitede kart veya cüzdan bilgin saklanmaz. Ödeme sayfasında yalnızca coin ve ağ seçip, gösterilen adrese gösterilen tutarı gönderirsin. KaisTrade senden hiçbir zaman cüzdanının özel anahtarını, kurtarma (seed) kelimelerini, parolanı veya API Secret'ını istemez; böyle bir şey isteyen sayfayı veya mesajı kullanma. Adres çubuğunda nowpayments.io görmüyorsan ödeme yapma ve Destek'e haber ver. Ödeme tamamlanınca üyeliğin sitede kendiliğinden açılır.",
+    "code_sources": [
+      "NowPaymentsPay.tsx"
+    ]
+  },
+  {
+    "id": "payment-which-coin",
+    "title": "Hangi kripto paralarla ödenir? Tutar neden farklı görünüyor?",
+    "keywords": [
+      "hangi coin",
+      "hangi kripto",
+      "usdt",
+      "btc",
+      "bitcoin",
+      "eth",
+      "trx",
+      "ağ ücreti",
+      "komisyon",
+      "tutar farklı",
+      "kur",
+      "fiyat",
+      "usd karşılığı",
+      "tron",
+      "bnb"
+    ],
+    "content": "Plan fiyatı USD olarak belirlidir; ödeme sayfasında seçtiğin coine göre güncel kurla çevrilmiş tutarı görürsün. Hangi coinlerin listelendiğini ödeme sayfası gösterir; Kais AI listeyi önceden bilmez veya garanti etmez. Gönderdiğin tutar sayfada gösterilenin altında kalırsa ödeme eksik sayılır. Coin ve ağı (ör. TRON veya BNB Smart Chain) sayfada seçtiğinle birebir aynı gönder. Ücreti düşük olan bir ağ seçmek istersen ödeme sayfasındaki seçeneklere bakabilirsin. İşlem ücretleri hakkında rakam vermem.",
+    "code_sources": [
+      "backend/app/nowpayments_payments.py"
     ]
   }
 ]
