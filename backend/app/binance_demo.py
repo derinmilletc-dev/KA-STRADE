@@ -2188,14 +2188,14 @@ def validate_levels(direction: str, entry: Decimal, stop: Decimal, targets: list
 
 async def demo_liquidation_guard(client: BinanceDemoClient, spec: dict[str, Any]) -> None:
     """Manuel demo emri için canlıdaki gibi tasfiye (likidasyon) güvenlik kontrolü."""
-    from .liquidation_risk import isolated_liquidation_risk
+    from .liquidation_risk import friendly_reason, isolated_liquidation_risk
 
     payload = await client.signed("GET", "/fapi/v1/leverageBracket", {"symbol": spec["symbol"]})
     policy = {"liquidation_buffer_pct": 0.5, "fee_bps_per_side": 5.0}
     try:
         isolated_liquidation_risk(spec, payload, policy)
     except ValueError as exc:
-        raise BinanceDemoError(f"Likidasyon güvenliği doğrulanamadı: {exc}", http_status=409) from exc
+        raise BinanceDemoError(f"Likidasyon güvenliği doğrulanamadı: {friendly_reason(str(exc))}", http_status=409) from exc
 
 
 async def build_order_spec(client: BinanceDemoClient, order: DemoOrderRequest) -> dict[str, Any]:

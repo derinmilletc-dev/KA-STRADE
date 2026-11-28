@@ -103,3 +103,16 @@ def isolated_liquidation_risk(
         "maintenance_deduction": str(cumulative),
         "funding_included": False,
     }
+
+
+FRIENDLY_REASONS = {
+    "Entry exceeds verified maintenance/leverage bracket":
+        "Bu coinde bu büyüklükte bu kaldıraç izinli değil (Binance kademe sınırı). Kaldıracı düşür ya da miktarı azalt.",
+    "Stop is not before liquidation with the required buffer":
+        "Stop, tasfiye fiyatına çok yakın ya da ötesinde. Kaldıracı düşür ya da stopu girişe yaklaştır.",
+}
+
+
+def friendly_reason(reason: str) -> str:
+    """Kullanıcıya gösterilecek sade sebep. Bilinmeyen sebep olduğu gibi döner (ayrıntı kaybolmaz)."""
+    return FRIENDLY_REASONS.get(str(reason).strip(), str(reason))

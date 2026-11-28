@@ -132,8 +132,8 @@ const CONNECTIONS = `${API_BASE}/exchange-connections`
 let signalsCache: SignalMap | null = null
 const DRAFT_KEY = 'kt-manual-draft-v1'
 const DRAFT_TTL_MS = 30 * 60 * 1000
-type PreflightFix = {type: string; margin_usdt?: number}
-type PreflightCheck = {key: string; passed: boolean; detail: string; fix?: PreflightFix}
+type PreflightFix = {type: string; margin_usdt?: number; leverage?: number; notional_usdt?: number}
+type PreflightCheck = {key: string; passed: boolean; detail: string; fix?: PreflightFix; fixes?: PreflightFix[]}
 type PreflightState = {state: 'idle' | 'loading' | 'ready' | 'unknown'; checks: PreflightCheck[]}
 type ManualDraft = {t: number; symbol: string; direction: 'LONG' | 'SHORT'; margin_usdt: string; leverage: string; step: number}
 const readDraft = (): ManualDraft | null => {
@@ -513,7 +513,8 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       void fetchWithTimeout(`${V25}/order/preflight`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({symbol: order.symbol, direction: order.direction, margin_usdt: margin, leverage, ...levels}), signal: controller.signal}).then(async response => {
         const payload: any = await response.json().catch(() => null)
         if (!response.ok || !payload || !Array.isArray(payload.checks) || payload.ok === null) { setPreflight({state: 'unknown', checks: []}); return }
-        setPreflight({state: 'ready', checks: payload.checks.filter((item: any) => item && typeof item.key === 'string' && typeof item.detail === 'string').map((item: any) => ({key: item.key, passed: item.passed === true, detail: item.detail, fix: item.fix && typeof item.fix.type === 'string' ? {type: item.fix.type, margin_usdt: Number.isFinite(Number(item.fix.margin_usdt)) ? Number(item.fix.margin_usdt) : undefined} : undefined}))})
+        const toFix = (raw: any): PreflightFix | undefined => raw && typeof raw.type === 'string' ? {type: raw.type, margin_usdt: Number.isFinite(Number(raw.margin_usdt)) ? Number(raw.margin_usdt) : undefined, leverage: Number.isFinite(Number(raw.leverage)) ? Number(raw.leverage) : undefined, notional_usdt: Number.isFinite(Number(raw.notional_usdt)) ? Number(raw.notional_usdt) : undefined} : undefined
+        setPreflight({state: 'ready', checks: payload.checks.filter((item: any) => item && typeof item.key === 'string' && typeof item.detail === 'string').map((item: any) => ({key: item.key, passed: item.passed === true, detail: item.detail, fix: toFix(item.fix), fixes: Array.isArray(item.fixes) ? item.fixes.map(toFix).filter((fix: PreflightFix | undefined): fix is PreflightFix => Boolean(fix)) : undefined}))})
       }).catch(error => { if (error?.name !== 'AbortError') setPreflight({state: 'unknown', checks: []}) })
     }, 700)
     return () => { window.clearTimeout(timer); controller.abort() }
@@ -2201,7 +2202,13 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       <button type="button" disabled={Boolean(busy)} onClick={() => { void slidePermission() }}>{busy === 'permission' ? 'Veriliyor…' : 'İzni ver'}</button>
     </div> : null
     const applyPreflightFix = (fix: PreflightFix) => {
-      if (fix.type === 'reduce_margin' && fix.margin_usdt) {
+      if (fix.type === 'set_leverage' && fix.leverage) {
+        // Kaldıraç düşünce emir borsanın kademe sınırına sığar; dry-run otomatik yenilenir.
+        set('leverage', String(fix.leverage))
+        setNotice({kind: 'ok', text: `Kaldıraç ${fix.leverage}x yapıldı; dry-run yenileniyor.`})
+        reviewOrder({...order, leverage: String(fix.leverage)})
+      }
+      else if (fix.type === 'reduce_margin' && fix.margin_usdt) {
         // Miktar düzeltilince dry-run da otomatik yenilenir; kullanıcı tekrar kontrol düğmesine basmak zorunda kalmaz.
         set('margin_usdt', String(fix.margin_usdt))
         setNotice({kind: 'ok', text: `Miktar ${fix.margin_usdt} USDT yapıldı; dry-run yenileniyor.`})
@@ -2211,13 +2218,19 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
       else if (fix.type === 'other_coin') setManualStep(0)
       else if (fix.type === 'widen_or_edit_limits') openRiskEdit()
     }
-    const preflightFixLabel = (fix: PreflightFix) => fix.type === 'reduce_margin' && fix.margin_usdt ? `Miktarı ${fix.margin_usdt} USDT yap`
+    const preflightFixLabel = (fix: PreflightFix) => fix.type === 'set_leverage' && fix.leverage ? `${fix.leverage}x kaldıraçla devam`
+      : fix.type === 'reduce_margin' && fix.margin_usdt ? `Miktarı ${fix.margin_usdt} USDT yap`
       : fix.type === 'positions' ? 'Pozisyonlara git' : fix.type === 'other_coin' ? 'Başka coin seç' : fix.type === 'widen_or_edit_limits' ? 'Limitleri düzenle' : ''
     const preflightEl = orderDone || preflight.state === 'idle' || wzStep < 2 ? null
       : preBlocked.length > 0 ? <div className="mxtPre" data-state="bad" role="alert" data-testid="mwz-preflight" ref={showInView}>
         <b>{preBlocked.length === 1 ? 'Küçük bir ayar gerekiyor' : `${preBlocked.length} küçük ayar gerekiyor`}</b>
-        {preBlocked.slice(0, 3).map(item => <div key={item.key} className="mxtPreRow"><span>{item.detail}</span>
-          {item.fix && preflightFixLabel(item.fix) ? <button type="button" onClick={() => applyPreflightFix(item.fix as PreflightFix)}>{preflightFixLabel(item.fix)}</button> : null}</div>)}
+        {preBlocked.slice(0, 3).map(item => {
+          const options = (item.fixes?.length ? item.fixes : item.fix ? [item.fix] : []).filter(fix => preflightFixLabel(fix))
+          return <div key={item.key} className="mxtPreRow"><span>{item.detail}</span>
+            {options.length > 0 ? <div className="mxtPreFixes">{options.map(fix => <div key={`${fix.type}-${fix.leverage ?? ''}-${fix.margin_usdt ?? ''}`} className="mxtPreFix">
+              <button type="button" onClick={() => applyPreflightFix(fix)}>{preflightFixLabel(fix)}</button>
+              {fix.notional_usdt ? <small>Pozisyon ≈ {Math.round(fix.notional_usdt)} USDT olur</small> : null}</div>)}</div> : null}</div>
+        })}
       </div>
       : preflight.state === 'ready' && preflight.checks.some(item => item.key === 'gate_exposure' && item.detail.includes('uyarı')) ? <p className="mxtPre" data-state="wait" data-testid="mwz-preflight">⚠ Bu işlem toplam büyüklük sınırını aşıyor. Çok riskli: fiyat ters gidince zarar bakiyene göre büyük olabilir. Emir yine de gönderilebilir, karar senin.</p>
       : preflight.state === 'ready' && preflight.checks.some(item => item.key === 'gate_spread' && item.detail.includes('uyarı')) ? <p className="mxtPre" data-state="wait" data-testid="mwz-preflight">⚠ Alış-satış farkı şu an yüksek; emir yine gönderilebilir, fiyat biraz kayabilir.</p>

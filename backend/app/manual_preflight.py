@@ -52,9 +52,13 @@ def fit_margin(margin: float, loss: float, allowed: float) -> float | None:
     return fitted if MIN_MARGIN_USDT <= fitted < margin else None
 
 
-def _check(key: str, passed: bool, detail: str, fix: dict[str, Any] | None = None) -> dict[str, Any]:
+def _check(key: str, passed: bool, detail: str, fix: dict[str, Any] | None = None,
+           fixes: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     item: dict[str, Any] = {"key": key, "passed": bool(passed), "detail": detail}
-    if not passed and fix:
+    if not passed and fixes:
+        item["fixes"] = fixes
+        item["fix"] = fix or fixes[0]
+    elif not passed and fix:
         item["fix"] = fix
     return item
 
@@ -96,7 +100,8 @@ def build_report(
     if isolated_error:
         checks.append(_check("isolated", False, isolated_error))
     if liquidation is not None:
-        checks.append(_check("liquidation", bool(liquidation.get("ok")), str(liquidation.get("detail") or "")))
+        checks.append(_check("liquidation", bool(liquidation.get("ok")), str(liquidation.get("detail") or ""),
+                             fixes=liquidation.get("fixes") or None))
 
     # Manuel gönderimle aynı politika/sinyal: günlük işlem ve ardışık kayıp SAYISI sınırı yok, güven ve tuzak puanı sabit.
     entry_policy = {**policy, "daily_trade_limit": 0, "consecutive_loss_limit": 0}
@@ -169,10 +174,37 @@ def build_report(
     return {"ok": not failed, "checks": checks, "first_blocker": failed[0] if failed else None}
 
 
+def _leverage_tiers(brackets: Any, symbol: str) -> list[tuple[float, float, int]]:
+    """Binance kaldıraç kademeleri: (alt sınır, üst sınır, izinli azami kaldıraç). Okunamazsa boş liste."""
+    rows = brackets if isinstance(brackets, list) else [brackets]
+    matches = [row for row in rows if isinstance(row, dict) and str(row.get("symbol") or "").upper() == symbol.upper()]
+    if len(matches) != 1 or not isinstance(matches[0].get("brackets"), list):
+        return []
+    tiers: list[tuple[float, float, int]] = []
+    for row in matches[0]["brackets"]:
+        if not isinstance(row, dict):
+            return []
+        floor, cap, lev = _num(row.get("notionalFloor")), _num(row.get("notionalCap")), _num(row.get("initialLeverage"))
+        if floor is None or cap is None or lev is None or cap <= floor or lev < 1:
+            return []
+        tiers.append((floor, cap, int(lev)))
+    return sorted(tiers)
+
+
+def _tier_max_leverage(tiers: list[tuple[float, float, int]], notional: float) -> int | None:
+    for floor, cap, lev in tiers:
+        if floor <= notional < cap:
+            return lev
+    return None
+
+
 def liquidation_check(*, symbol: str, direction: str, entry: float, stop: float, margin_usdt: float, leverage: int,
                       notional_usdt: float, brackets: Any, policy: dict[str, Any]) -> dict[str, Any] | None:
     """Gerçek gönderimdeki tasfiye (likidasyon) güvenliği kuralının aynısını (liquidation_risk) emir göndermeden çalıştırır.
-    Stop tasfiye fiyatından gerekli tampon kadar önce kalmıyorsa ok=False ve çözüm ipucu döner.
+    Reddedilecekse ok=False, sade bir sebep ve tek dokunuşluk çözümler ("fixes") döner:
+    - Kaldıraç kademesi aşımı: bu büyüklükte izinli azami kaldıraç düşük. Çözümler: kaldıracı düşür / miktarı azalt.
+    - Stop tasfiyeden sonra kalıyor: çözüm: kaldıracı düşür.
+    Her çözüm gerçek kuralla (isolated_liquidation_risk) doğrulanır; geçmeyen öneri verilmez.
     Başka sebeple doğrulanamazsa (bakım dilimi okunamadı vb.) None döner: ön kontrol bunu engel saymaz, gerçek gönderim yine kontrol eder."""
     if not (entry > 0 and stop > 0 and notional_usdt > 0 and leverage >= 1):
         return None
@@ -182,19 +214,45 @@ def liquidation_check(*, symbol: str, direction: str, entry: float, stop: float,
                 "leverage": lev, "stop_loss": stop}
         isolated_liquidation_risk(spec, brackets, policy)
 
+    def passes(lev: int, notional: float) -> bool:
+        try:
+            run(lev, notional)
+            return True
+        except ValueError:
+            return False
+
     try:
         run(leverage, notional_usdt)
         return {"ok": True, "detail": "Stop, tasfiye fiyatından yeterince önce kalıyor."}
     except ValueError as exc:
-        if "required buffer" not in str(exc):
-            return None
-    best = None
-    for lev in range(leverage - 1, 0, -1):
-        try:
-            run(lev, margin_usdt * lev)
-        except ValueError:
-            continue
-        best = lev
-        break
-    hint = f" Bu stopla en çok yaklaşık {best}x kaldıraç geçer." if best else " Stopu girişe yaklaştır."
-    return {"ok": False, "detail": f"Bu stop {leverage}x kaldıraçta tasfiye fiyatından sonra kalıyor; gerçek emirde reddedilir.{hint}"}
+        reason = str(exc)
+    bracket_problem = "maintenance/leverage bracket" in reason
+    if not bracket_problem and "required buffer" not in reason:
+        return None
+
+    # Çözüm 1: kaldıracı düşür (marjin sabit; pozisyon büyüklüğü ancak küçülebilir). En yüksek geçen kaldıraç seçilir.
+    fixes: list[dict[str, Any]] = []
+    best = next((lev for lev in range(leverage - 1, 0, -1) if passes(lev, min(margin_usdt * lev, notional_usdt))), None)
+    if best:
+        fixes.append({"type": "set_leverage", "leverage": best, "notional_usdt": round(min(margin_usdt * best, notional_usdt), 2)})
+
+    tiers = _leverage_tiers(brackets, symbol)
+    allowed = _tier_max_leverage(tiers, notional_usdt)
+    if bracket_problem:
+        # Çözüm 2: kaldıracı koru, miktarı azalt: izinli kaldıracın geçerli olduğu en büyük kademenin altına sığdır.
+        usable = [cap for _, cap, lev in tiers if lev >= leverage]
+        if usable:
+            fitted = math.floor(max(usable) * FIT_SAFETY / leverage * 10) / 10
+            if MIN_MARGIN_USDT <= fitted < margin_usdt and passes(leverage, min(fitted * leverage, notional_usdt)):
+                fixes.append({"type": "reduce_margin", "margin_usdt": fitted, "notional_usdt": round(min(fitted * leverage, notional_usdt), 2)})
+        if allowed:
+            detail = (f"Binance bu coinde {notional_usdt:.0f} USDT büyüklükte en fazla {allowed}x kaldıraca izin veriyor; "
+                      f"{leverage}x seçili, gerçek emirde reddedilir.")
+        else:
+            detail = f"Bu coinde bu büyüklükte {leverage}x kaldıraç izinli değil; gerçek emirde reddedilir."
+    else:
+        detail = f"Bu stop {leverage}x kaldıraçta tasfiye fiyatından sonra kalıyor; gerçek emirde reddedilir."
+        detail += f" Bu stopla en çok yaklaşık {best}x kaldıraç geçer." if best else " Stopu girişe yaklaştır."
+    if not fixes:
+        fixes.append({"type": "other_coin"})
+    return {"ok": False, "detail": detail, "fixes": fixes}

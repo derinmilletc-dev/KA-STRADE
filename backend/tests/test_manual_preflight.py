@@ -156,3 +156,55 @@ class PreflightRouteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+TIERED = [{"symbol": "XUSDT", "notionalCoef": 1, "brackets": [
+    {"bracket": 1, "initialLeverage": 20, "notionalCap": 5000, "notionalFloor": 0, "maintMarginRatio": 0.01, "cum": 0},
+    {"bracket": 2, "initialLeverage": 10, "notionalCap": 25000, "notionalFloor": 5000, "maintMarginRatio": 0.025, "cum": 75},
+    {"bracket": 3, "initialLeverage": 5, "notionalCap": 100000, "notionalFloor": 25000, "maintMarginRatio": 0.05, "cum": 700}]}]
+
+
+class BracketFixTests(unittest.TestCase):
+    def check(self, **over):
+        base = dict(symbol="XUSDT", direction="LONG", entry=1.0, stop=0.97, margin_usdt=300.0, leverage=20,
+                    notional_usdt=6000.0, brackets=TIERED, policy=LIQ_POLICY)
+        base.update(over)
+        return mp.liquidation_check(**base)
+
+    def test_bracket_overrun_is_caught_with_two_fixes(self):
+        result = self.check()
+        self.assertFalse(result["ok"])
+        self.assertIn("en fazla 10x", result["detail"])
+        kinds = {fix["type"]: fix for fix in result["fixes"]}
+        self.assertEqual(set(kinds), {"set_leverage", "reduce_margin"})
+        self.assertLess(kinds["set_leverage"]["leverage"], 20)
+        self.assertLess(kinds["reduce_margin"]["margin_usdt"], 300.0)
+
+    def test_every_suggested_fix_passes_the_real_rule(self):
+        from app.liquidation_risk import isolated_liquidation_risk
+        result = self.check()
+        for fix in result["fixes"]:
+            lev = fix.get("leverage", 20)
+            margin = fix.get("margin_usdt", 300.0)
+            notional = min(margin * lev, 6000.0)
+            spec = {"symbol": "XUSDT", "direction": "LONG", "entry_price": 1.0, "quantity": notional, "leverage": lev, "stop_loss": 0.97}
+            isolated_liquidation_risk(spec, TIERED, LIQ_POLICY)  # fırlatmamalı
+
+    def test_within_bracket_passes(self):
+        self.assertTrue(self.check(leverage=10, notional_usdt=3000.0)["ok"])
+
+    def test_fixes_are_exposed_on_report_check(self):
+        liquidation_result = self.check()
+        result = report(liquidation=liquidation_result)
+        item = failed(result)["liquidation"]
+        self.assertEqual(item["fixes"], liquidation_result["fixes"])
+        self.assertEqual(item["fix"], liquidation_result["fixes"][0])
+
+    def test_stop_too_far_also_offers_leverage_fix(self):
+        result = liquidation(stop=98.0, leverage=50, notional_usdt=1000.0)
+        self.assertTrue(any(fix["type"] == "set_leverage" for fix in result["fixes"]))
+
+    def test_friendly_reason_translates_known_reasons_only(self):
+        from app.liquidation_risk import friendly_reason
+        self.assertIn("Kaldıracı düşür", friendly_reason("Entry exceeds verified maintenance/leverage bracket"))
+        self.assertEqual(friendly_reason("Something else"), "Something else")
