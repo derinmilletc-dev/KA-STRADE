@@ -812,8 +812,13 @@ def plan_note(request: Any, user: dict[str, Any], owner: bool, trial: bool, tr: 
     plan = str(subscription.get("plan") or "").upper()
     active = bool(subscription.get("master_trade_access"))
     if trial:
-        text = ("Planı: 1 Hafta Ücretsiz Deneme; canlı (gerçek parayla) işlem kapalı, işlemler yalnız Demo hesapta." if tr
-                else "Plan: Free Trial; live (real-money) trading is off, trading only on the Demo account.")
+        from . import live_access
+        if live_access.trial_live_enabled():
+            text = ("Planı: 1 Hafta Ücretsiz Deneme; elle canlı işlem günde en fazla 5 yeni pozisyonla açık (00:00 UTC'de sıfırlanır), canlıda KAIS stratejileri ve Auto Trade kapalı; Demo'da hepsi açık." if tr
+                    else "Plan: Free Trial; manual live trading is open up to 5 new positions per day (resets 00:00 UTC), KAIS strategies and Auto Trade are off on live (open on Demo).")
+        else:
+            text = ("Planı: 1 Hafta Ücretsiz Deneme; canlı (gerçek parayla) işlem kapalı, işlemler yalnız Demo hesapta." if tr
+                    else "Plan: Free Trial; live (real-money) trading is off, trading only on the Demo account.")
     elif active and plan == "SMART_TRADE":
         text = ("Planı: SMART TRADE; canlı manuel işlem açık, canlıda KAIS stratejileri ve Auto Trade kapalı (Demo'da açık)." if tr
                 else "Plan: SMART TRADE; live manual trading on, KAIS strategies and Auto Trade off on live (on for Demo).")

@@ -38,12 +38,12 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
       void fetch(`${API_BASE}/v22/profile`, {signal: requestController.signal})
         .then(async response => {
           if (response.status === 401 && !requestController.signal.aborted && userSessionToken() === sessionToken) clearKaisChatHistory()
-          const payload = await response.json() as {user?: {id?: string; role?: string; display_name?: string}; access?: {isPremium?: boolean;assistantAllowed?:boolean;freeTrial?:boolean;canExecuteLive?:boolean;entitlements?:{canUseAutomation?:boolean}}; detail?: string}
+          const payload = await response.json() as {user?: {id?: string; role?: string; display_name?: string}; access?: {isPremium?: boolean;assistantAllowed?:boolean;freeTrial?:boolean;canExecuteLive?:boolean;canExecuteLiveManual?:boolean;entitlements?:{canUseAutomation?:boolean}}; detail?: string}
           if (!response.ok || !payload.user?.id) throw new Error(payload.detail || 'Üyelik yetkisi doğrulanamadı.')
           if (!requestController.signal.aborted) {
             setAccess({premium: payload.access?.isPremium === true || payload.user.role === 'OWNER', ready: true, userId: payload.user.id, displayName: typeof payload.user.display_name === 'string' ? payload.user.display_name : '', owner: payload.user.role === 'OWNER', error: '',
               assistantAllowed:payload.access?.assistantAllowed !== false,freeTrial:payload.access?.freeTrial === true,
-              liveAllowed:payload.access?.canExecuteLive === true || payload.user.role === 'OWNER',
+              liveAllowed:payload.access?.canExecuteLive === true || payload.access?.canExecuteLiveManual === true || payload.user.role === 'OWNER',
               automationAllowed:payload.access?.entitlements?.canUseAutomation !== false})
             setStaffView(payload.user.role === 'OWNER')
             if (userSessionToken() === sessionToken) resumeKaisChatHistory(payload.user.id)

@@ -264,7 +264,9 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const gridPath = (path: string) => demo ? path.replace('/grid/live', '/grid') : path
   const [originalNotice, setOriginalNotice] = useState('')
   const [connectionNotice, setConnectionNotice] = useState<{kind: 'info' | 'ok' | 'error'; text: string} | null>(null)
-  const {freeTrial, userId, automationAllowed, openUpgrade} = useMemberAccess()
+  const {freeTrial: trialMember, liveAllowed, userId, automationAllowed, openUpgrade} = useMemberAccess()
+  const trialLive = trialMember && liveAllowed      // deneme üyesi: elle canlı işlem açık (günde 5 yeni pozisyon), otomasyon kapalı
+  const freeTrial = trialMember && !liveAllowed     // deneme üyesi: canlı işlem tamamen kapalı
   const tradingDefaults = useTradingPreferences()
   const defaultsApplied = useRef(false)
   const [sizingNotice, setSizingNotice] = useState('')
@@ -795,7 +797,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const autoTimeframeSupported = selectedAutoTimeframe === '15m' && savedAutoTimeframe === '15m'
   const autoTimeframeMessage = "LIVE Auto Trade yalnızca 15m zaman diliminde çalışır. Başlatmak için timeframe'i 15m seçip politikayı kaydedin."
   const timeframeWarning = !autoTimeframeSupported ? <div className="liveNotice error" role="alert" data-testid="live-auto-timeframe-warning"><TriangleAlert aria-hidden="true"/><span>{autoTimeframeMessage} Timeframe: {selectedAutoTimeframe !== '15m' ? selectedAutoTimeframe : savedAutoTimeframe}.</span></div> : null
-  const autoReady = Boolean(!freeTrial && automationAllowed !== false && autoTimeframeSupported && status && connections && authorizationValid && connectionReady && armState === 'READY' && !executionLocked && readinessReady && riskState === 'READY' && exposureState === 'READY' && activePlanState === 'READY' && protectionState === 'READY' && recoveryState === 'READY' && emergencyState === 'CLEAR')
+  const autoReady = Boolean(!freeTrial && !trialLive && automationAllowed !== false && autoTimeframeSupported && status && connections && authorizationValid && connectionReady && armState === 'READY' && !executionLocked && readinessReady && riskState === 'READY' && exposureState === 'READY' && activePlanState === 'READY' && protectionState === 'READY' && recoveryState === 'READY' && emergencyState === 'CLEAR')
   const originalEntryChecks: OriginalV2EntryCheck[] = []
   const originalRuntime = status?.original_v2_live
   if (status && originalRuntime) {
@@ -1141,7 +1143,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   // Hata olursa kaydırıcı yedek olarak görünür; en sık 30 sn'de bir denenir (kilit açılıp kapanırsa döngüye girmesin).
   const autoPermissionAt = useRef(0)
   const autoPermissionFails = useRef(0)
-  const autoPermissionWanted = Boolean(manualPanelOpen && !freeTrial && statusVerified && status && connected && readinessReady && !emergency && !recoveryRequired
+  const autoPermissionWanted = Boolean(manualPanelOpen && !freeTrial && !trialLive && statusVerified && status && connected && readinessReady && !emergency && !recoveryRequired
     && !permissionBlocked && !(authorizationValid && liveArmed))
   useEffect(() => {
     if (!autoPermissionWanted || busy) return
@@ -1176,6 +1178,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   }
   const autoToggle = () => {
     if (status?.live_auto_trade || status?.auto?.enabled) return stopAutoTrade()
+    if (trialLive) {setNotice({kind:'error',text:'Canlı otomatik işlem Master Mode ile açılır; denemede elle canlı işlem açabilirsin.'});return}
     if (freeTrial) {setNotice({kind:'error',text:'LIVE işlem MASTER MODE ile açılır'});return}
     if (automationAllowed === false) {openUpgrade('Canlı Auto Trade', 'master');return}
     if (!autoTimeframeSupported) {
