@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-DOCUMENT_NAME = "registration-2026-10-14.json"
+DOCUMENT_NAME = "registration-2026-11-28.json"
 DOCUMENT = json.loads(
     (Path(__file__).parent / "legal" / DOCUMENT_NAME).read_text(encoding="utf-8")
 )
