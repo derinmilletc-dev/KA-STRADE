@@ -194,16 +194,16 @@ class AssistantToolsTests(AssistantToolsTestCase):
                 "kais_ai_messages_per_day": 30, "chart_ai_per_day": 10, "ai_analyst_per_day": 25})
             self.assertEqual(plans["TRIAL"]["daily_limits"], {
                 "kais_ai_messages_per_day": 11, "chart_ai_per_day": 5, "ai_analyst_per_day": 5})
-            self.assertEqual(data["payment"]["method"], "Binance Pay")
+            self.assertEqual(data["payment"]["method"], "Kripto")
             self.assertFalse(data["renewal"]["automatic_renewal"])
             text = json.dumps(data, ensure_ascii=False)
             for internal in ("Stripe", "backend", "admin", "moderat", "yönetici"):
                 self.assertNotIn(internal, text)
             response = await self.chat("What is the subscription price and trial?")
-            for value in ("249.95 USDT", "59.50 USDT", "14 days", "Binance Pay"):
+            for value in ("249.95 USDT", "59.50 USDT", "14 days", "Kripto"):
                 self.assertIn(value, response.json()["reply"])
             reply = (await self.chat("Premium fiyat ve deneme nedir?")).json()["reply"]
-            for value in ("249.95 USDT", "59.50 USDT", "14 gün", "Binance Pay", "Demo", "iptal gerekmez"):
+            for value in ("249.95 USDT", "59.50 USDT", "14 gün", "Kripto", "Demo", "iptal gerekmez"):
                 self.assertIn(value, reply)
         self.provider.assert_not_awaited()
 

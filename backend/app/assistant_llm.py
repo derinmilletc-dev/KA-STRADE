@@ -97,7 +97,7 @@ def needs_deep_reasoning(message: str, voice: bool = False) -> bool:
 
 TOOL_PURPOSES = {
     "get_plans": "Complete customer product facts: Free Trial, SMART TRADE and MASTER MODE prices (USDT), what each plan includes "
-                 "and excludes, daily AI limits (KAIS AI, Chart AI, AI Analyst) and reset times, Binance Pay payment steps, "
+                 "and excludes, daily AI limits (KAIS AI, Chart AI, AI Analyst) and reset times, crypto payment steps, "
                  "approval, renewal, cancellation and refund/problem routing. Use for any plan, price, trial, payment, renewal, "
                  "cancel, refund, upgrade or limit question.",
     "get_my_access": "The current member's own plan and status.",

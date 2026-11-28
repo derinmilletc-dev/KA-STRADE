@@ -14,7 +14,7 @@ from .analyst_credits import CreditConfig
 from .assistant_config import AssistantConfig
 
 CURRENCY = "USDT"
-PAYMENT_METHOD = "Binance Pay"
+PAYMENT_METHOD = "Kripto"
 # KAIS AI mesaj hakkı UTC gün başında (Türkiye saatiyle 03:00) yenilenir; Grafik AI Türkiye saatiyle 00:00'da.
 KAIS_RESET_HOUR_TR = 3
 CHART_RESET_HOUR_TR = 0
@@ -102,15 +102,18 @@ def plans(assistant: AssistantConfig | None = None, credits: CreditConfig | None
         },
         "payment": {
             "method": PAYMENT_METHOD, "currency": CURRENCY,
-            "where": "Ana sayfa → ABONELİK (telefonda Menü → Abonelik), planı seç, “Binance ile öde”",
+            "where": "Ana sayfa → ABONELİK (telefonda Menü → Abonelik), planı seç, “Kripto ile öde”",
             "steps": [
-                "“Binance ile öde”ye bas; sana özel referans kodu oluşur",
-                "Plan tutarını Binance Pay ile ödeme ekranındaki Pay ID'ye gönder, ödeme notuna referans kodunu yaz",
-                f"Binance işlem/sipariş numarasını {binance_manual_payments.PAYMENT_WINDOW_HOURS} saat içinde aynı ekrana gir",
-                "Ödeme kontrol edilip onaylanınca erişim açılır ve bildirim gelir",
+                "“Kripto ile öde”ye bas; güvenli ödeme sayfası açılır",
+                "Ödeme sayfasında istediğin kripto parayı ve ağı seç; sayfa adresi ve tutarı gösterir, tutarı gönder",
+                "Ödeme ağda onaylanınca üyeliğin kendiliğinden açılır; işlem numarası girmen gerekmez",
+                "Açılmadıysa aynı ekranda “Durumu yenile”ye bas",
             ],
-            "approval": "Her ödeme elle kontrol edilir; genelde birkaç saat içinde onaylanır",
+            "amount_note": "Plan fiyatı USD karşılığıdır; ödeme sayfası seçilen coine göre tutarı hesaplar. Gönderirken ağ ücreti (gas) ayrıca ödenir; ödeme sayfasında gösterilen tutarın tamamı gönderilmelidir",
+            "approval": "Otomatik onaylanır; ağ onayından sonra genelde birkaç dakika içinde açılır (kesin süre sözü verilmez)",
             "card_or_wallet_stored": False,
+            "not_available": ["Binance Pay ile elle ödeme", "kart", "havale"],
+            "if_problem": "Ödeme sayfası kapandıysa yeniden “Kripto ile öde”ye bas. Eksik tutar gönderildiyse, ödeme yapıldı ama üyelik açılmadıysa veya yanlış ağa gönderildiyse Destek bölümünden talep oluştur",
         },
         "renewal": {
             "automatic_renewal": False,

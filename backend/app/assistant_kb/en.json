@@ -100,7 +100,7 @@
       "package",
       "membership"
     ],
-    "content": "There are three options. The {TRIAL_DAYS}-day Free Trial needs no payment details, can be used once per account and trades only on the Demo account. SMART TRADE: {SMART_PRICE} {CURRENCY} for {PAID_PERIOD_DAYS} days. It includes Demo and live manual trading, Grid trading, the full Master Trade screen, stop/target/position protection, AI Analyst, Scanner, Analysis Studio, KAIS Guide and KAIS AI; KAIS strategies and Auto Trade are not available on the live account but all of them work on the Demo account. MASTER MODE: {MASTER_PRICE} {CURRENCY} for {PAID_PERIOD_DAYS} days. Everything in Smart Trade plus KAIS strategies and Auto Trade on the live account and priority support. Daily allowances: Smart Trade KAIS AI {KAIS_SMART_DAILY} messages, Chart AI {CHART_SMART_DAILY} analyses, AI Analyst {ANALYST_SMART_DAILY} analyses; Master Mode KAIS AI {KAIS_PAID_DAILY} messages, Chart AI {CHART_PAID_DAILY} analyses, AI Analyst {ANALYST_PAID_DAILY} analyses. Payment is made with Binance Pay in {CURRENCY} and there is no automatic renewal. See the plans under Home → ABONELİK (Subscription; mobile: Menu → Abonelik).",
+    "content": "There are three options. The {TRIAL_DAYS}-day Free Trial needs no payment details, can be used once per account and trades only on the Demo account. SMART TRADE: {SMART_PRICE} {CURRENCY} for {PAID_PERIOD_DAYS} days. It includes Demo and live manual trading, Grid trading, the full Master Trade screen, stop/target/position protection, AI Analyst, Scanner, Analysis Studio, KAIS Guide and KAIS AI; KAIS strategies and Auto Trade are not available on the live account but all of them work on the Demo account. MASTER MODE: {MASTER_PRICE} {CURRENCY} for {PAID_PERIOD_DAYS} days. Everything in Smart Trade plus KAIS strategies and Auto Trade on the live account and priority support. Daily allowances: Smart Trade KAIS AI {KAIS_SMART_DAILY} messages, Chart AI {CHART_SMART_DAILY} analyses, AI Analyst {ANALYST_SMART_DAILY} analyses; Master Mode KAIS AI {KAIS_PAID_DAILY} messages, Chart AI {CHART_PAID_DAILY} analyses, AI Analyst {ANALYST_PAID_DAILY} analyses. Payment is made in crypto, is approved automatically, and there is no automatic renewal. See the plans under Home → ABONELİK (Subscription; mobile: Menu → Abonelik).",
     "code_sources": [
       "BillingCenter.tsx",
       "BinanceManualPayment.tsx",
@@ -126,10 +126,10 @@
       "downgrade",
       "period"
     ],
-    "content": "Paid plans last {PAID_PERIOD_DAYS} days and do not renew automatically; when they end nothing is charged and the plan simply closes, so you do not need to cancel. To continue, pay again before or after the end date. If a payment is approved while your plan is still running, the new {PAID_PERIOD_DAYS} days are added after the current end date, so you keep your remaining days. If you want to move from Smart Trade to Master Mode immediately, write to Support before paying. Your current plan, status and end date are shown at the top of Home → ABONELİK. For refunds, payment or invoice problems, send a request from the Support section. KAIS AI cannot change your subscription or take payments.",
+    "content": "Paid plans last {PAID_PERIOD_DAYS} days and do not renew automatically; when they end nothing is charged and the plan simply closes, so you do not need to cancel. To continue, pay again before or after the end date. If a payment completes while your plan is still running, the new {PAID_PERIOD_DAYS} days are added after the current end date, so you keep your remaining days. If you want to move from Smart Trade to Master Mode immediately, write to Support before paying. Your current plan, status and end date are shown at the top of Home → ABONELİK. For refunds, payment or invoice problems, send a request from the Support section. KAIS AI cannot change your subscription or take payments.",
     "code_sources": [
       "BillingCenter.tsx",
-      "BinanceManualPayment.tsx",
+      "NowPaymentsPay.tsx",
       "backend/app/product_catalog.py"
     ]
   },
@@ -177,7 +177,7 @@
   },
   {
     "id": "payment",
-    "title": "How do I pay with Binance Pay?",
+    "title": "How do I pay with crypto?",
     "keywords": [
       "payment",
       "pay",
@@ -194,11 +194,18 @@
       "approval",
       "pending",
       "rejected",
-      "card"
+      "card",
+      "crypto",
+      "coin",
+      "network",
+      "address",
+      "nowpayments"
     ],
-    "content": "Payments are made only with Binance Pay in {CURRENCY}; your card or wallet details are not stored. Under Home → ABONELİK (mobile: Menu → Abonelik) choose a plan and press “Binance ile öde” (Pay with Binance). Steps: first, a personal reference code is created. Then send the plan amount (Smart Trade {SMART_PRICE} {CURRENCY}, Master Mode {MASTER_PRICE} {CURRENCY}) with Binance Pay from the Binance app to the Pay ID shown on the payment screen, and write the reference code in the payment note. Finally, enter the Binance transaction/order number on the same screen within {PAYMENT_WINDOW_HOURS} hours. Every payment is checked and is usually approved within a few hours; once approved your access opens and you get a notification. The payment status (Pending, Approved, Rejected, Expired) is shown on the same screen. If the number is not entered within {PAYMENT_WINDOW_HOURS} hours, the request expires and you can create a new one. For a rejected, long-pending or wrong-amount payment, send a request from the Support section.",
+    "content": "Payment is currently accepted only in crypto and is approved automatically; your card or wallet details are not stored. There is no manual Binance Pay payment and no transaction number to enter. Under Home → ABONELİK (mobile: Menu → Abonelik) choose a plan and press “Kripto ile öde” (Pay with crypto). Steps: a secure payment page opens; there you choose the crypto coin and network, and the page shows the address and amount to send. The plan price (Smart Trade {SMART_PRICE}, Master Mode {MASTER_PRICE}, in USD) is converted to the coin you choose; the network fee is paid separately and the full amount shown on the page must be sent. Once the network confirms the payment, your membership opens automatically and you do not enter a transaction number; this usually takes a few minutes, no exact time is guaranteed. If it has not opened, press “Durumu yenile” (Refresh status) on the same screen. If the payment page closes, press “Kripto ile öde” again. If you sent too little, paid but the membership did not open, or sent on the wrong network, send a request from the Support section. There is no automatic renewal; you pay again for each {PAID_PERIOD_DAYS}-day period.",
     "code_sources": [
       "BillingCenter.tsx",
+      "NowPaymentsPay.tsx",
+      "backend/app/nowpayments_payments.py",
       "backend/app/product_catalog.py"
     ]
   },
@@ -1008,7 +1015,7 @@
       "question",
       "kais"
     ],
-    "content": "KAIS AI explains the site's sections, screens and terms; answers questions about plans, prices, Binance Pay payment, the trial, daily allowances and support; and points you to the right menu. If you allow it in your profile, it reads and summarises your own trades, positions and settings; it compares coins and gives a market overview. It knows which screen you are on; ask “what is this?” and it explains that section. It does not trade, give buy/sell advice, change your subscription or take payments, and it never asks for passwords or API Secrets. For things only the support team can do, it points you to the Support section. KAIS AI is the same assistant on every plan; only the daily message allowance differs.",
+    "content": "KAIS AI explains the site's sections, screens and terms; answers questions about plans, prices, crypto payment, the trial, daily allowances and support; and points you to the right menu. If you allow it in your profile, it reads and summarises your own trades, positions and settings; it compares coins and gives a market overview. It knows which screen you are on; ask “what is this?” and it explains that section. It does not trade, give buy/sell advice, change your subscription or take payments, and it never asks for passwords or API Secrets. For things only the support team can do, it points you to the Support section. KAIS AI is the same assistant on every plan; only the daily message allowance differs.",
     "code_sources": [
       "frontend/src/LiveCockpit.tsx",
       "AssistantChat.tsx"
