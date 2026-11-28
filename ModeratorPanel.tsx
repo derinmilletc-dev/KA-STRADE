@@ -17,6 +17,7 @@ import {ModeratorPremiumRequests, PremiumRequestForm} from './ModeratorPremiumRe
 import CustomerEvents, {OwnerApprovalNotice} from './CustomerEvents'
 import ModeratorCampaigns from './ModeratorCampaigns'
 import ModeratorPaymentRequests from './ModeratorPaymentRequests'
+import TrialLiveUsage from './TrialLiveUsage'
 import BrandLogo from './BrandLogo'
 
 const icons = {overview: Home, customers: Users, subscriptions: Wallet, payments: CreditCard, 'payment-requests': Banknote, support: MessageCircle, activity: Activity, approvals: ShieldCheck, campaigns: Mail}
@@ -171,8 +172,10 @@ export default function ModeratorPanel({onLogout}: {onLogout: () => void}) {
           section === 'payment-requests' ? <ModeratorPaymentRequests canRecommend={me.permissions.includes('approvals.create')} onCustomer={me.permissions.includes('customers.view') ? id => navigate('customers', id) : undefined}/> :
           section === 'campaigns' ? <ModeratorCampaigns owner={me.role === 'OWNER'} canRequest={me.permissions.includes('approvals.create')}/> :
           section === 'activity' ? <ModCard title="Teknik Olaylar"><p className="mod-secondary">Teknik olay geçmişi müşteri profilinde görüntülenir.</p><button className="mod-back" disabled={!me.permissions.includes('customers.view')} onClick={() => navigate('customers')}>Müşteri seç</button></ModCard> :
-          section === 'subscriptions' || section === 'payments' ? <CustomerResourcePanel key={`${section}:${userId}`} kind={section === 'subscriptions' ? 'subscription' : 'payments'} initialUserId={userId}/> :
+          section === 'subscriptions' || section === 'payments' ? <>{section === 'subscriptions' && <TrialLiveUsage load={loadTrialLive}/>}<CustomerResourcePanel key={`${section}:${userId}`} kind={section === 'subscriptions' ? 'subscription' : 'payments'} initialUserId={userId}/></> :
             <ModCard title="Yakında"><p className="mod-secondary">{title} bu aşamada kullanıma açık değil.</p></ModCard>}
     </main>
   </div>
 }
+
+const loadTrialLive = (signal: AbortSignal): Promise<unknown> => moderatorRequest('/trial-live', value => value, signal)
