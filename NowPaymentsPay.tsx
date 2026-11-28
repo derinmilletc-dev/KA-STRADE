@@ -4,6 +4,8 @@ import {API_BASE, userSessionToken} from './api'
 import {PAID_PLAN_AMOUNT, PAID_PLAN_NAME, type PaidPlan} from './smart-trade-plans'
 
 type Current = {status:string; plan:string}
+const REMIND_DAYS = 7
+const DAY_MS = 86_400_000
 const isRecord = (value:unknown):value is Record<string,unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
 // Ödeme sayfası yalnız nowpayments.io alan adlarına açılır; sunucu yanıtı bozulsa bile başka adrese gidilmez.
@@ -30,6 +32,7 @@ async function request(path:string, options:RequestInit = {}):Promise<unknown> {
 export default function NowPaymentsPay({plan = 'MASTER_MODE'}: {plan?: PaidPlan} = {}) {
   const [enabled,setEnabled] = useState(false)
   const [current,setCurrent] = useState<Current|null>(null)
+  const [periodEnd,setPeriodEnd] = useState<number|null>(null)
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
   const [notice,setNotice] = useState('')
@@ -45,6 +48,9 @@ export default function NowPaymentsPay({plan = 'MASTER_MODE'}: {plan?: PaidPlan}
       setCurrent({status:payment.status,plan:payment.plan})
       if (payment.status === 'finished') window.dispatchEvent(new Event('protrebot-access-refresh'))
     } else setCurrent(null)
+    const period = isRecord(value) && isRecord(value.period) ? value.period : null
+    const end = period && typeof period.period_end === 'string' ? Date.parse(period.period_end) : NaN
+    setPeriodEnd(Number.isFinite(end) ? end : null)
   }
   useEffect(() => {
     const controller = new AbortController()
@@ -76,12 +82,15 @@ export default function NowPaymentsPay({plan = 'MASTER_MODE'}: {plan?: PaidPlan}
   }
 
   if (!enabled) return null
+  const daysLeft = periodEnd === null ? null : Math.ceil((periodEnd - Date.now()) / DAY_MS)
+  const renewSoon = daysLeft !== null && daysLeft > 0 && daysLeft <= REMIND_DAYS
   const waiting = current && ['waiting','confirming','confirmed','sending'].includes(current.status)
   return <section className="binanceManualPayment" aria-label="Kripto ile ödeme">
     <header><div><small>OTOMATİK ÖDEME</small><h3>Kripto ile öde</h3></div><span>Otomatik onay</span></header>
     <p>30 günlük {PAID_PLAN_NAME[plan]} · {PAID_PLAN_AMOUNT[plan]} USD karşılığı kripto. Ödeme ağda onaylanınca üyeliğin kendiliğinden açılır; işlem numarası girmen gerekmez. Otomatik yenileme yoktur.</p>
     {error && <div className="binanceManualError" role="alert">{error}</div>}
-    {current?.status === 'finished' && <div role="status"><strong>Ödeme alındı</strong><p>Üyeliğin açıldı. Görünmüyorsa “Durumu yenile”ye bas.</p></div>}
+    {renewSoon && <div role="status"><strong>Üyeliğin {daysLeft} gün sonra bitiyor</strong><p>Kesinti olmaması için şimdi yenileyebilirsin. Kalan günlerin kaybolmaz, yeni 30 gün üstüne eklenir.</p></div>}
+    {current?.status === 'finished' && !renewSoon && <div role="status"><strong>Ödeme alındı</strong><p>Üyeliğin açıldı. Görünmüyorsa “Durumu yenile”ye bas.</p></div>}
     {waiting && <div role="status"><strong>Ödeme bekleniyor</strong><p>Ödemeyi yaptıysan ağ onayı birkaç dakika sürebilir. Sayfayı yenileyip durumu kontrol et.</p></div>}
     {current?.status === 'partially_paid' && <div className="binanceManualError" role="alert">Eksik tutar gönderilmiş görünüyor. Destek bölümünden bize yaz.</div>}
     <button type="button" className="binanceManualPrimary" disabled={busy} onClick={() => void pay()}>{busy ? 'Hazırlanıyor…' : 'Kripto ile öde'}</button>
