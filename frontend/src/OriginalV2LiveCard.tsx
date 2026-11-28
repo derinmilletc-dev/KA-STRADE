@@ -34,7 +34,7 @@ export const originalScanLabels: Record<string, string> = {
   UNIVERSE_REFRESH: 'Günlük sembol listesi yenileniyor',
   SCANNING: 'Tarama sürüyor',
   SCAN_COMPLETE: 'Tarama tamamlandı',
-  WAITING_NEXT_CANDLE: 'Sonraki 15m mum bekleniyor',
+  WAITING_NEXT_CANDLE: 'Sonraki mum kapanışı bekleniyor',
   RATE_LIMIT_WAIT: 'Borsa istek sınırı bekleniyor',
   NO_ELIGIBLE_SYMBOLS: 'Filtrelere uyan sembol yok',
   BLOCKED: 'Yeni girişler engellendi',
@@ -97,6 +97,8 @@ type OriginalScanNearMiss = {
 }
 
 export type OriginalV2LiveStatus = {
+  entry_model?: string
+  scan_interval_seconds?: number
   available: boolean
   enabled: boolean
   paused?: boolean

@@ -480,6 +480,8 @@ def public_config(state: dict[str, Any]) -> dict[str, Any]:
             "margin_mode": settings(state).get("margin_mode", "guvenli"),
             "margin_modes": margin_mode_status(),
             "smart_profit": smart_profit_public(state),
+            "entry_model": _entry_model_name(),
+            "scan_interval_seconds": 3600 if _entry_model_name() == "pullback_1h" else 900,
             "risk_projection": copy.deepcopy(config.get("risk_projection")),
             "last_risk_adjustment": copy.deepcopy(config.get("last_risk_adjustment")),
             "daily": daily_public(config),
@@ -493,6 +495,14 @@ def public_config(state: dict[str, Any]) -> dict[str, Any]:
                         "authority_limited": config.get("session_authority_limited", False),
                         "warning_sent": bool(config.get("session_warning_sent"))},
             "symbols": symbols}
+
+
+def _entry_model_name() -> str:
+    """Ekranda doğru tarama aralığını göstermek için; geçersiz ayarda sessizce eski değere düşer (yalnız gösterim)."""
+    try:
+        return original_v2_pullback.configured_model()
+    except Exception:
+        return "legacy"
 
 
 def smart_profit_public(state: dict[str, Any]) -> dict[str, Any]:
