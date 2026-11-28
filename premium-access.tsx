@@ -131,7 +131,7 @@ export function MemberAccessProvider({children}: {children: ReactNode}) {
             </article>
           </div>
           <div className="premiumCardActions"><a className="premiumPrimary" href="/billing">Planları gör</a><button className="premiumSecondary" type="button" onClick={() => setUpgradeOpen(false)}>Şimdi değil</button></div>
-          <p className="premiumFoot">Otomatik ücret yok. Ödeme Binance Pay ile, manuel doğrulanır.</p>
+          <p className="premiumFoot">Otomatik ücret yok. Ödeme kripto ile yapılır, ağda onaylanınca üyelik açılır.</p>
         </div>
       </dialog>}
     </>, document.body)}
