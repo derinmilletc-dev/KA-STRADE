@@ -2,7 +2,6 @@ import {useEffect, useRef, useState, type MouseEvent as ReactMouseEvent} from 'r
 import {ArrowRight, BarChart3, Bot, Check, ChevronLeft, ChevronRight, Clock3, CreditCard, Crown, Grid3X3, Lock, MessageCircle, RefreshCw, ShieldCheck, Sparkles, Wallet, X, Zap} from 'lucide-react'
 import {userSessionToken} from './api'
 import {askKais} from './kais-ask'
-import BinanceManualPayment from './BinanceManualPayment'
 import NowPaymentsPay from './NowPaymentsPay'
 import {trialRequest, type Trial} from './FreeTrialPricing'
 import {PLAN_BY_CODE} from './subscription'
@@ -232,7 +231,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <FeatureList items={SMART_FEATURES} locked="Canlıda KAIS stratejileri ve Auto Trade bu planda yok"/>
         <button type="button" className="ktBillMore" onClick={() => openSheet(1)}>+{SMART_FEATURES.length + 1 - 4} özellik daha · Tümünü gör<ChevronRight aria-hidden="true"/></button>
         <p className="ktBillNoAuto"><Lock/> Kais otomatik stratejileri ve Auto Trade bu plana dahil değildir.</p>
-        <p className="ktBillNote"><Wallet/>Binance Pay ile güvenle ödenir.</p>
+        <p className="ktBillNote"><Wallet/>Kripto ile güvenle ödenir.</p>
         <button type="button" className="ktBillButton" onClick={() => goToPayment('SMART_TRADE')} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{smartLabel}{binanceEnabled && !(binancePaid && hasAccess) && <ArrowRight/>}</button>
         <small className="ktBillTerms">Denemedeyken ödeme onaylanırsa 30 gün deneme bitişinden başlar. Otomatik yenileme yok.</small>
       </article>
@@ -248,7 +247,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <ul>{MASTER_FEATURES.map(feature => <li key={feature.t} className={feature.hot ? 'isHot' : undefined}><Check/><span className="ktBillFeatText">{feature.t}</span>{feature.tag && <small className="ktBillFeatTag">{feature.tag}</small>}</li>)}</ul>
         <FeatureList items={MASTER_FEATURES}/>
         <button type="button" className="ktBillMore" onClick={() => openSheet(2)}>+{MASTER_FEATURES.length - 5} özellik daha · Tümünü gör<ChevronRight aria-hidden="true"/></button>
-        <p className="ktBillNote"><Wallet/>Binance Pay ile güvenle ödenir.</p>
+        <p className="ktBillNote"><Wallet/>Kripto ile güvenle ödenir.</p>
         <button type="button" className="ktBillButton isPrimary" onClick={() => goToPayment('MASTER_MODE')} disabled={!binanceEnabled || !authenticated || (binancePaid && hasAccess)}>{masterLabel}{binanceEnabled && !(binancePaid && hasAccess) && <ArrowRight/>}</button>
         <small className="ktBillTerms">Denemedeyken ödeme onaylanırsa 30 gün deneme bitişinden başlar. Otomatik yenileme yok.</small>
       </article>
@@ -277,25 +276,25 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
         <header className="ktCheckoutHead">
           <span className="ktBillEyebrow">GÜVENLİ ÖDEME</span>
           <h2 id="ktCheckoutTitle">{PAID_PLAN_NAME[selectedPlan]}</h2>
-          <div className="ktCheckoutPrice"><strong>{PAID_PLAN_AMOUNT[selectedPlan]}</strong><span>USDT</span><em>/ 30 gün</em></div>
+          <div className="ktCheckoutPrice"><strong>{PAID_PLAN_AMOUNT[selectedPlan]}</strong><span>USD</span><em>/ 30 gün</em></div>
           <dl className="ktCheckoutMeta">
             <div><dt>Plan</dt><dd>{PAID_PLAN_NAME[selectedPlan]}</dd></div>
             <div><dt>Süre</dt><dd>30 gün</dd></div>
-            <div><dt>Yöntem</dt><dd>Binance Pay</dd></div>
+            <div><dt>Yöntem</dt><dd>Kripto</dd></div>
           </dl>
         </header>
         <ol className="ktCheckoutSteps">
-          <li><b>1</b><div><strong>Ödeme talebi oluştur</strong><span>“Binance ile öde”ye bas; sana özel referans kodu çıkar.</span></div></li>
-          <li><b>2</b><div><strong>Binance Pay ile gönder</strong><span>{PAID_PLAN_AMOUNT[selectedPlan]} USDT’yi Pay ID’ye gönder, ödeme notuna referans kodunu yaz.</span></div></li>
-          <li><b>3</b><div><strong>İşlem numarasını gir</strong><span>48 saat içinde gönder. Onaylanınca erişimin açılır ve bildirim gelir.</span></div></li>
+          <li><b>1</b><div><strong>Kripto ile öde’ye bas</strong><span>Güvenli ödeme sayfası açılır; istediğin coini seçersin.</span></div></li>
+          <li><b>2</b><div><strong>Ödemeyi gönder</strong><span>{PAID_PLAN_AMOUNT[selectedPlan]} USD karşılığı kripto gönder; adresi ve tutarı sayfa gösterir.</span></div></li>
+          <li><b>3</b><div><strong>Üyeliğin kendiliğinden açılır</strong><span>Ödeme ağda onaylanınca erişimin açılır; işlem numarası girmen gerekmez.</span></div></li>
         </ol>
-        <div className="ktBillPayBox"><NowPaymentsPay plan={selectedPlan}/><BinanceManualPayment plan={selectedPlan}/></div>
-        <button type="button" className="ktCheckoutAsk" onClick={() => askKais(`${PAID_PLAN_NAME[selectedPlan]} planı (${PAID_PLAN_AMOUNT[selectedPlan]} USDT / 30 gün) hakkında bilgi almak istiyorum. Neler dahil ve Binance Pay ile nasıl ödeme yaparım?`)}>
+        <div className="ktBillPayBox"><NowPaymentsPay plan={selectedPlan}/></div>
+        <button type="button" className="ktCheckoutAsk" onClick={() => askKais(`${PAID_PLAN_NAME[selectedPlan]} planı (${PAID_PLAN_AMOUNT[selectedPlan]} USD / 30 gün) hakkında bilgi almak istiyorum. Neler dahil ve kripto ile nasıl ödeme yaparım?`)}>
           <i aria-hidden="true"><MessageCircle/></i>
           <span><b>KAIS AI’a sor</b><small>Plan, fiyat veya ödeme adımları hakkında hemen sor</small></span>
           <ChevronRight aria-hidden="true"/>
         </button>
-        <p className="ktCheckoutTip"><Clock3/><span>Ödemeler genelde birkaç saat içinde onaylanır. Takılırsan <b>Destek</b> bölümünden yazabilirsin.</span></p>
+        <p className="ktCheckoutTip"><Clock3/><span>Ödemeler genelde birkaç dakika içinde onaylanır. Takılırsan <b>Destek</b> bölümünden yazabilirsin.</span></p>
       </div>
     </div>}
     {methodsError && <p className="ktBillAlert" role="alert">{methodsError} <button type="button" onClick={onRetry}><RefreshCw/>Yeniden dene</button></p>}

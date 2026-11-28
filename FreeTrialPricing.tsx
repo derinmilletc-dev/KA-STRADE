@@ -1,7 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
 import {Check, Sparkles} from 'lucide-react'
 import {API_BASE, userSessionToken} from './api'
-import BinanceManualPayment from './BinanceManualPayment'
 import NowPaymentsPay from './NowPaymentsPay'
 import {PLAN_BY_CODE} from './subscription'
 import './free-trial-pricing.css'
@@ -94,10 +93,10 @@ export default function FreeTrialPricing({trialEnabled,binanceEnabled,onBilling}
         <header><span>TAM ERİŞİM</span><h2>MASTER MODE</h2><p>Yapay zekâ dahil premium çalışma alanı.</p></header>
         <div className="subscriptionPrice"><strong>{PLAN_BY_CODE.MASTER_MODE.monthlyPrice.toFixed(2)} USDT</strong><span>/ ay</span></div>
         <ul>{['Kais sohbeti, asistan araçları ve proaktif mesajlar','AI Analist ve Master Trade analiz','Demo ve LIVE işlem · mevcut güvenlik kontrolleriyle','Original V2, Auto Trade ve pozisyon koruması'].map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
-        <small className="subscriptionTerms">Binance ile elle onaylı 30 günlük dönem. Denemede ödeme onaylanırsa dönem deneme bitişinden başlar. Otomatik yenileme yoktur.</small>
-        <button type="button" disabled={!binanceEnabled || !authenticated} onClick={() => setPaymentOpen(true)}>{binanceEnabled ? 'Binance ile öde' : 'Yakında'}</button>
+        <small className="subscriptionTerms">Kripto ile 30 günlük dönem; ödeme onaylanınca otomatik açılır. Denemede ödeme onaylanırsa dönem deneme bitişinden başlar. Otomatik yenileme yoktur.</small>
+        <button type="button" disabled={!binanceEnabled || !authenticated} onClick={() => setPaymentOpen(true)}>{binanceEnabled ? 'Kripto ile öde' : 'Yakında'}</button>
       </article>
     </section>
-    {paymentOpen && binanceEnabled && <div className="freeTrialPayment"><NowPaymentsPay/><BinanceManualPayment/></div>}
+    {paymentOpen && binanceEnabled && <div className="freeTrialPayment"><NowPaymentsPay/></div>}
   </>
 }
