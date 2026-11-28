@@ -44,7 +44,7 @@ def test_document_hash_and_prior_versions_survive_marketing_changes():
     doc = {}
     records = consent.append_registration(doc, "member", False, "PASSWORD_REGISTRATION")
     previous = copy.deepcopy(records)
-    assert records[0]["version"] == "2026-10-14.1"
+    assert records[0]["version"] == "2026-11-28.1"
     assert (
         records[0]["text_sha256"]
         == hashlib.sha256(
