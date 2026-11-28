@@ -784,9 +784,9 @@ async def _candidates(
         if incomplete_history:
             continue
         try:
-            strategy_frames = frames if signal_interval == "15m" else strategy.live_strategy_frames(frames, signal_interval)
+            strategy_frames = (pullback.frames_for_model(frames) if pullback_model else frames) if signal_interval == "15m" else strategy.live_strategy_frames(frames, signal_interval)
             decision = StrategyInput(symbol, at, strategy_frames)
-            kind = "pullback" if pullback_model else "universe" if live_universe else "demo"
+            kind = ("pullback_1h" if pullback.is_1h_model() else "pullback") if pullback_model else "universe" if live_universe else "demo"
             results[symbol] = shared_strategy_result(
                 kind, signal_interval, symbol, at, strategy_frames, (isinstance(symbols, list), symbol in symbols),
                 lambda decision=decision: (
