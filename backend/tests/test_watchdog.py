@@ -53,6 +53,10 @@ def test_recipient_prefers_alert_email(monkeypatch):
     assert watchdog.recipient() == "a@example.com"
     monkeypatch.delenv("ALERT_EMAIL")
     assert watchdog.recipient() == "b@example.com"
+    monkeypatch.delenv("FOUNDING_NOTIFY_EMAIL")
+    monkeypatch.delenv("PROTREBOT_BOOTSTRAP_OWNER_EMAIL", raising=False)
+    from app.v22_commercial import BOOTSTRAP_OWNER_EMAIL
+    assert watchdog.recipient() == BOOTSTRAP_OWNER_EMAIL and "@" in watchdog.recipient()
 
 
 def test_failed_send_is_retried_next_minute(monkeypatch, tmp_path):
