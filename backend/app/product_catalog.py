@@ -9,7 +9,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-from . import binance_manual_payments, chart_ai_store, member_entitlements, subscription_core
+from . import binance_manual_payments, chart_ai_store, live_access, member_entitlements, subscription_core
 from .analyst_credits import CreditConfig
 from .assistant_config import AssistantConfig
 
@@ -57,13 +57,15 @@ def plans(assistant: AssistantConfig | None = None, credits: CreditConfig | None
             {
                 "id": "TRIAL", "name": "1 Hafta Ücretsiz Deneme", "price": "0", "currency": CURRENCY,
                 "period_days": subscription_core.TRIAL_DAYS, "payment_required": False,
-                "live_trading": False, "live_strategies_and_auto_trade": False,
+                "live_trading": live_access.trial_live_enabled(), "live_strategies_and_auto_trade": False,
                 "includes": [
                     "Master Trade analiz ekranı", "Demo hesapta manuel ve Grid işlemler",
                     "KAIS stratejileri ve Auto Trade yalnız Demo hesapta", "Pozisyon koruması (Demo)",
                     "Scanner tam açık", "KAIS AI, Grafik AI ve AI Analist (günlük sınırlı)",
+                    *(["Elle canlı işlem (günde en fazla 5 yeni pozisyon)"] if live_access.trial_live_enabled() else []),
                 ],
-                "not_included": ["Gerçek parayla (canlı) işlem", "Canlı strateji ve canlı Auto Trade"],
+                "not_included": (["Canlı strateji ve canlı Auto Trade"] if live_access.trial_live_enabled()
+                                 else ["Gerçek parayla (canlı) işlem", "Canlı strateji ve canlı Auto Trade"]),
                 "daily_limits": rights["TRIAL"],
                 "rules": [
                     "Hesap başına bir kez kullanılır", "E-posta doğrulaması gerekir",

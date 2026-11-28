@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-28.2",
+  "version": "2026-11-28.3",
   "title": "KaisTrade Kullanıcı Sözleşmesi ve Hizmet Kullanım Şartları",
   "paragraphs": [
     "KAISTRADE KULLANICI SÖZLEŞMESİ VE HİZMET KULLANIM ŞARTLARI",
@@ -79,7 +79,7 @@
     "9.5. Test sonuçlarının değerlendirilmesinde kullanılan veri setleri, varsayımlar ve hesaplama yöntemleri sonucu etkileyebilir.",
     "10. ABONELİK, ÜCRETLENDİRME VE DENEME SÜRESİ",
     "10.1. KaisTrade, ücretsiz ve ücretli abonelik planları sunabilir. Planların kapsamı, fiyatı, para birimi, faturalandırma dönemi ve kullanım sınırları satın alma ekranında belirtilir.",
-    "10.2. Ücretsiz deneme süresi, ilgili teklif ekranında aksi belirtilmedikçe 7 gündür. Deneme koşulları, deneme kapsamında açılan özellikler ve varsa deneme sonrası ücretlendirme yöntemi Kullanıcı'ya kayıt veya satın alma sırasında açıkça bildirilir.",
+    "10.2. Ücretsiz deneme süresi, ilgili teklif ekranında aksi belirtilmedikçe 7 gündür. Deneme koşulları, deneme kapsamında açılan özellikler ve varsa deneme sonrası ücretlendirme yöntemi Kullanıcı'ya kayıt veya satın alma sırasında açıkça bildirilir. Ücretsiz deneme kapsamında Kullanıcı, kendi borsa hesabı üzerinden elle canlı (gerçek para ile) işlem açabilir; bu hak günde en fazla beş yeni pozisyonla sınırlıdır. Canlı otomatik işlem ve otomatik stratejiler deneme kapsamında sunulmaz. Canlı işlemlerden doğan tüm kâr ve zarar Kullanıcı'ya aittir; KaisTrade bu kapsamı ve sınırı değiştirebilir veya kapatabilir.",
     "10.3. Deneme sonunda otomatik ücretlendirme uygulanacaksa bunun şartları, ücret tutarı, başlangıç tarihi ve ödeme yöntemi Kullanıcı'ya önceden açıkça sunulur. Kullanıcı'nın gerekli onayı alınmadan otomatik ücret tahsil edilmez.",
     "10.4. Ücretli abonelik satın alınması halinde Kullanıcı, satın alma ekranında gösterilen ücret ve faturalandırma koşullarını kabul eder.",
     "10.5. Abonelik ücretleri kripto para ile, üçüncü taraf ödeme hizmeti NOWPayments (nowpayments.io) üzerinden tahsil edilir. Ödeme, Kullanıcı'nın kripto cüzdanından veya borsa hesabından NOWPayments'ın ödeme sayfasında gösterilen adrese ve tutara yapılır. NOWPayments'ın kendi koşulları ve gizlilik politikası ayrıca geçerlidir.",
