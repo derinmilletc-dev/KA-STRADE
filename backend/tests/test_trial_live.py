@@ -122,13 +122,13 @@ def test_missing_counter_table_fails_closed():
     assert error.value.status_code == 503
 
 
-def test_trial_live_flag_defaults_to_off():
+def test_trial_live_flag_defaults_to_on_and_can_be_turned_off():
+    import os
     with mock.patch.dict("os.environ", {"MULTI_USER_LIVE": "1", "DATABASE_URL": "postgres://x"}, clear=False):
-        import os
         os.environ.pop("TRIAL_LIVE_ENABLED", None)
-        assert live_access.trial_manual(TRIAL) is False
-        assert live_access.entitled_manual(TRIAL) is False
-    assert live_access.trial_manual(TRIAL) is True and live_access.entitled_manual(PAID) is True
+        assert live_access.trial_manual(TRIAL) is True and live_access.entitled_manual(PAID) is True
+        os.environ["TRIAL_LIVE_ENABLED"] = "false"
+        assert live_access.trial_manual(TRIAL) is False and live_access.entitled_manual(TRIAL) is False
     assert live_access.entitled(TRIAL) is False  # otomatik/ücretli kapılar değişmedi
 
 

@@ -37,8 +37,8 @@ TRIAL_AUTOMATION_MESSAGE = "Canlı otomatik işlem Master Mode ile açılır; de
 
 
 def trial_live_enabled() -> bool:
-    """Deneme üyesine elle canlı işlem: yalnız çoklu kullanıcı LIVE açıkken ve TRIAL_LIVE_ENABLED=true ise (varsayılan kapalı)."""
-    return live_registry.enabled() and os.getenv("TRIAL_LIVE_ENABLED", "false").strip().lower() in {"true", "1"}
+    """Deneme üyesine elle canlı işlem: yalnız çoklu kullanıcı LIVE açıkken ve TRIAL_LIVE_ENABLED=true ise (varsayılan açık; TRIAL_LIVE_ENABLED=false ile kapanır)."""
+    return live_registry.enabled() and os.getenv("TRIAL_LIVE_ENABLED", "true").strip().lower() in {"true", "1"}
 
 
 def trial_manual(subscription: dict[str, Any]) -> bool:
