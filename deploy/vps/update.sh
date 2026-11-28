@@ -11,3 +11,8 @@ sudo -u kais "$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/backend/requirements.
 systemctl restart kaistrade
 sleep 5
 systemctl --no-pager --lines=15 status kaistrade
+# Bekçi: site/sunucu düşerse e-posta (her dakika kontrol). Her güncellemede yeniden kurulur, zararsızdır.
+install -m 644 "$APP_DIR/deploy/vps/kaistrade-watchdog.service" /etc/systemd/system/kaistrade-watchdog.service
+install -m 644 "$APP_DIR/deploy/vps/kaistrade-watchdog.timer" /etc/systemd/system/kaistrade-watchdog.timer
+systemctl daemon-reload
+systemctl enable --now kaistrade-watchdog.timer

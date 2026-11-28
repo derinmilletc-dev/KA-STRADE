@@ -1,0 +1,14 @@
+[Unit]
+Description=KaisTrade bekçisi (düşerse e-posta)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=kais
+Group=kais
+WorkingDirectory=/opt/kaistrade/backend
+EnvironmentFile=/etc/kaistrade.env
+StateDirectory=kaistrade-watchdog
+Environment=WATCHDOG_STATE=/var/lib/kaistrade-watchdog/state.json
+ExecStart=/opt/kaistrade/.venv/bin/python -m app.watchdog
+SuccessExitStatus=0 1
