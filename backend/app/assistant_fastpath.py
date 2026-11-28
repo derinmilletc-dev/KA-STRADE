@@ -199,7 +199,7 @@ def plans_reply(data: dict[str, Any], language: Language) -> str:
         return (
             "Üç seçenek var:\n"
             f"• **{trial['name']}**: {trial['price']} {trial['currency']}, {trial['period_days']} gün. Ödeme bilgisi istenmez, hesap başına bir kez "
-            f"kullanılır. İşlemler yalnız Demo hesapta; KAIS AI günde {tl['kais_ai_messages_per_day']} mesaj, Grafik AI günde "
+            f"kullanılır. Demo hesapta serbest işlem, canlıda elle günde en fazla 5 yeni pozisyon; KAIS AI günde {tl['kais_ai_messages_per_day']} mesaj, Grafik AI günde "
             f"{tl['chart_ai_per_day']}, AI Analist günde {tl['ai_analyst_per_day']} analiz.\n"
             f"• **{smart['name']}**: {smart['price']} {smart['currency']} / {smart['period_days']} gün. Demo ve canlı manuel işlem, Grid, "
             "pozisyon koruması, AI Analist ve Scanner. Canlıda KAIS stratejileri ve Auto Trade yok; Demo hesapta hepsi açık.\n"

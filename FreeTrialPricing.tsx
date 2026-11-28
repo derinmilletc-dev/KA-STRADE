@@ -81,8 +81,8 @@ export default function FreeTrialPricing({trialEnabled,binanceEnabled,onBilling}
       <article className="subscriptionPlan">
         <header><span>ÖDEMESİZ DENEME</span><h2>1 Hafta Ücretsiz Deneme</h2><p>Ödeme bilgisi vermeden 7 günlük erişim.</p></header>
         <div className="subscriptionPrice"><strong>Ücretsiz</strong><span>/ 7 gün</span></div>
-        <ul>{['Master Trade analiz, grafik ve piyasa izleme','AI Analist · mevcut kredi sınırı','Original V2, Demo Auto Trade ve pozisyon koruması','Kais sohbeti, asistan araçları ve proaktif mesajlar dahil değil'].map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
-        <p>LIVE işlem MASTER MODE ile açılır</p>
+        <ul>{['Master Trade analiz, grafik ve piyasa izleme','AI Analist · mevcut kredi sınırı','Original V2, Demo Auto Trade ve pozisyon koruması','Elle LIVE işlem · günde 5 yeni pozisyon','Kais sohbeti, asistan araçları ve proaktif mesajlar dahil değil'].map(feature => <li key={feature}><Check/>{feature}</li>)}</ul>
+        <p>Canlı otomatik işlem MASTER MODE ile açılır</p>
         {active && <p role="status">Kalan süre: <strong>{days} gün</strong></p>}
         {used && !active && <p role="status">Deneme sona erdi. Erişimini sürdürmek için MASTER MODE’a geç.</p>}
         <small className="subscriptionTerms">Hesap başına yalnız bir deneme. E-posta doğrulaması zorunludur. Otomatik ücret alınmaz.</small>

@@ -209,7 +209,7 @@ messages are denied server-side and the assistant UI is hidden. Trial expiry
 blocks new entries; position reads, reduce-only closes and protection continue.
 LIVE entry orders, test orders, ARM and LIVE Auto Trade require paid MASTER MODE
 and retain all existing risk/consent/2FA guards; OWNER operational authority
-is preserved. Trial users see "LIVE işlem MASTER MODE ile açılır".
+is preserved. Trial users may open manual LIVE entries (max 5 new positions per UTC day, TRIAL_LIVE_ENABLED, default on); live automation stays Master-only.
 Binance approval extends from the latest of now, the trial end or existing
 manual period end, without enabling paid features before that period starts.
 

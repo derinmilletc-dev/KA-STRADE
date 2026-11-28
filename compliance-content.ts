@@ -29,9 +29,15 @@ export const PUBLIC_POLICIES = {
   risk: {
     title: 'Risk Uyarısı',
     paragraphs: [
-      'This is a research and demo-first operating workspace. It is not a guarantee of profit and it does not promise financial returns.',
-      'Market data, signal quality, order logic, and execution status can change rapidly. The platform uses fail-closed security gates by default. Live orders are never activated automatically and only proceed after explicit validation and safety checks.',
-      'Users must understand that market exposure carries risk, including potential loss of capital. This platform is designed for education, simulation, risk review, and controlled testnet workflows unless a separate live trading authorization is explicitly completed.',
+      '1. Kâr garantisi yoktur: KaisTrade bir analiz ve işlem destek platformudur. Kâr vaat etmez, yatırım tavsiyesi vermez. Analizler, sinyaller, yapay zekâ değerlendirmeleri ve geçmiş performans gelecekteki sonuçları garanti etmez.',
+      '2. Sermaye kaybı: Kripto para ve özellikle kaldıraçlı vadeli işlemler çok yüksek risk taşır. Yatırdığın paranın tamamını, kaldıraçla bazen daha fazlasını kaybedebilirsin. Kaybetmeyi göze alamayacağın parayla işlem yapma.',
+      '3. Canlı işlem sana aittir: Canlı işlemler kendi borsa hesabında, gerçek parayla yapılır. Hangi işlemi, hangi miktarla ve hangi kaldıraçla açacağına sen karar verirsin; kâr ve zararın tamamı sana aittir. Platform emirleri yalnızca senin açıkça verdiğin izinle iletir.',
+      '4. Ücretsiz deneme: Deneme süresince canlı hesapta elle işlem açabilirsin; bu hak günde en fazla 5 yeni pozisyonla sınırlıdır. Denemede gerçek para kullanılır, deneme olması riski azaltmaz. Önce Demo hesapta denemeni öneririz.',
+      '5. Demo sonuçları: Demo hesap sonuçları gerçek piyasa koşullarını, kayma, gecikme ve işlem maliyetlerini tam yansıtmayabilir. Demo kârı, canlıda aynı sonucun alınacağı anlamına gelmez.',
+      '6. Piyasa ve teknik riskler: Fiyatlar çok hızlı değişebilir; borsa, internet, veri sağlayıcı veya platformda kesinti, gecikme ve hata olabilir. Stop ve koruma emirleri her koşulda istenen fiyattan gerçekleşmeyebilir.',
+      '7. Otomatik işlem: Otomatik stratejiler ve Auto Trade hata yapabilir, zarar edebilir. Kullandığında ayarları, risk limitlerini ve hesabını düzenli kontrol etmek senin sorumluluğundadır.',
+      '8. Güvenlik kapıları: Platform varsayılan olarak güvenli tarafta kalır; canlı emirler kendiliğinden açılmaz, gerekli onay ve kontroller tamamlanınca iletilir. Bu kontroller zarara karşı güvence değildir.',
+      '9. Sorumluluk: Platform üzerinden alınan kararların sonuçlarından kullanıcı sorumludur. Gerekirse bağımsız bir mali danışmana başvur.',
     ],
   },
 } as const
