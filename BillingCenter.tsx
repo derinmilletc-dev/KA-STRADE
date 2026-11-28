@@ -1,9 +1,10 @@
-import {useEffect, useRef, useState, type MouseEvent as ReactMouseEvent} from 'react'
+import {useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent} from 'react'
 import {ArrowRight, BarChart3, Bot, Check, ChevronLeft, ChevronRight, Clock3, CreditCard, Crown, Grid3X3, Lock, MessageCircle, RefreshCw, ShieldCheck, Sparkles, Wallet, X, Zap} from 'lucide-react'
 import {userSessionToken} from './api'
 import {askKais} from './kais-ask'
 import NowPaymentsPay from './NowPaymentsPay'
 import {trialRequest, type Trial} from './FreeTrialPricing'
+import TrialCelebration from './TrialCelebration'
 import {PLAN_BY_CODE} from './subscription'
 import {useMemberAccess} from './premium-access'
 import {PAID_PLAN_AMOUNT, PAID_PLAN_NAME, type PaidPlan} from './smart-trade-plans'
@@ -47,6 +48,8 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
   const [trialAttempt, setTrialAttempt] = useState(0)
   const [now, setNow] = useState(Date.now)
   const inFlight = useRef(false)
+  const [celebrate, setCelebrate] = useState(false)
+  const finishCelebration = useCallback(() => { setCelebrate(false); onMasterTrade() }, [onMasterTrade])
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [sheetPlan, setSheetPlan] = useState<number | null>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -115,6 +118,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
       const value = await trialRequest('/start')
       setTrial(value); setNow(Date.now())
       window.dispatchEvent(new Event('protrebot-access-refresh'))
+      if (value.enabled === true && value.active) setCelebrate(true)
     } catch (exception) {
       setTrialError(exception instanceof Error ? exception.message : 'Deneme başlatılamadı.')
     } finally { inFlight.current = false; setTrialBusy(false) }
@@ -175,6 +179,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
   }, [checkoutOpen])
 
   return <main className="subscriptionPage ktBill">
+    {celebrate && <TrialCelebration onDone={finishCelebration}/>}
 
 
     <section className={`ktBillStatus tone-${badgeTone}${noPlan && !loading && !loadError ? ' isNoPlan' : ''}`} aria-label="Mevcut abonelik">
