@@ -127,6 +127,10 @@ async def notification(request: Request):
             await advance_member(request.app, granted_user, "active")
         except Exception as exc:  # noqa: BLE001
             logger.warning("NOWPayments founding advance failed type=%s", type(exc).__name__)
+    if result == "granted":
+        from .nowpayments_email import notify_paid
+        async with connection(request) as conn:
+            await notify_paid(conn, str(data.get("order_id") or ""))
     return {"ok": True, "result": result}
 
 
