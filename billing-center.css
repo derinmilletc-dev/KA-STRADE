@@ -877,3 +877,7 @@ html body #root .ktBill .ktBillPlan::before { content: ""; position: absolute; i
   html body #root .ktBill .ktBillPlans > .ktBillPlan, html body #root .ktBill .ktBillPlans > .ktBillPlan.isActive, html body #root .ktBill .ktBillMore svg { animation: none !important; }
   html body #root .ktBill .ktBillPlans > .ktBillPlan.ktBillPlan.ktBillPlan:hover { transform: none; }
 }
+
+/* Ödeme penceresi: içerik pencere yüksekliğinden uzunsa (bilgisayar) kutular ezilmesin, panel kaysın */
+html body #root .ktBill .ktCheckoutPanel > * { flex-shrink: 0; }
+html body #root .ktBill .ktCheckoutAsk.ktCheckoutAsk.ktCheckoutAsk { height: auto; min-height: 72px; overflow: visible; }
