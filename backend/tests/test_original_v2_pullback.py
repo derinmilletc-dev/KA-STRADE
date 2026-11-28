@@ -386,14 +386,14 @@ class MarkerAndGateTests(unittest.TestCase):
 
 
 class FlagTests(unittest.TestCase):
-    def test_default_is_legacy(self):
+    def test_default_is_1h_model(self):
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop(pb.MODEL_ENV, None)
-            self.assertEqual(pb.configured_model(), pb.MODEL_LEGACY)
-            self.assertFalse(pb.pullback_enabled())
+            self.assertEqual(pb.configured_model(), pb.MODEL_PULLBACK_1H)
+            self.assertTrue(pb.pullback_enabled())
 
     def test_explicit_values(self):
-        for value, expected in (("legacy", False), ("", False), ("pullback_v1", True), (" PULLBACK_V1 ", True)):
+        for value, expected in (("legacy", False), ("", True), ("pullback_v1", True), (" PULLBACK_V1 ", True)):
             with patch.dict(os.environ, {pb.MODEL_ENV: value}):
                 self.assertEqual(pb.pullback_enabled(), expected, value)
 
@@ -536,9 +536,8 @@ class ScanIntegrationTests(unittest.TestCase):
             self.Client(seed, drift, self.SYMBOLS), AT, set(), self.SYMBOLS, require_complete=True, diagnostics=diagnostics))
         return eligible, results, diagnostics
 
-    def test_default_scan_uses_the_legacy_model(self):
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop(pb.MODEL_ENV, None)
+    def test_explicit_legacy_scan_uses_the_legacy_model(self):
+        with patch.dict(os.environ, {pb.MODEL_ENV: "legacy"}):
             _eligible, results, diagnostics = self.scan()
         self.assertTrue(results)
         for result in results.values():

@@ -36,6 +36,9 @@ MODEL_ENV = "PROTREBOT_ORIGINAL_V2_ENTRY_MODEL"
 MODEL_LEGACY = "legacy"
 MODEL_PULLBACK = "pullback_v1"
 MODEL_VERSION = "pullback-v1"
+MODEL_PULLBACK_1H = "pullback_1h"
+DEFAULT_MODEL = MODEL_PULLBACK_1H  # varsayılan açık
+MODEL_VERSION_1H = "pullback-1h-v1"
 
 # Başlangıç değerleri (doğrulanmamış). Tek yerde tutulur ve her kayda yazılır.
 PARAMETERS = {
@@ -54,6 +57,10 @@ PARAMETERS = {
 }
 CHECK_KEYS = ("pb_trend", "pb_structure", "pb_pullback", "pb_trigger", "pb_extension", "pb_room")
 INTERVAL_SECONDS = {"15m": 900, "1h": 3600, "4h": 14400}
+# 1 saatlik model: birincil pencere 1s, onay pencereleri 4s ve 1g (anahtar adları aynı kalır; yalnız süreleri değişir).
+INTERVAL_SECONDS_1H = {"15m": 3600, "1h": 14400, "4h": 86400}
+# Geçmiş veri testi (13 ay, 16 coin): "yer" süzgeci 2,31 ATR, hedef 8R, TP1 aynen (canlı emir yapısı değişmez).
+PARAMETERS_1H = {**PARAMETERS, "room_min_atr": 2.31, "target_r": 8.0}
 MIN_CLOSED = {"15m": 220, "1h": 50, "4h": 50}
 
 # Süreç içi işaret: yalnız bu modülün ürettiği sonuçlar taşır; dışarıdan gelen hiçbir veriyle taklit edilemez.
@@ -61,16 +68,49 @@ _TOKEN = secrets.token_hex(16)
 
 
 def configured_model() -> str:
-    value = os.getenv(MODEL_ENV, MODEL_LEGACY).strip().lower()
-    if value in {"", MODEL_LEGACY}:
+    value = os.getenv(MODEL_ENV, "").strip().lower()
+    if value == "":
+        return DEFAULT_MODEL  # ayar yoksa yeni 1 saatlik model; eskisine dönmek için ayarı "legacy" yap
+    if value == MODEL_LEGACY:
         return MODEL_LEGACY
     if value == MODEL_PULLBACK:
         return MODEL_PULLBACK
+    if value == MODEL_PULLBACK_1H:
+        return MODEL_PULLBACK_1H
     demo._fail("INVALID_ENTRY_MODEL")
 
 
 def pullback_enabled() -> bool:
-    return configured_model() == MODEL_PULLBACK
+    return configured_model() in {MODEL_PULLBACK, MODEL_PULLBACK_1H}
+
+
+def is_1h_model() -> bool:
+    return configured_model() == MODEL_PULLBACK_1H
+
+
+def daily_from_4h(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """4 saatlik kapanmış mumlardan günlük mum (UTC gün, yalnız 6 mumu tamam günler)."""
+    days: dict[int, list[dict[str, Any]]] = {}
+    for row in rows:
+        days.setdefault(int(row["time"]) // 86400, []).append(row)
+    result = []
+    for day in sorted(days):
+        group = days[day]
+        if len(group) != 6:
+            continue
+        result.append({
+            "time": int(group[0]["time"]) // 86400 * 86400, "open": float(group[0]["open"]),
+            "high": max(float(x["high"]) for x in group), "low": min(float(x["low"]) for x in group),
+            "close": float(group[-1]["close"]), "volume": sum(float(x["volume"]) for x in group),
+        })
+    return result
+
+
+def frames_for_model(frames: dict[str, Any]) -> dict[str, Any]:
+    """1 saatlik modelde pencereleri kaydırır: "15m" yerine 1s, "1h" yerine 4s, "4h" yerine günlük. Diğer modelde aynen."""
+    if not is_1h_model():
+        return frames
+    return {"15m": frames["1h"], "1h": frames["4h"], "4h": daily_from_4h(list(frames["4h"]))}
 
 
 def is_pullback_result(result: Any) -> bool:
@@ -133,7 +173,7 @@ def fill_deviation_check(result: Any, live_price: Any) -> tuple[bool, dict[str, 
                             "live_stop_min_atr": stop_limit, "signal_close": signal_price, "live_price": price, "reason": reason}
 
 
-def _closed_windows(request: StrategyInput) -> tuple[dict[str, list[dict[str, float]]] | None, dict[str, int], str | None, list[str]]:
+def _closed_windows(request: StrategyInput, seconds: dict[str, int] | None = None) -> tuple[dict[str, list[dict[str, float]]] | None, dict[str, int], str | None, list[str]]:
     closed: dict[str, list[dict[str, float]]] = {}
     latest: dict[str, int] = {}
     for interval in demo.INTERVALS:
@@ -150,7 +190,7 @@ def _closed_windows(request: StrategyInput) -> tuple[dict[str, list[dict[str, fl
             if not all(math.isfinite(value) for value in item.values()) or item["volume"] < 0 or item["high"] < item["low"] \
                     or item["high"] < max(item["open"], item["close"]) or item["low"] > min(item["open"], item["close"]):
                 return None, latest, "INVALID_CANDLE_DATA", [f"{interval}: invalid OHLCV"]
-            if timestamp + INTERVAL_SECONDS[interval] > request.decision_time:
+            if timestamp + (seconds or INTERVAL_SECONDS)[interval] > request.decision_time:
                 continue
             if valid and timestamp <= valid[-1]["time"]:
                 return None, latest, "NON_CHRONOLOGICAL_CANDLES", [f"{interval}: timestamps not strictly increasing"]
@@ -163,8 +203,9 @@ def _closed_windows(request: StrategyInput) -> tuple[dict[str, list[dict[str, fl
 
 
 def evaluate_rules(closed_15m: list[dict[str, float]], direction_1h: str, direction_4h: str,
-                   *, allow_either_timeframe: bool = False) -> dict[str, Any]:
+                   *, allow_either_timeframe: bool = False, params: dict[str, float] | None = None) -> dict[str, Any]:
     """Saf kural hesabı. Yön, K2 yapısından gelir (EMA20 > EMA50 ise LONG, < ise SHORT); belirsizse direction=None."""
+    P = params or PARAMETERS
     closes = [c["close"] for c in closed_15m]
     highs = [c["high"] for c in closed_15m]
     lows = [c["low"] for c in closed_15m]
@@ -177,7 +218,7 @@ def evaluate_rules(closed_15m: list[dict[str, float]], direction_1h: str, direct
         return {"direction": None, "checks": checks, "metrics": metrics, "eligible": False, "reason": "ATR_UNAVAILABLE"}
     price = closes[-1]
     gap_atr = (e20[-1] - e50[-1]) / atr
-    minimum_gap = PARAMETERS["structure_min_gap_atr"]
+    minimum_gap = P["structure_min_gap_atr"]
     d = 1 if gap_atr >= minimum_gap else -1 if gap_atr <= -minimum_gap else 0
     metrics["ema_gap_atr"] = gap_atr
     if d == 0:
@@ -197,7 +238,7 @@ def evaluate_rules(closed_15m: list[dict[str, float]], direction_1h: str, direct
     metrics["direction_1h"], metrics["direction_4h"] = direction_1h, direction_4h
 
     # K4: son 6 mumda (t dahil) EMA20 bölgesine geri çekilme.
-    window, touch = PARAMETERS["pullback_window"], PARAMETERS["pullback_touch_atr"] * atr
+    window, touch = P["pullback_window"], P["pullback_touch_atr"] * atr
     start = len(closes) - window
     if d > 0:
         distances = [(lows[i] - e20[i]) / atr for i in range(start, len(closes))]
@@ -216,7 +257,7 @@ def evaluate_rules(closed_15m: list[dict[str, float]], direction_1h: str, direct
     close_position = (price - lows[-1]) / candle_range if candle_range > 0 else None
     side_ok = d * (price - e20[-1]) > 0
     broke_previous = price > highs[-2] if d > 0 else price < lows[-2]
-    limit = PARAMETERS["close_position"]
+    limit = P["close_position"]
     position_ok = close_position is not None and (close_position >= limit if d > 0 else close_position <= 1 - limit)
     momentum_turn = d * (hist_now - hist_before) > 0
     checks["pb_trigger"] = bool(side_ok and broke_previous and position_ok and momentum_turn)
@@ -225,17 +266,17 @@ def evaluate_rules(closed_15m: list[dict[str, float]], direction_1h: str, direct
 
     # K6: aşırı EMA20 uzaması (iki yönde de).
     extension_atr = d * (price - e20[-1]) / atr
-    checks["pb_extension"] = extension_atr <= PARAMETERS["extension_max_atr"]
+    checks["pb_extension"] = extension_atr <= P["extension_max_atr"]
     metrics["extension_atr"] = extension_atr
 
     # K7: önceki 80 mumun karşı ucuna yer; sinyal mumu (t) pencereye dahil DEĞİL.
-    span = PARAMETERS["room_window"]
+    span = P["room_window"]
     prior_highs, prior_lows = highs[-span - 1:-1], lows[-span - 1:-1]
     if len(prior_highs) < span:
         room_atr = None
     else:
         room_atr = (max(prior_highs) - price) / atr if d > 0 else (price - min(prior_lows)) / atr
-    checks["pb_room"] = room_atr is not None and room_atr >= PARAMETERS["room_min_atr"]
+    checks["pb_room"] = room_atr is not None and room_atr >= P["room_min_atr"]
     metrics["room_atr"] = room_atr
     metrics["volume_ratio_20"] = volumes[-1] / (sum(volumes[-21:-1]) / 20) if len(volumes) > 21 and sum(volumes[-21:-1]) > 0 else None
 
@@ -266,12 +307,16 @@ def evaluate_live_pullback(request: StrategyInput, *, allowed_symbols: list[str]
         if isinstance(rows, list) and len(rows) > profile["closed_window"]:
             demo._fail("CLOSED_WINDOW_EXCEEDED")
 
-    provenance = StrategyProvenance(strategy_id=demo.STRATEGY_ID, strategy_version=MODEL_VERSION, parameter_hash=demo.DOCUMENT_SHA256)
+    oneh = is_1h_model()
+    P = PARAMETERS_1H if oneh else PARAMETERS
+    provenance = StrategyProvenance(strategy_id=demo.STRATEGY_ID, strategy_version=MODEL_VERSION_1H if oneh else MODEL_VERSION, parameter_hash=demo.DOCUMENT_SHA256)
     base_signal = dict(
         symbol=request.symbol, decision_time=request.decision_time, market_type="BINANCE_DEMO_MODEL_ONLY",
         exit_policy_id=profile["model"]["exit_policy_id"], provenance=provenance, invalidation=None,
     )
-    closed, latest, invalid_reason, invalid_details = _closed_windows(request)
+    closed, latest, invalid_reason, invalid_details = _closed_windows(request, INTERVAL_SECONDS_1H if oneh else None)
+    if oneh and closed is not None and request.decision_time % 3600 != 0:
+        closed, invalid_reason, invalid_details = None, "WAIT_NEXT_HOUR", ["1 saatlik model yalnız saat başında karar verir"]
     if closed is None:
         legacy = {"decision": "WAIT", "symbol": request.symbol, "signal_timestamp": None, "decision_time": request.decision_time,
                   "entry_eligible": False, "reason": invalid_reason, "reasons": invalid_details}
@@ -286,7 +331,7 @@ def evaluate_live_pullback(request: StrategyInput, *, allowed_symbols: list[str]
     candles = closed["15m"]
     analysis = analyze(candles)  # tüm gösterge alanları (bilgi amaçlı); yön/stop/hedef aşağıda bu modelin yönüne göre yeniden kurulur
     directions = {interval: analyze(closed[interval])["direction"] for interval in ("1h", "4h")}
-    decision = evaluate_rules(candles, directions["1h"], directions["4h"], allow_either_timeframe=bool(configured_mtf_allow_either_timeframe()))
+    decision = evaluate_rules(candles, directions["1h"], directions["4h"], allow_either_timeframe=False if oneh else bool(configured_mtf_allow_either_timeframe()), params=P)
     direction = decision["direction"]
     eligible = bool(decision["eligible"])
     legacy_direction = analysis["direction"]
@@ -295,15 +340,17 @@ def evaluate_live_pullback(request: StrategyInput, *, allowed_symbols: list[str]
         recent = candles[-PARAMETERS["pullback_window"]:]
         pullback_low, pullback_high = min(c["low"] for c in recent), max(c["high"] for c in recent)
         stop, _risk, targets = entry_levels(direction, analysis["entry"], analysis["atr"], pullback_low, pullback_high,
-                                            atr_multiple=PARAMETERS["stop_min_atr"])
+                                            atr_multiple=P["stop_min_atr"])
+        if oneh:  # TP1/TP2 aynı; son hedef 8R (geçmiş veri testindeki çıkış)
+            targets = [targets[0], targets[1], analysis["entry"] + (1 if direction == "LONG" else -1) * P["target_r"] * _risk]
         analysis.update(direction=direction, stop_loss=stop, tp1=targets[0], tp2=targets[1], tp3=targets[2])
         decision["metrics"]["stop_model"] = "pullback_extreme"
         decision["metrics"]["pullback_extreme"] = pullback_low if direction == "LONG" else pullback_high
-    analysis["entry_model"] = MODEL_VERSION
+    analysis["entry_model"] = MODEL_VERSION_1H if oneh else MODEL_VERSION
     analysis["legacy_direction"] = legacy_direction
-    analysis["pullback"] = {**decision["metrics"], "checks": dict(decision["checks"]), "parameters": dict(PARAMETERS)}
+    analysis["pullback"] = {**decision["metrics"], "checks": dict(decision["checks"]), "parameters": dict(P)}
     mtf = {
-        "direction": direction or "BEKLE", "entry_permission": bool(decision["checks"]["pb_trend"]), "verdict": MODEL_VERSION,
+        "direction": direction or "BEKLE", "entry_permission": bool(decision["checks"]["pb_trend"]), "verdict": MODEL_VERSION_1H if oneh else MODEL_VERSION,
         "alignment": None, "higher_timeframe_confirmation": bool(decision["checks"]["pb_trend"]),
         "timeframes": {"15m": {"direction": direction or "BEKLE"}, "1h": {"direction": directions["1h"]}, "4h": {"direction": directions["4h"]}},
     }

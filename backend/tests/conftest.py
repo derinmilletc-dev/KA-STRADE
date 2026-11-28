@@ -20,6 +20,13 @@ def two_factor_gate_off_unless_test_enables(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def original_v2_legacy_entry_model_unless_test_sets_it(monkeypatch):
+    """Üretim varsayılanı artık 1 saatlik model; eski testler eski (legacy) giriş yolunu bekler. Yeni modeli sınayan testler kendi değerini ayarlar."""
+    if "PROTREBOT_ORIGINAL_V2_ENTRY_MODEL" not in os.environ:
+        monkeypatch.setenv("PROTREBOT_ORIGINAL_V2_ENTRY_MODEL", "legacy")
+
+
+@pytest.fixture(autouse=True)
 def isolate_binance_global_ban(tmp_path: Path):
     from app.binance_rate_limit import BINANCE_GLOBAL_BAN
 
