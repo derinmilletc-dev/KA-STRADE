@@ -180,6 +180,8 @@ def setup():
     application.include_router(binance_payments_router)
     from app.nowpayments_routes import admin_router as nowpayments_admin_router
     application.include_router(nowpayments_admin_router)
+    from app.trial_live_admin import admin_router as trial_live_admin_router
+    application.include_router(trial_live_admin_router)
     # Included routers are lazy wrappers without a ``path`` in current FastAPI, so the loop below cannot copy them;
     # routers the OWNER inventory exercises must be included explicitly (this one used to answer 404, not 403).
     from app.premium_requests import admin_router as premium_admin_router
