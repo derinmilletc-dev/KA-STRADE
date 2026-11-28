@@ -67,7 +67,7 @@ test('missing balance blocks the risk step instead of guessing amounts', () => {
 test('running state explains blocked entries and offers stop', () => {
   const ok = guide({running: true, sessionRemainingSeconds: 7200})
   assert.deepEqual([ok.phase, ok.tone, ok.action], ['running', 'ok', 'stop'])
-  assert.match(ok.message, /her 15 dakikalık mum/)
+  assert.match(ok.message, /her yeni mum kapanışında/)
   const blocked = guide({running: true, entryBlocker: 'Binance genel engeli aktif.'})
   assert.equal(blocked.tone, 'warn')
   assert.equal(blocked.message, 'Binance genel engeli aktif.')
