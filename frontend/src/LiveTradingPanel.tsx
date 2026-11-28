@@ -925,6 +925,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
   const manualOrderReady = Boolean(!freeTrial && statusVerified && status && connected && !recoveryRequired && !emergency)
   const setPolicy = (key: string, value: unknown) => setPolicyDraft(current => ({...(current || {}), [key]: value}))
   const numericPolicy = (key: string, fallback: number) => Number(policy[key] ?? fallback)
+  const hourlyModel = status?.original_v2_live?.entry_model === 'pullback_1h'
   const RISK_FIELDS = [
     {key: 'max_margin_per_trade', label: 'İşlem başı en fazla marjin', unit: 'USDT', min: 5, max: 300, int: false, hint: '5 – 300'},
     {key: 'max_loss_per_trade', label: 'İşlem başı en fazla kayıp (stopta)', unit: 'USDT', min: 0.5, max: 25, int: false, hint: '0,5 – 25'},
@@ -1476,7 +1477,7 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
     UNIVERSE_REFRESH: 'Günlük sembol listesi yenileniyor',
     SCANNING: 'Sembol taraması sürüyor',
     SCAN_COMPLETE: 'Tarama tamamlandı',
-    WAITING_NEXT_CANDLE: 'Sonraki 15m mum bekleniyor',
+    WAITING_NEXT_CANDLE: 'Sonraki mum kapanışı bekleniyor',
     WAITING_RISK_DATA: 'Günlük risk verisi bekleniyor',
     RATE_LIMIT_WAIT: 'Binance istek sınırı bekleniyor',
     NO_ELIGIBLE_SYMBOLS: 'Filtrelere uyan sembol yok',
@@ -2759,11 +2760,11 @@ export default function LiveTradingPanel({active, symbol, analysis, masterTrade,
             <button type="button" className="liveWsCardHead" aria-expanded={stepOpen(2)} disabled={stepLocked(2)} onClick={() => setOpenStep(stepOpen(2) ? -1 : 2)}><span className={`liveWsBadge ${stepDone[2] ? 'done' : stepLocked(2) ? 'locked' : 'current'}`}>{stepDone[2] ? <CheckCircle2/> : stepLocked(2) ? <LockKeyhole/> : '3'}</span><span><b>Otomatik işlem</b><small>{stepsMeta[2].sub}</small></span><ChevronDown className="liveWsChev"/></button>
             {stepOpen(2) && <div className="liveWsBody">
               <div className="liveWsStrategy">
-                <div className="liveWsStrategyHead"><div className="liveWsStrategyIcon"><Power/></div><div><b>Kais Original · Gözetimli</b><small>15 dakikalık mum · {marketsText}</small></div><span className="liveWsTag">{running ? 'ÇALIŞIYOR' : 'SEÇİLİ'}</span><button type="button" className="liveWsInfo" aria-label="Strateji nasıl çalışır?" aria-expanded={strategyInfo} onClick={() => setStrategyInfo(value => !value)}><Info/></button></div>
+                <div className="liveWsStrategyHead"><div className="liveWsStrategyIcon"><Power/></div><div><b>Kais Original · Gözetimli</b><small>{hourlyModel ? '1 saatlik mum' : '15 dakikalık mum'} · {marketsText}</small></div><span className="liveWsTag">{running ? 'ÇALIŞIYOR' : 'SEÇİLİ'}</span><button type="button" className="liveWsInfo" aria-label="Strateji nasıl çalışır?" aria-expanded={strategyInfo} onClick={() => setStrategyInfo(value => !value)}><Info/></button></div>
                 {strategyInfo && <div className="liveWsInfoBox" role="note">
                   <b>Bu strateji nasıl çalışır?</b>
                   <ul>
-                    <li>Seçili coinleri her {numericPolicy('scan_seconds', 60)} saniyede bir tarar (yalnızca 15 dakikalık grafik).</li>
+                    <li>Seçili coinleri her {numericPolicy('scan_seconds', 60)} saniyede bir tarar; yeni giriş kararı {hourlyModel ? 'her saat başı, 1 saatlik grafikle' : 'her 15 dakikalık mum kapanışında'} verilir.</li>
                     <li>Sinyal güveni en az %{numericPolicy('min_confidence', 85)} ve tuzak puanı en fazla {Math.min(35, numericPolicy('max_trap_score', 35))} olmalıdır.</li>
                     <li>Uygun fırsatta stop-loss ve 3 kâr hedefiyle emri kendisi açar; korumasız pozisyon bırakmaz.</li>
                     <li>Tek işlemde en fazla {numericPolicy('max_loss_per_trade', 1)} USDT, aynı anda en fazla {numericPolicy('max_positions', 2)} pozisyon ve toplam {numericPolicy('max_total_exposure_usdt', 350)} USDT maruziyet.</li>

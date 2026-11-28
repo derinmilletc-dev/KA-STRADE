@@ -957,7 +957,7 @@ export default function LiveCockpit(props: Props) {
   }, [])
   const scanStage: Record<string, string> = {
     UNIVERSE_PENDING: 'Coin listesi hazırlanıyor', UNIVERSE_REFRESH: 'Coin listesi yenileniyor', SCANNING: 'Taranıyor',
-    SCAN_COMPLETE: 'Tarama tamam · sıradaki mum bekleniyor', WAITING_NEXT_CANDLE: 'Sıradaki 15 dk mum bekleniyor', WAITING_RISK_DATA: 'Günlük risk verisi bekleniyor',
+    SCAN_COMPLETE: 'Tarama tamam · sıradaki mum bekleniyor', WAITING_NEXT_CANDLE: 'Sıradaki mum kapanışı bekleniyor', WAITING_RISK_DATA: 'Günlük risk verisi bekleniyor',
     RATE_LIMIT_WAIT: 'Binance sınırı bekleniyor', NO_ELIGIBLE_SYMBOLS: 'Filtreye uyan coin yok', BLOCKED: 'Yeni girişler engelli',
   }
   // Sorun varken ilerleme, gerçekten tamamlanmış adımlardan sayılır (sorunun kendisi adım değildir).
@@ -1978,7 +1978,7 @@ export default function LiveCockpit(props: Props) {
   const pnlToday = live ? stableTodayPnl(status?.daily) : null
   const scanner = original?.scanner
   const banWaits = marketBanSeconds > 0 && !guideInput.scanningContinues
-  const upcoming = running ? nextScan(now, {waitUntilMs: banWaits ? now + marketBanSeconds * 1000 : null}) : null
+  const upcoming = running ? nextScan(now, {waitUntilMs: banWaits ? now + marketBanSeconds * 1000 : null, intervalSeconds: original?.scan_interval_seconds}) : null
   const lastScanMs = Date.parse(String(scanner?.last_scan_at || ''))
   const ago = (ms: number) => Number.isFinite(ms) ? `${duration(Math.max(0, (now - ms) / 1000))} önce` : ''
   const nonNegative = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0

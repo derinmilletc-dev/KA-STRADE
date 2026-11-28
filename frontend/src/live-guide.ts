@@ -128,7 +128,7 @@ export function liveGuide(input: GuideInput): Guide {
     const blocked = input.entryBlocker?.trim()
     return {...base, phase: 'running', tone: blocked || input.dailyLocked ? 'warn' : 'ok', step: GUIDE_TOTAL,
       title: blocked || input.dailyLocked ? 'Çalışıyor · yeni girişler beklemede' : 'Otomatik işlem çalışıyor',
-      message: blocked || (input.dailyLocked ? 'Günlük kayıp sınırı doldu.' : 'Strateji coinleri her 15 dakikalık mum kapanışında tarıyor; kurallara uyan fırsatta stop ve hedefleriyle emir açar. Senin bir şey yapmana gerek yok.'),
+      message: blocked || (input.dailyLocked ? 'Günlük kayıp sınırı doldu.' : 'Strateji coinleri her yeni mum kapanışında tarıyor; kurallara uyan fırsatta stop ve hedefleriyle emir açar. Senin bir şey yapmana gerek yok.'),
       action: 'stop', actionLabel: 'Durdur'}
   }
 
@@ -419,10 +419,11 @@ export function statusHelp(error: string | null | undefined): {text: string; hre
   return {text: 'Bağlantı geçici olarak kurulamadı. Kendiliğinden tekrar deneniyor; birkaç dakika içinde düzelmezse destek ekibine yaz.'}
 }
 
-/** Sıradaki tarama: strateji her 15 dakikalık mum kapanışında (UTC hizalı) tarar. Engel bekleniyorsa engelin bitişi. */
-export function nextScan(nowMs: number, opts: {waitUntilMs?: number | null} = {}): {at: number; inSeconds: number} {
-  const boundary = Math.ceil((nowMs + 1) / 900_000) * 900_000
-  const at = opts.waitUntilMs && opts.waitUntilMs > nowMs ? Math.max(boundary, Math.ceil(opts.waitUntilMs / 900_000) * 900_000) : boundary
+/** Sıradaki tarama: strateji her mum kapanışında (UTC hizalı) tarar; aralık sunucudaki giriş modeline göre 15 dk ya da 1 saat. Engel bekleniyorsa engelin bitişi. */
+export function nextScan(nowMs: number, opts: {waitUntilMs?: number | null; intervalSeconds?: number | null} = {}): {at: number; inSeconds: number} {
+  const step = (opts.intervalSeconds && opts.intervalSeconds > 0 ? opts.intervalSeconds : 900) * 1000
+  const boundary = Math.ceil((nowMs + 1) / step) * step
+  const at = opts.waitUntilMs && opts.waitUntilMs > nowMs ? Math.max(boundary, Math.ceil(opts.waitUntilMs / step) * step) : boundary
   return {at, inSeconds: Math.max(0, Math.round((at - nowMs) / 1000))}
 }
 
