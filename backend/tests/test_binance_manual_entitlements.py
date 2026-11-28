@@ -77,6 +77,8 @@ class EntitlementConnection(Connection):
         return await super().execute(sql, *args)
 
     async def fetchrow(self, sql, *args):
+        if "FROM nowpayments_periods" in sql:  # kripto ödeme dönemi yok: Binance davranışı değişmez
+            return None
         if "SELECT p.period_start,p.period_end FROM binance_manual_periods" in sql:
             period = self.periods.get(args[0])
             payment = self.rows.get(args[0])

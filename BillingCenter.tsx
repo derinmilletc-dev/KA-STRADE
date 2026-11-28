@@ -3,6 +3,7 @@ import {ArrowRight, BarChart3, Bot, Check, ChevronLeft, ChevronRight, Clock3, Cr
 import {userSessionToken} from './api'
 import {askKais} from './kais-ask'
 import BinanceManualPayment from './BinanceManualPayment'
+import NowPaymentsPay from './NowPaymentsPay'
 import {trialRequest, type Trial} from './FreeTrialPricing'
 import {PLAN_BY_CODE} from './subscription'
 import {useMemberAccess} from './premium-access'
@@ -288,7 +289,7 @@ export default function BillingCenter({subscription, loading, loadError, trialEn
           <li><b>2</b><div><strong>Binance Pay ile gönder</strong><span>{PAID_PLAN_AMOUNT[selectedPlan]} USDT’yi Pay ID’ye gönder, ödeme notuna referans kodunu yaz.</span></div></li>
           <li><b>3</b><div><strong>İşlem numarasını gir</strong><span>48 saat içinde gönder. Onaylanınca erişimin açılır ve bildirim gelir.</span></div></li>
         </ol>
-        <div className="ktBillPayBox"><BinanceManualPayment plan={selectedPlan}/></div>
+        <div className="ktBillPayBox"><NowPaymentsPay plan={selectedPlan}/><BinanceManualPayment plan={selectedPlan}/></div>
         <button type="button" className="ktCheckoutAsk" onClick={() => askKais(`${PAID_PLAN_NAME[selectedPlan]} planı (${PAID_PLAN_AMOUNT[selectedPlan]} USDT / 30 gün) hakkında bilgi almak istiyorum. Neler dahil ve Binance Pay ile nasıl ödeme yaparım?`)}>
           <i aria-hidden="true"><MessageCircle/></i>
           <span><b>KAIS AI’a sor</b><small>Plan, fiyat veya ödeme adımları hakkında hemen sor</small></span>

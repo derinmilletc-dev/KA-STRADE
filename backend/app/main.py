@@ -85,6 +85,7 @@ from .premium_requests import mod_router as premium_mod_router, admin_router as 
 from .notification_admin import router as notification_admin_router
 from .binance_manual_routes import router as binance_manual_router
 from .binance_manual_admin import router as binance_manual_admin_router
+from .nowpayments_routes import router as nowpayments_router, admin_router as nowpayments_admin_router
 from .moderator_events import router as moderator_events_router
 from .campaign_routes import router as campaign_router
 from .v25_execution import init_v25_execution, restore_v25_state, router as v25_execution_router, shutdown_v25_execution
@@ -1459,7 +1460,7 @@ app.add_middleware(
 MEMBER_PUBLIC_PATHS = frozenset({
     "/api/health", "/api/health/database", "/api/web/access/check", "/api/web/access/logout", "/api/client-errors", "/api/v22/public", "/api/v22/maintenance/public", "/api/v22/bootstrap",
     "/api/v22/auth/login", "/api/v22/auth/2fa/login", "/api/v22/auth/register", "/api/v22/auth/verify-email",
-    "/api/v22/auth/verification-status", "/api/v22/auth/resend-verification", "/api/v22/auth/forgot-password", "/api/v22/auth/reset-password", "/api/v22/subscription/webhook",
+    "/api/v22/auth/verification-status", "/api/v22/auth/resend-verification", "/api/v22/auth/forgot-password", "/api/v22/auth/reset-password", "/api/v22/subscription/webhook", "/api/v22/payments/nowpayments/ipn",
     "/api/v22/auth/google/start", "/api/v22/auth/google/callback",
     "/api/v22/auth/google/pending", "/api/v22/auth/google/complete",
     "/api/v22/auth/registration/status", "/api/v22/auth/registration/resend",
@@ -1752,6 +1753,8 @@ from .founding import admin_router as founding_admin_router, public_router as fo
 app.include_router(founding_public_router)
 app.include_router(founding_admin_router)
 app.include_router(binance_manual_admin_router)
+app.include_router(nowpayments_router)
+app.include_router(nowpayments_admin_router)
 app.include_router(moderator_events_router)
 app.include_router(campaign_router)
 from .account_settings import router as account_settings_router
